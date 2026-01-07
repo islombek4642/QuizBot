@@ -19,7 +19,8 @@ from handlers.common import (
     get_stop_keyboard,
     get_quizzes_keyboard,
     get_start_quiz_keyboard,
-    get_inline_shuffle_keyboard
+    get_inline_shuffle_keyboard,
+    get_cancel_keyboard
 )
 from services.user_service import UserService
 from services.quiz_service import QuizService
