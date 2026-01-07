@@ -32,6 +32,13 @@ GROUP_QUIZ_KEY = "group_quiz:{chat_id}"  # Active quiz in a group
 GROUP_USER_ANSWER_KEY = "group_answer:{chat_id}:{quiz_id}:{user_id}"  # Individual user answers
 
 
+async def is_group_poll(poll_answer: types.PollAnswer, redis) -> bool:
+    """Filter to check if the poll belongs to a group quiz"""
+    if not redis:
+        return False
+    return await redis.exists(f"group_poll:{poll_answer.poll_id}")
+
+
 async def get_bot_groups(redis) -> list:
     """Get list of groups where bot is a member"""
     groups = await redis.smembers(GROUP_MEMBERS_KEY)
@@ -315,7 +322,7 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
 
 
 
-@router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/stop_quiz")
+@router.message(Command("stop_quiz"), F.chat.type.in_({"group", "supergroup"}))
 async def cmd_stop_group_quiz(message: types.Message, user_service: UserService, redis):
     """Stop active quiz in group (only owner or admin)"""
     chat_id = message.chat.id
@@ -340,7 +347,7 @@ async def cmd_stop_group_quiz(message: types.Message, user_service: UserService,
     await finish_group_quiz(message.bot, chat_id, quiz_state, redis, lang)
 
 
-@router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/quiz_stats")
+@router.message(Command("quiz_stats"), F.chat.type.in_({"group", "supergroup"}))
 async def cmd_group_quiz_stats(message: types.Message, user_service: UserService, redis):
     """Show current quiz stats/leaderboard"""
     chat_id = message.chat.id
@@ -373,7 +380,7 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
     await message.answer(leaderboard, parse_mode="HTML")
 
 
-@router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/quiz_help")
+@router.message(Command("quiz_help"), F.chat.type.in_({"group", "supergroup"}))
 async def cmd_group_quiz_help(message: types.Message, user_service: UserService):
     """Show help for group quizzes"""
     lang = await user_service.get_language(message.from_user.id)
@@ -387,15 +394,12 @@ async def cmd_group_quiz_help(message: types.Message, user_service: UserService)
     await message.answer(help_text, parse_mode="HTML")
 
 
-@router.poll_answer()
+@router.poll_answer(is_group_poll)
 async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot, 
                                    session_service: SessionService, user_service: UserService, redis):
     """Handle poll answers for group quizzes"""
-    # Check if this is a group poll (look for the key)
-    # The key in Redis is group_poll:{poll_id}
     key = f"group_poll:{poll_answer.poll_id}"
-    if not await redis.exists(key):
-        return # Not a group poll, let other handlers process
+    # Filter already checked via is_group_poll
         
     poll_mapping_raw = await redis.get(key)
     poll_mapping = __import__('json').loads(poll_mapping_raw)

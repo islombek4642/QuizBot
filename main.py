@@ -44,6 +44,25 @@ async def main():
     dp.include_router(settings_handlers.router)
     dp.include_router(quiz.router)
 
+    # Set bot commands
+    try:
+        from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeAllGroupChats
+        # Default commands (Private)
+        await bot.set_my_commands([
+            BotCommand(command="start", description="Botni ishga tushirish / Start bot"),
+            BotCommand(command="help", description="Yordam / Help"),
+            BotCommand(command="set_language", description="Tilni o'zgartirish / Set language"),
+        ], scope=BotCommandScopeDefault())
+        
+        # Group commands
+        await bot.set_my_commands([
+            BotCommand(command="quiz_stats", description="Natijalar / Leaderboard"),
+            BotCommand(command="stop_quiz", description="Testni to'xtatish / Stop quiz"),
+            BotCommand(command="quiz_help", description="Guruh yordami / Group help"),
+        ], scope=BotCommandScopeAllGroupChats())
+    except Exception as e:
+        logger.error("Failed to set bot commands", error=str(e))
+
     # Start polling
     logger.info("Starting QuizBot (Production Refactored)...", env=settings.ENV)
     try:

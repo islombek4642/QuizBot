@@ -31,6 +31,13 @@ router = Router()
 # Only handle private chats - no keyboard buttons in groups
 router.message.filter(F.chat.type == "private")
 
+
+async def is_private_poll(poll_answer: types.PollAnswer, redis) -> bool:
+    """Filter to check if the poll belongs to a private quiz"""
+    if not redis:
+        return False
+    return await redis.exists(f"quizbot:poll:{poll_answer.poll_id}")
+
 @router.message(F.text.in_([Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN"), Messages.get("BACK_BTN", "UZ"), Messages.get("BACK_BTN", "EN")]))
 async def cmd_cancel(message: types.Message, state: FSMContext, user_service: UserService):
     telegram_id = message.from_user.id
@@ -250,14 +257,9 @@ async def send_next_question(message: types.Message, session: Any, session_servi
     await session_service.map_poll_to_session(poll_msg.poll.id, session.id)
     await session_service.save_last_poll_id(session.id, poll_msg.message_id)
 
-@router.poll_answer()
+@router.poll_answer(is_private_poll)
 async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_service: SessionService, user_service: UserService, redis):
-    # Check if this is a private chat poll (look for the key)
-    # The key in Redis is quizbot:poll:{poll_id}
-    key = f"quizbot:poll:{poll_answer.poll_id}"
-    if not await redis.exists(key):
-        return # Not a private quiz poll
-        
+    # Filter already checked via is_private_poll
     session = await session_service.get_session_by_poll(poll_answer.poll_id)
     if not session or not session.is_active:
         return
