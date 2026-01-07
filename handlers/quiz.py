@@ -382,6 +382,34 @@ async def delete_quiz_handler(callback: types.CallbackQuery, quiz_service: QuizS
     else:
         await callback.answer(Messages.get("ERROR_GENERIC", lang), show_alert=True)
 
+async def show_quiz_info(bot: Bot, chat_id: int, quiz_id: int, lang: str, quiz_service: QuizService):
+    """Show detailed info and buttons for a specific quiz"""
+    quiz = await quiz_service.get_quiz(quiz_id)
+    if not quiz:
+        return
+        
+    builder = InlineKeyboardBuilder()
+    builder.button(text=Messages.get("START_QUIZ_BTN", lang), callback_data=f"start_quiz_{quiz.id}")
+    builder.button(text=Messages.get("START_IN_GROUP_BTN", lang), callback_data=f"start_group_quiz_{quiz.id}")
+    builder.button(text="📤 Ulashish / Share", switch_inline_query=f"quiz_{quiz.id}")
+    builder.button(text=Messages.get("QUIZ_DELETE_BTN", lang), callback_data=f"delete_quiz_{quiz.id}")
+    builder.adjust(1)
+    
+    shuffle_status = Messages.get("SHUFFLE_TRUE", lang) if quiz.shuffle_options else Messages.get("SHUFFLE_FALSE", lang)
+    
+    info_text = Messages.get("QUIZ_INFO_MSG", lang).format(
+        title=quiz.title, 
+        count=len(quiz.questions_json),
+        shuffle=shuffle_status
+    )
+    
+    await bot.send_message(
+        chat_id,
+        f"{info_text}\n\n{Messages.get('SELECT_BUTTON', lang)}",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML"
+    )
+
 @router.message(F.text)
 async def handle_quiz_selection(message: types.Message, quiz_service: QuizService, user_service: UserService):
     telegram_id = message.from_user.id
@@ -391,26 +419,7 @@ async def handle_quiz_selection(message: types.Message, quiz_service: QuizServic
     selected_quiz = next((q for q in quizzes if q.title == message.text), None)
     
     if selected_quiz:
-        builder = InlineKeyboardBuilder()
-        builder.button(text=Messages.get("START_QUIZ_BTN", lang), callback_data=f"start_quiz_{selected_quiz.id}")
-        builder.button(text=Messages.get("START_IN_GROUP_BTN", lang), callback_data=f"start_group_quiz_{selected_quiz.id}")
-        builder.button(text="📤 Ulashish / Share", switch_inline_query=f"quiz_{selected_quiz.id}")
-        builder.button(text=Messages.get("QUIZ_DELETE_BTN", lang), callback_data=f"delete_quiz_{selected_quiz.id}")
-        builder.adjust(1)
-        
-        shuffle_status = Messages.get("SHUFFLE_TRUE", lang) if selected_quiz.shuffle_options else Messages.get("SHUFFLE_FALSE", lang)
-        
-        info_text = Messages.get("QUIZ_INFO_MSG", lang).format(
-            title=selected_quiz.title, 
-            count=len(selected_quiz.questions_json),
-            shuffle=shuffle_status
-        )
-        
-        await message.answer(
-            f"{info_text}\n\n{Messages.get('SELECT_BUTTON', lang)}",
-            reply_markup=builder.as_markup(),
-            parse_mode="HTML"
-        )
+        await show_quiz_info(message.bot, message.chat.id, selected_quiz.id, lang, quiz_service)
     else:
         pass
 
@@ -427,6 +436,14 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
             quiz_id = int(query.split("_")[1])
             quiz = await quiz_service.get_quiz(quiz_id)
             if quiz:
+                bot_info = await inline_query.bot.get_me()
+                
+                builder = InlineKeyboardBuilder()
+                builder.button(text="🚀 Testni boshlash", url=f"https://t.me/{bot_info.username}?start=quiz_{quiz_id}")
+                builder.button(text="👥 Guruhda boshlash", url=f"https://t.me/{bot_info.username}?startgroup=quiz_{quiz_id}")
+                builder.button(text="📤 Ulashish", switch_inline_query=f"quiz_{quiz_id}")
+                builder.adjust(1)
+
                 results = [
                     types.InlineQueryResultArticle(
                         id=f"share_{quiz_id}",
@@ -436,10 +453,7 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
                             message_text=f"🚀 <b>{quiz.title}</b>\n\nUshbu testni yechib ko'ring!\nSavollar soni: {len(quiz.questions_json)}",
                             parse_mode="HTML"
                         ),
-                        reply_markup=InlineKeyboardBuilder().button(
-                            text="🚀 Testni boshlash",
-                            url=f"https://t.me/{(await inline_query.bot.get_me()).username}?start=quiz_{quiz_id}"
-                        ).as_markup()
+                        reply_markup=builder.as_markup()
                     )
                 ]
                 await inline_query.answer(results, cache_time=300, is_personal=True)
@@ -450,8 +464,15 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
     # Otherwise show user's recent quizzes
     quizzes = await quiz_service.get_user_quizzes(telegram_id)
     results = []
+    bot_info = await inline_query.bot.get_me()
     
     for q in quizzes[:10]:
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🚀 Testni boshlash", url=f"https://t.me/{bot_info.username}?start=quiz_{q.id}")
+        builder.button(text="👥 Guruhda boshlash", url=f"https://t.me/{bot_info.username}?startgroup=quiz_{q.id}")
+        builder.button(text="📤 Ulashish", switch_inline_query=f"quiz_{q.id}")
+        builder.adjust(1)
+
         results.append(
             types.InlineQueryResultArticle(
                 id=f"share_{q.id}",
@@ -461,10 +482,7 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
                     message_text=f"🚀 <b>{q.title}</b>\n\nUshbu testni yechib ko'ring!\nSavollar soni: {len(q.questions_json)}",
                     parse_mode="HTML"
                 ),
-                reply_markup=InlineKeyboardBuilder().button(
-                    text="🚀 Testni boshlash",
-                    url=f"https://t.me/{(await inline_query.bot.get_me()).username}?start=quiz_{q.id}"
-                ).as_markup()
+                reply_markup=builder.as_markup()
             )
         )
     

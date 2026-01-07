@@ -10,7 +10,8 @@ router.message.filter(F.chat.type == "private")
 
 @router.message(CommandStart())
 @router.message(F.text.in_([Messages.get("START_BTN", "UZ"), Messages.get("START_BTN", "EN")]))
-async def cmd_start(message: types.Message, user_service: UserService):
+async def cmd_start(message: types.Message, user_service: UserService, **kwargs):
+    data = kwargs
     telegram_id = message.from_user.id
     lang = await user_service.get_language(telegram_id)
     
@@ -34,13 +35,17 @@ async def cmd_start(message: types.Message, user_service: UserService):
             return await cmd_create_quiz(message, user_service)
         elif payload.startswith("quiz_"):
             # Trigger quiz info view
-            quiz_id = payload.split("_")[1]
-            from handlers.quiz import handle_quiz_selection
-            # We need to find the quiz title to use existing selection logic
+            quiz_id = int(payload.split("_")[1])
+            from handlers.quiz import show_quiz_info
             from services.quiz_service import QuizService
-            # This is a bit hacky, better to have a direct show_quiz_info function
-            # but for now we'll just send the welcome and let them use the menu
-            pass
+            # Get quiz_service from context if available, otherwise we might need to inject it
+            # But in aiogram handlers it's usually in 'data'
+            # Here we can just create it or get it from bot context if we had it there
+            # For simplicity in this quick fix, we'll assume it's available or just import it
+            # Actually we need an engine/session. Let's try to get it from message context
+            # dispatcher passes middleware data.
+            quiz_service = QuizService(session=data["session"])
+            return await show_quiz_info(message.bot, message.chat.id, quiz_id, lang, quiz_service)
 
     welcome_text = Messages.get("WELCOME", lang) + "\n\n" + Messages.get("FORMAT_INFO", lang)
     await message.answer(welcome_text, reply_markup=get_main_keyboard(lang, telegram_id))
