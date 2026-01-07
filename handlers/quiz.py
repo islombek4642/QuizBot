@@ -152,14 +152,13 @@ async def handle_quiz_shuffle(message: types.Message, state: FSMContext, user_se
         title=title, count=len(questions), shuffle=shuffle_status
     )
     
+    # Combine summary and start prompt into one message with inline keyboard
+    combined_text = f"{summary_text}\n\n{Messages.get('SELECT_BUTTON', lang)}"
+    
     await message.answer(
-        summary_text, 
-        reply_markup=types.ReplyKeyboardRemove(),
+        combined_text, 
+        reply_markup=builder.as_markup(),
         parse_mode="HTML"
-    )
-    await message.answer(
-        Messages.get("SELECT_BUTTON", lang),
-        reply_markup=builder.as_markup()
     )
     await state.clear()
 
@@ -250,11 +249,18 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
         await show_stats(bot, updated_session, lang)
     else:
         await asyncio.sleep(3)
+        # Re-verify session is still active after the delay
+        # (It might have been stopped by the user during these 3 seconds)
+        current_session = await session_service.get_active_session(session.user_id)
+        if not current_session or current_session.id != updated_session.id:
+            logger.info("Session stopped during delay, aborting next question", user_id=session.user_id)
+            return
+
         # Using a dummy message object to reuse send_next_question
         dummy_message = types.Message(chat=types.Chat(id=session.user_id, type='private'), 
                                      message_id=0, date=int(time.time()))
         dummy_message._bot = bot
-        await send_next_question(dummy_message, updated_session, session_service, lang)
+        await send_next_question(dummy_message, current_session, session_service, lang)
 
 async def show_stats(bot: Bot, session: Any, lang: str):
     total = session.total_questions
