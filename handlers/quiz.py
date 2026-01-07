@@ -18,7 +18,8 @@ from handlers.common import (
     get_shuffle_keyboard, 
     get_stop_keyboard,
     get_quizzes_keyboard,
-    get_start_quiz_keyboard
+    get_start_quiz_keyboard,
+    get_inline_shuffle_keyboard
 )
 from services.user_service import UserService
 from services.quiz_service import QuizService
@@ -129,21 +130,26 @@ async def handle_quiz_title(message: types.Message, state: FSMContext, user_serv
     await state.set_state(QuizStates.WAITING_FOR_SHUFFLE)
     await message.answer(
         Messages.get("ASK_SHUFFLE", lang),
-        reply_markup=get_shuffle_keyboard(lang)
+        reply_markup=get_inline_shuffle_keyboard(lang)
     )
 
-@router.message(QuizStates.WAITING_FOR_SHUFFLE, F.text.in_([Messages.get("SHUFFLE_YES", "UZ"), Messages.get("SHUFFLE_YES", "EN"), Messages.get("SHUFFLE_NO", "UZ"), Messages.get("SHUFFLE_NO", "EN")]))
-async def handle_quiz_shuffle(message: types.Message, state: FSMContext, user_service: UserService, quiz_service: QuizService):
-    telegram_id = message.from_user.id
+@router.callback_query(QuizStates.WAITING_FOR_SHUFFLE, F.data.startswith("shuffle_"))
+async def handle_quiz_shuffle_callback(callback: types.CallbackQuery, state: FSMContext, user_service: UserService, quiz_service: QuizService):
+    telegram_id = callback.from_user.id
     lang = await user_service.get_language(telegram_id)
     
-    shuffle = message.text in [Messages.get("SHUFFLE_YES", "UZ"), Messages.get("SHUFFLE_YES", "EN")]
+    shuffle = callback.data == "shuffle_yes"
     
     data = await state.get_data()
     title = data.get("title")
     questions = data.get("questions")
     
     quiz = await quiz_service.save_quiz(telegram_id, title, questions, shuffle)
+    
+    shuffle_status = Messages.get("SHUFFLE_TRUE", lang) if shuffle else Messages.get("SHUFFLE_FALSE", lang)
+    summary_text = Messages.get("QUIZ_READY_DETAILS", lang).format(
+        title=title, count=len(questions), shuffle=shuffle_status
+    )
     
     # Combine summary and start prompt into one message
     combined_text = f"{summary_text}\n\n{Messages.get('SELECT_BUTTON', lang)}"
@@ -152,11 +158,23 @@ async def handle_quiz_shuffle(message: types.Message, state: FSMContext, user_se
     await state.update_data(current_quiz_id=quiz.id)
     await state.set_state(QuizStates.QUIZ_READY)
     
-    await message.answer(
-        combined_text, 
-        reply_markup=get_start_quiz_keyboard(lang),
+    # Edit the message to show result and START button (as reply keyboard)
+    # Wait, if I edit the message, I can't change the reply keyboard.
+    # So I'll edit the message to remove inline buttons and show summary, 
+    # then send a NEW message with the reply keyboard to replace shuffle buttons.
+    # BUT wait, shuffle buttons were INLINE, so there is no reply keyboard to replace!
+    # AHH! So I should just send the start keyboard and edit the current message.
+    
+    await callback.message.edit_text(
+        summary_text,
         parse_mode="HTML"
     )
+    
+    await callback.message.answer(
+        Messages.get("SELECT_BUTTON", lang),
+        reply_markup=get_start_quiz_keyboard(lang)
+    )
+    await callback.answer()
 
 @router.callback_query(F.data.startswith("start_quiz_"))
 async def start_quiz_callback_handler(callback: types.CallbackQuery, state: FSMContext, 
@@ -368,12 +386,27 @@ async def handle_quiz_selection(message: types.Message, quiz_service: QuizServic
         
         shuffle_status = Messages.get("SHUFFLE_TRUE", lang) if selected_quiz.shuffle_options else Messages.get("SHUFFLE_FALSE", lang)
         
+        # Explicitly remove the reply keyboard (quiz list) when showing details
+        # This solves the issue of the quiz list keyboard staying visible.
         await message.answer(
             Messages.get("QUIZ_INFO_MSG", lang).format(
                 title=selected_quiz.title, 
                 count=len(selected_quiz.questions_json),
                 shuffle=shuffle_status
             ),
-            reply_markup=builder.as_markup(),
+            reply_markup=types.ReplyKeyboardRemove(),
             parse_mode="HTML"
         )
+        
+        # Send the inline buttons as a separate message or together
+        # Actually, let's just send them together in one message with ReplyKeyboardRemove
+        # In Aiogram 3, you can't have both in the same message. 
+        # So we send a "cleaning" message or just use the next message.
+        
+        await message.answer(
+            Messages.get("SELECT_BUTTON", lang),
+            reply_markup=builder.as_markup()
+        )
+    else:
+        # If no quiz selected, maybe return to main menu or just ignore
+        pass

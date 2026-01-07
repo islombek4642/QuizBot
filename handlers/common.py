@@ -61,6 +61,13 @@ def get_shuffle_keyboard(lang: str):
     builder.adjust(2)
     return builder.as_markup(resize_keyboard=True, one_time_keyboard=True)
 
+def get_inline_shuffle_keyboard(lang: str):
+    builder = InlineKeyboardBuilder()
+    builder.button(text=Messages.get("SHUFFLE_YES", lang), callback_data="shuffle_yes")
+    builder.button(text=Messages.get("SHUFFLE_NO", lang), callback_data="shuffle_no")
+    builder.adjust(2)
+    return builder.as_markup()
+
 def get_stop_keyboard(lang: str):
     builder = ReplyKeyboardBuilder()
     builder.button(text=Messages.get("STOP_QUIZ_BTN", lang))

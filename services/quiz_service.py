@@ -31,6 +31,12 @@ class QuizService:
         return result.scalar_one_or_none()
 
     async def delete_quiz(self, quiz_id: int, user_id: int) -> bool:
+        # Delete related sessions first to avoid foreign key constraints
+        from models.session import QuizSession
+        await self.db.execute(
+            delete(QuizSession).filter(QuizSession.quiz_id == quiz_id)
+        )
+        
         result = await self.db.execute(
             delete(Quiz).filter(Quiz.id == quiz_id, Quiz.user_id == user_id)
         )
