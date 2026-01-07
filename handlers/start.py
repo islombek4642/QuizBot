@@ -53,8 +53,18 @@ async def cmd_help(message: types.Message, user_service: UserService):
     telegram_id = message.from_user.id
     lang = await user_service.get_language(telegram_id)
     
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from core.config import settings
+
+    builder = InlineKeyboardBuilder()
+    if settings.ADMIN_ID != 0:
+        builder.button(
+            text=Messages.get("CONTACT_ADMIN_BTN", lang),
+            url=f"tg://user?id={settings.ADMIN_ID}"
+        )
+    
     await message.answer(
         Messages.get("HELP_TEXT", lang),
         parse_mode="HTML",
-        reply_markup=get_main_keyboard(lang, telegram_id)
+        reply_markup=builder.as_markup()
     )

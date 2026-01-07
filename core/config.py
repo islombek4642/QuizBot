@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     BOT_TOKEN: str
+    ADMIN_ID: int = Field(0, description="Telegram ID of the admin")
     
     # Database
     DATABASE_URL: str = Field(..., description="Async PostgreSQL connection string (postgresql+asyncpg://...)")

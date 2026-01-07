@@ -42,6 +42,7 @@ class Messages:
             "SELECT_BUTTON": "Quyidagi tugmalardan birini tanlang:",
             "SHUFFLE_TRUE": "Ha ✅",
             "SHUFFLE_FALSE": "Yo'q ❌",
+            "CONTACT_ADMIN_BTN": "👨‍💻 Admin bilan bog'lanish",
         },
         "EN": {
             "WELCOME": "Hello! Welcome to QuizBot.\n\nSend me a .docx file with tests, and I'll convert it into Telegram polls.",
@@ -85,6 +86,7 @@ class Messages:
             "SELECT_BUTTON": "Please select one of the buttons below:",
             "SHUFFLE_TRUE": "Yes ✅",
             "SHUFFLE_FALSE": "No ❌",
+            "CONTACT_ADMIN_BTN": "👨‍💻 Contact Admin",
         }
     }
 
