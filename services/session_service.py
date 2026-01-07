@@ -83,3 +83,15 @@ class SessionService:
         )
         await self.db.commit()
         logger.info("Quiz session stopped", user_id=user_id)
+
+    async def save_last_poll_id(self, session_id: int, message_id: int):
+        # Update session_data to include last_poll_message_id
+        result = await self.db.execute(
+            select(QuizSession).filter(QuizSession.id == session_id).with_for_update()
+        )
+        session = result.scalar_one_or_none()
+        if session:
+            data = dict(session.session_data) if session.session_data else {}
+            data['last_poll_message_id'] = message_id
+            session.session_data = data
+            await self.db.commit()

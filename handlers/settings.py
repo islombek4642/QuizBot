@@ -17,6 +17,15 @@ async def cmd_set_language(message: types.Message, user_service: UserService):
         reply_markup=get_language_keyboard(lang)
     )
 
+@router.message(F.text.in_([Messages.get("BACK_BTN", "UZ"), Messages.get("BACK_BTN", "EN")]))
+async def cmd_back_settings(message: types.Message, user_service: UserService):
+    telegram_id = message.from_user.id
+    lang = await user_service.get_language(telegram_id)
+    await message.answer(
+        Messages.get("SELECT_BUTTON", lang),
+        reply_markup=get_main_keyboard(lang, telegram_id)
+    )
+
 @router.message(F.text.in_(["🇺🇿 O'zbekcha", "🇺🇸 English"]))
 async def process_language_text(message: types.Message, bot: Bot, user_service: UserService):
     lang = "UZ" if "O'zbekcha" in message.text else "EN"

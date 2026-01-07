@@ -26,13 +26,13 @@ from core.logger import logger
 
 router = Router()
 
-@router.message(F.text.in_([Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN")]))
+@router.message(F.text.in_([Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN"), Messages.get("BACK_BTN", "UZ"), Messages.get("BACK_BTN", "EN")]))
 async def cmd_cancel(message: types.Message, state: FSMContext, user_service: UserService):
     telegram_id = message.from_user.id
     lang = await user_service.get_language(telegram_id)
     await state.clear()
     await message.answer(
-        Messages.get("CANCELLED", lang),
+        Messages.get("SELECT_BUTTON", lang),
         reply_markup=get_main_keyboard(lang, telegram_id)
     )
 
@@ -152,7 +152,15 @@ async def handle_quiz_shuffle(message: types.Message, state: FSMContext, user_se
         title=title, count=len(questions), shuffle=shuffle_status
     )
     
-    await message.answer(summary_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    await message.answer(
+        summary_text, 
+        reply_markup=types.ReplyKeyboardRemove(),
+        parse_mode="HTML"
+    )
+    await message.answer(
+        Messages.get("SELECT_BUTTON", lang),
+        reply_markup=builder.as_markup()
+    )
     await state.clear()
 
 @router.callback_query(F.data.startswith("start_quiz_"))
@@ -212,6 +220,7 @@ async def send_next_question(message: types.Message, session: Any, session_servi
     )
     
     await session_service.map_poll_to_session(poll_msg.poll.id, session.id)
+    await session_service.save_last_poll_id(session.id, poll_msg.message_id)
 
 @router.poll_answer()
 async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_service: SessionService, user_service: UserService):
@@ -240,11 +249,10 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
         )
         await show_stats(bot, updated_session, lang)
     else:
+        await asyncio.sleep(3)
         # Using a dummy message object to reuse send_next_question
-        # In production, we might want a cleaner way to get the chat_id
         dummy_message = types.Message(chat=types.Chat(id=session.user_id, type='private'), 
                                      message_id=0, date=int(time.time()))
-        # Set bot for the dummy message
         dummy_message._bot = bot
         await send_next_question(dummy_message, updated_session, session_service, lang)
 
@@ -253,7 +261,17 @@ async def show_stats(bot: Bot, session: Any, lang: str):
     correct = session.correct_count
     answered = session.answered_count
     
-    duration = time.time() - session.start_time
+    # Use updated_at for inactive sessions if possible, or current time
+    # updated_at is a datetime object, start_time is float
+    import datetime
+    if not session.is_active:
+        # Assuming updated_at is when it was stopped/finished
+        duration = (session.updated_at.replace(tzinfo=datetime.timezone.utc).timestamp() - session.start_time)
+    else:
+        duration = time.time() - session.start_time
+    
+    # If duration is negative or zero (e.g. very fast finish), set to 1
+    duration = max(1.0, duration)
     avg_time = duration / answered if answered > 0 else 0
     percent = (correct / total * 100) if total > 0 else 0
     
@@ -276,6 +294,14 @@ async def cmd_stop_quiz(message: types.Message, session_service: SessionService,
     lang = await user_service.get_language(telegram_id)
     
     if session:
+        # Stop active poll if exists
+        last_poll_msg_id = session.session_data.get('last_poll_message_id')
+        if last_poll_msg_id:
+            try:
+                await message.bot.stop_poll(chat_id=telegram_id, message_id=last_poll_msg_id)
+            except Exception as e:
+                logger.warning(f"Failed to stop poll: {e}")
+
         await session_service.stop_session(telegram_id)
         await message.answer(
             Messages.get("QUIZ_STOPPED", lang), 
@@ -283,12 +309,24 @@ async def cmd_stop_quiz(message: types.Message, session_service: SessionService,
         )
         # Refresh session object for stats
         from sqlalchemy import select
-        async with session_service.db.begin():
-            res = await session_service.db.execute(select(session.__class__).filter_by(id=session.id))
-            session = res.scalar_one()
+        result = await session_service.db.execute(select(session.__class__).filter_by(id=session.id))
+        session = result.scalar_one()
         await show_stats(message.bot, session, lang)
     else:
         await message.answer(Messages.get("SELECT_BUTTON", lang), reply_markup=get_main_keyboard(lang, telegram_id))
+
+@router.callback_query(F.data.startswith("delete_quiz_"))
+async def delete_quiz_handler(callback: types.CallbackQuery, quiz_service: QuizService, user_service: UserService):
+    quiz_id = int(callback.data.split("_")[2])
+    telegram_id = callback.from_user.id
+    lang = await user_service.get_language(telegram_id)
+    
+    success = await quiz_service.delete_quiz(quiz_id, telegram_id)
+    if success:
+        await callback.message.edit_text(Messages.get("QUIZ_DELETED", lang))
+    else:
+        await callback.answer("❌ Xatolik yuz berdi.", show_alert=True)
+    await callback.answer()
 
 @router.message(F.text)
 async def handle_quiz_selection(message: types.Message, quiz_service: QuizService, user_service: UserService):
