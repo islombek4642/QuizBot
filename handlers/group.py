@@ -297,23 +297,37 @@ async def send_group_question(bot: Bot, chat_id: int, quiz_state: dict, redis, l
 async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lang: str):
     """Finish group quiz and show results"""
     participants = quiz_state.get("participants", {})
+    quiz_title = quiz_state.get("title", "Quiz")
     
+    # Use preference if stored
+    group_lang = await redis.get(f"group_lang:{chat_id}")
+    if group_lang:
+        lang = group_lang
+
     if not participants:
         await bot.send_message(chat_id, Messages.get("QUIZ_FINISHED", lang))
     else:
+        # Sort by correct then total
+        sorted_p = sorted(participants.items(), key=lambda x: (x[1]['correct'], x[1]['answered']), reverse=True)
+        
+        leaderboard = f"🏁 <b>{quiz_title} - {Messages.get('QUIZ_FINISHED', lang)}</b>\n\n"
+        leaderboard += "🏆 <b>Final Leaderboard:</b>\n"
+        
+        for i, (uid, stats) in enumerate(sorted_p[:15], 1):
+            try:
+                member = await bot.get_chat_member(chat_id, int(uid))
+                name = member.user.full_name
+            except:
+                name = f"User {uid}"
+            leaderboard += f"{i}. {name}: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
+        
+        # Summary footer
         total_correct = sum(p.get("correct", 0) for p in participants.values())
         total_answered = sum(p.get("answered", 0) for p in participants.values())
         avg_score = (total_correct / total_answered * 100) if total_answered > 0 else 0
         
-        # Get quiz title
-        quiz_title = quiz_state.get("title", "Quiz")
-        
-        stats_msg = Messages.get("GROUP_QUIZ_STATS", lang).format(
-            title=quiz_title,
-            participants=len(participants),
-            avg_score=f"{avg_score:.1f}"
-        )
-        await bot.send_message(chat_id, stats_msg, parse_mode="HTML")
+        summary = f"\n👥 Qatnashchilar: {len(participants)}\n📊 O'rtacha natija: {avg_score:.1f}%"
+        await bot.send_message(chat_id, leaderboard + summary, parse_mode="HTML")
     
     # Clean up
     await redis.delete(GROUP_QUIZ_KEY.format(chat_id=chat_id))
@@ -346,7 +360,56 @@ async def cmd_stop_group_quiz(message: types.Message, user_service: UserService,
         
     quiz_state["is_active"] = False
     await redis.set(GROUP_QUIZ_KEY.format(chat_id=chat_id), __import__('json').dumps(quiz_state), ex=3600)
+    
+    # Show statistics before finishing
     await finish_group_quiz(message.bot, chat_id, quiz_state, redis, lang)
+
+
+@router.message(Command("set_language"), F.chat.type.in_({"group", "supergroup"}))
+async def cmd_group_set_language(message: types.Message, user_service: UserService):
+    """Set language for the group (Admins only)"""
+    member = await message.chat.get_member(message.from_user.id)
+    if member.status not in ("administrator", "creator"):
+        return
+        
+    lang = await user_service.get_language(message.from_user.id)
+    builder = InlineKeyboardBuilder()
+    builder.button(text="O'zbekcha 🇺🇿", callback_data="set_group_lang_UZ")
+    builder.button(text="English 🇬🇧", callback_data="set_group_lang_EN")
+    builder.adjust(2)
+    
+    await message.answer(Messages.get("CHOOSE_LANGUAGE", lang), reply_markup=builder.as_markup())
+
+
+@router.callback_query(F.data.startswith("set_group_lang_"))
+async def cb_set_group_lang(callback: types.CallbackQuery, user_service: UserService, redis):
+    """Handle group language selection"""
+    member = await callback.message.chat.get_member(callback.from_user.id)
+    if member.status not in ("administrator", "creator"):
+        await callback.answer(Messages.get("ERROR_GENERIC", "UZ"), show_alert=True)
+        return
+        
+    new_lang = callback.data.split("_")[-1]
+    # Store group language in Redis
+    await redis.set(f"group_lang:{callback.message.chat.id}", new_lang)
+    
+    await callback.message.edit_text(Messages.get("LANGUAGE_SET", new_lang))
+    await callback.answer()
+
+
+@router.message(Command("create_quiz"), F.chat.type.in_({"group", "supergroup"}))
+async def cmd_group_create_quiz(message: types.Message, user_service: UserService):
+    """Redirect to bot to create a quiz"""
+    lang = await user_service.get_language(message.from_user.id)
+    bot_info = await message.bot.get_me()
+    
+    builder = InlineKeyboardBuilder()
+    builder.button(text=Messages.get("CREATE_QUIZ_BTN", lang), url=f"https://t.me/{bot_info.username}?start=create")
+    
+    await message.answer(
+        "📝 Test yaratish uchun botning o'ziga o'ting / To create a quiz, go to the bot's private chat.",
+        reply_markup=builder.as_markup()
+    )
 
 
 @router.message(Command("quiz_stats"), F.chat.type.in_({"group", "supergroup"}))
@@ -355,11 +418,10 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
     chat_id = message.chat.id
     lang = await user_service.get_language(message.from_user.id)
     
-    # Check permission (optional, user wanted all commands for admins but stats could be public)
-    # User said: "guruhdagi kommandalar hammasi faqat guruh adminlari uchun ishlasin"
-    member = await message.chat.get_member(message.from_user.id)
-    if member.status not in ("administrator", "creator"):
-        return
+    # Use preference if stored
+    group_lang = await redis.get(f"group_lang:{chat_id}")
+    if group_lang:
+        lang = group_lang
     
     quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
     if not quiz_state_raw:
@@ -376,28 +438,34 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
     # Sort by correct then total
     sorted_p = sorted(participants.items(), key=lambda x: (x[1]['correct'], x[1]['answered']), reverse=True)
     
-    leaderboard = "🏆 <b>Quiz Leaderboard</b>\n\n"
-    for i, (uid, stats) in enumerate(sorted_p[:10], 1):
+    leaderboard = f"🏆 <b>{quiz_state.get('title', 'Quiz')} - Leaderboard</b>\n\n"
+    for i, (uid, stats) in enumerate(sorted_p[:15], 1):
         try:
-            user = await message.chat.get_member(int(uid))
-            name = user.user.full_name
+            member = await message.chat.get_member(int(uid))
+            name = member.user.full_name
         except:
             name = f"User {uid}"
-        leaderboard += f"{i}. {name}: {stats['correct']}/{stats['answered']}\n"
+        leaderboard += f"{i}. {name}: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
         
     await message.answer(leaderboard, parse_mode="HTML")
 
 
 @router.message(Command("quiz_help"), F.chat.type.in_({"group", "supergroup"}))
-async def cmd_group_quiz_help(message: types.Message, user_service: UserService):
+async def cmd_group_quiz_help(message: types.Message, user_service: UserService, redis):
     """Show help for group quizzes (available to everyone)"""
     lang = await user_service.get_language(message.from_user.id)
+    group_lang = await redis.get(f"group_lang:{message.chat.id}")
+    if group_lang:
+        lang = group_lang
+        
     help_text = (
         "🤖 <b>Group Quiz Help</b>\n\n"
-        "/quiz_stats - Current leaderboard (Admins only)\n"
+        "/quiz_stats - Leaderboard\n"
         "/stop_quiz - Stop current quiz (Admins only)\n"
+        "/set_language - Change group language (Admins only)\n"
+        "/create_quiz - Create a new quiz via bot\n"
         "/quiz_help - This help message\n\n"
-        "To start a quiz, go to the bot's private chat and select 'Start in Group'."
+        "To start a quiz, select 'Start in Group' in the bot's private chat."
     )
     
     builder = InlineKeyboardBuilder()
@@ -456,26 +524,31 @@ async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot,
     
     # Check if this is the current question and we should advance
     if question_index == quiz_state["current_index"]:
-        quiz_state["current_index"] += 1
-        
-        # Save state
-        await redis.set(
-            GROUP_QUIZ_KEY.format(chat_id=chat_id),
-            __import__('json').dumps(quiz_state),
-            ex=14400
-        )
-        
-        # Wait 3 seconds then send next question
-        await asyncio.sleep(3)
-        
-        # Re-fetch state to check if still active
-        quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
-        if quiz_state_raw:
-            quiz_state = __import__('json').loads(quiz_state_raw)
-            if quiz_state.get("is_active"):
-                await send_group_question(bot, chat_id, quiz_state, redis, lang)
+        # Atomically check if we already started advancing for this question
+        advancement_lock_key = f"quiz_advancing:{chat_id}:{question_index}"
+        if await redis.set(advancement_lock_key, "1", nx=True, ex=10):
+            quiz_state["current_index"] += 1
+            
+            # Save state
+            await redis.set(
+                GROUP_QUIZ_KEY.format(chat_id=chat_id),
+                __import__('json').dumps(quiz_state),
+                ex=14400
+            )
+            
+            # Wait 3 seconds then send next question
+            await asyncio.sleep(3)
+            
+            # Re-fetch state to check if still active
+            quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
+            if quiz_state_raw:
+                quiz_state = __import__('json').loads(quiz_state_raw)
+                if quiz_state.get("is_active"):
+                    # Use group language if set
+                    group_lang = await redis.get(f"group_lang:{chat_id}")
+                    await send_group_question(bot, chat_id, quiz_state, redis, group_lang or lang)
     else:
-        # Just save the updated stats
+        # Just save the updated stats if it's an old question answer
         await redis.set(
             GROUP_QUIZ_KEY.format(chat_id=chat_id),
             __import__('json').dumps(quiz_state),

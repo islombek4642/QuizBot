@@ -394,6 +394,7 @@ async def handle_quiz_selection(message: types.Message, quiz_service: QuizServic
         builder = InlineKeyboardBuilder()
         builder.button(text=Messages.get("START_QUIZ_BTN", lang), callback_data=f"start_quiz_{selected_quiz.id}")
         builder.button(text=Messages.get("START_IN_GROUP_BTN", lang), callback_data=f"start_group_quiz_{selected_quiz.id}")
+        builder.button(text="📤 Ulashish / Share", switch_inline_query=f"quiz_{selected_quiz.id}")
         builder.button(text=Messages.get("QUIZ_DELETE_BTN", lang), callback_data=f"delete_quiz_{selected_quiz.id}")
         builder.adjust(1)
         
@@ -412,3 +413,59 @@ async def handle_quiz_selection(message: types.Message, quiz_service: QuizServic
         )
     else:
         pass
+
+
+@router.inline_query()
+async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: QuizService):
+    """Handle quiz sharing via inline query"""
+    query = inline_query.query
+    telegram_id = inline_query.from_user.id
+    
+    # If query matches quiz_ID, show that specific quiz
+    if query.startswith("quiz_"):
+        try:
+            quiz_id = int(query.split("_")[1])
+            quiz = await quiz_service.get_quiz(quiz_id)
+            if quiz:
+                results = [
+                    types.InlineQueryResultArticle(
+                        id=f"share_{quiz_id}",
+                        title=quiz.title,
+                        description=f"Savollar soni: {len(quiz.questions_json)}",
+                        input_message_content=types.InputTextMessageContent(
+                            message_text=f"🚀 <b>{quiz.title}</b>\n\nUshbu testni yechib ko'ring!\nSavollar soni: {len(quiz.questions_json)}",
+                            parse_mode="HTML"
+                        ),
+                        reply_markup=InlineKeyboardBuilder().button(
+                            text="🚀 Testni boshlash",
+                            url=f"https://t.me/{(await inline_query.bot.get_me()).username}?start=quiz_{quiz_id}"
+                        ).as_markup()
+                    )
+                ]
+                await inline_query.answer(results, cache_time=300, is_personal=True)
+                return
+        except:
+            pass
+
+    # Otherwise show user's recent quizzes
+    quizzes = await quiz_service.get_user_quizzes(telegram_id)
+    results = []
+    
+    for q in quizzes[:10]:
+        results.append(
+            types.InlineQueryResultArticle(
+                id=f"share_{q.id}",
+                title=q.title,
+                description=f"Savollar soni: {len(q.questions_json)}",
+                input_message_content=types.InputTextMessageContent(
+                    message_text=f"🚀 <b>{q.title}</b>\n\nUshbu testni yechib ko'ring!\nSavollar soni: {len(q.questions_json)}",
+                    parse_mode="HTML"
+                ),
+                reply_markup=InlineKeyboardBuilder().button(
+                    text="🚀 Testni boshlash",
+                    url=f"https://t.me/{(await inline_query.bot.get_me()).username}?start=quiz_{q.id}"
+                ).as_markup()
+            )
+        )
+    
+    await inline_query.answer(results, cache_time=60, is_personal=True)

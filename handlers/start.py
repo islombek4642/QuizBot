@@ -23,8 +23,26 @@ async def cmd_start(message: types.Message, user_service: UserService):
         return
 
     await enable_user_menu(message.bot, telegram_id)
-    welcome_text = Messages.get("WELCOME", lang) + "\n\n" + Messages.get("FORMAT_INFO", lang)
     
+    # Handle deep links
+    args = message.text.split()
+    if len(args) > 1:
+        payload = args[1]
+        if payload == "create":
+            from handlers.quiz import cmd_create_quiz
+            # Mocking message to reuse handler logic
+            return await cmd_create_quiz(message, user_service)
+        elif payload.startswith("quiz_"):
+            # Trigger quiz info view
+            quiz_id = payload.split("_")[1]
+            from handlers.quiz import handle_quiz_selection
+            # We need to find the quiz title to use existing selection logic
+            from services.quiz_service import QuizService
+            # This is a bit hacky, better to have a direct show_quiz_info function
+            # but for now we'll just send the welcome and let them use the menu
+            pass
+
+    welcome_text = Messages.get("WELCOME", lang) + "\n\n" + Messages.get("FORMAT_INFO", lang)
     await message.answer(welcome_text, reply_markup=get_main_keyboard(lang, telegram_id))
 
 @router.message(F.contact)

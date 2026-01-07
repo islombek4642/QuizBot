@@ -58,7 +58,9 @@ async def main():
         await bot.set_my_commands([
             BotCommand(command="quiz_stats", description="Natijalar / Leaderboard"),
             BotCommand(command="stop_quiz", description="Testni to'xtatish / Stop quiz"),
-            BotCommand(command="quiz_help", description="Guruh yordami / Group help"),
+            BotCommand(command="set_language", description="Tilni sozlash / Set language"),
+            BotCommand(command="create_quiz", description="Test yaratish / Create quiz"),
+            BotCommand(command="quiz_help", description="Yordam / Group help"),
         ], scope=BotCommandScopeAllGroupChats())
     except Exception as e:
         logger.error("Failed to set bot commands", error=str(e))
