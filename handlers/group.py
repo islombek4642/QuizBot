@@ -314,4 +314,154 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
     logger.info("Group quiz finished", chat_id=chat_id, participants=len(participants))
 
 
-# Note: poll_answer handling for group quizzes is done in quiz.py's unified handler
+
+@router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/stop_quiz")
+async def cmd_stop_group_quiz(message: types.Message, user_service: UserService, redis):
+    """Stop active quiz in group (only owner or admin)"""
+    chat_id = message.chat.id
+    lang = await user_service.get_language(message.from_user.id)
+    
+    quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
+    if not quiz_state_raw:
+        return
+        
+    quiz_state = __import__('json').loads(quiz_state_raw)
+    
+    # Check permission
+    is_owner = message.from_user.id == quiz_state.get("owner_id")
+    member = await message.chat.get_member(message.from_user.id)
+    is_admin = member.status in ("administrator", "creator")
+    
+    if not (is_owner or is_admin):
+        return # Silently ignore or send message
+        
+    quiz_state["is_active"] = False
+    await redis.set(GROUP_QUIZ_KEY.format(chat_id=chat_id), __import__('json').dumps(quiz_state), ex=3600)
+    await finish_group_quiz(message.bot, chat_id, quiz_state, redis, lang)
+
+
+@router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/quiz_stats")
+async def cmd_group_quiz_stats(message: types.Message, user_service: UserService, redis):
+    """Show current quiz stats/leaderboard"""
+    chat_id = message.chat.id
+    lang = await user_service.get_language(message.from_user.id)
+    
+    quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
+    if not quiz_state_raw:
+        await message.answer(Messages.get("NO_ACTIVE_QUIZ", lang) if "NO_ACTIVE_QUIZ" in Messages.UZ else "Active quiz not found.")
+        return
+        
+    quiz_state = __import__('json').loads(quiz_state_raw)
+    participants = quiz_state.get("participants", {})
+    
+    if not participants:
+        await message.answer(Messages.get("NO_PARTICIPANTS", lang) if "NO_PARTICIPANTS" in Messages.UZ else "No participants yet.")
+        return
+        
+    # Sort by correct then total
+    sorted_p = sorted(participants.items(), key=lambda x: (x[1]['correct'], x[1]['answered']), reverse=True)
+    
+    leaderboard = "🏆 <b>Quiz Leaderboard</b>\n\n"
+    for i, (uid, stats) in enumerate(sorted_p[:10], 1):
+        try:
+            user = await message.chat.get_member(int(uid))
+            name = user.user.full_name
+        except:
+            name = f"User {uid}"
+        leaderboard += f"{i}. {name}: {stats['correct']}/{stats['answered']}\n"
+        
+    await message.answer(leaderboard, parse_mode="HTML")
+
+
+@router.message(F.chat.type.in_({"group", "supergroup"}), F.text == "/quiz_help")
+async def cmd_group_quiz_help(message: types.Message, user_service: UserService):
+    """Show help for group quizzes"""
+    lang = await user_service.get_language(message.from_user.id)
+    help_text = (
+        "🤖 <b>Group Quiz Help</b>\n\n"
+        "/quiz_stats - Current leaderboard\n"
+        "/stop_quiz - Stop current quiz (Admins only)\n"
+        "/quiz_help - This help message\n\n"
+        "To start a quiz, go to the bot's private chat and select 'Start in Group'."
+    )
+    await message.answer(help_text, parse_mode="HTML")
+
+
+@router.poll_answer()
+async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot, 
+                                   session_service: SessionService, user_service: UserService, redis):
+    """Handle poll answers for group quizzes"""
+    # Check if this is a group poll (look for the key)
+    # The key in Redis is group_poll:{poll_id}
+    key = f"group_poll:{poll_answer.poll_id}"
+    if not await redis.exists(key):
+        return # Not a group poll, let other handlers process
+        
+    poll_mapping_raw = await redis.get(key)
+    poll_mapping = __import__('json').loads(poll_mapping_raw)
+    chat_id = poll_mapping["chat_id"]
+    question_index = poll_mapping["question_index"]
+    
+    # Get quiz state
+    quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
+    if not quiz_state_raw:
+        return
+    
+    quiz_state = __import__('json').loads(quiz_state_raw)
+    if not quiz_state.get("is_active"):
+        return
+    
+    # Idempotency check - don't process same answer twice
+    user_id = poll_answer.user.id
+    answer_key = f"group_answered:{chat_id}:{question_index}:{user_id}"
+    if await redis.exists(answer_key):
+        return
+    await redis.set(answer_key, "1", ex=settings.POLL_MAPPING_TTL_SECONDS)
+    
+    # Get user language
+    lang = await user_service.get_language(user_id)
+    
+    # Track user answer
+    questions = quiz_state["questions"]
+    q = questions[question_index]
+    is_correct = poll_answer.option_ids[0] == q['correct_option_id']
+    
+    # Update participant stats
+    participants = quiz_state.get("participants", {})
+    user_key = str(user_id)
+    if user_key not in participants:
+        participants[user_key] = {"correct": 0, "answered": 0}
+    
+    participants[user_key]["answered"] += 1
+    if is_correct:
+        participants[user_key]["correct"] += 1
+    
+    quiz_state["participants"] = participants
+    
+    # Check if this is the current question and we should advance
+    if question_index == quiz_state["current_index"]:
+        quiz_state["current_index"] += 1
+        
+        # Save state
+        await redis.set(
+            GROUP_QUIZ_KEY.format(chat_id=chat_id),
+            __import__('json').dumps(quiz_state),
+            ex=14400
+        )
+        
+        # Wait 3 seconds then send next question
+        await asyncio.sleep(3)
+        
+        # Re-fetch state to check if still active
+        quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
+        if quiz_state_raw:
+            quiz_state = __import__('json').loads(quiz_state_raw)
+            if quiz_state.get("is_active"):
+                await send_group_question(bot, chat_id, quiz_state, redis, lang)
+    else:
+        # Just save the updated stats
+        await redis.set(
+            GROUP_QUIZ_KEY.format(chat_id=chat_id),
+            __import__('json').dumps(quiz_state),
+            ex=14400
+        )

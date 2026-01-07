@@ -251,7 +251,13 @@ async def send_next_question(message: types.Message, session: Any, session_servi
     await session_service.save_last_poll_id(session.id, poll_msg.message_id)
 
 @router.poll_answer()
-async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_service: SessionService, user_service: UserService):
+async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_service: SessionService, user_service: UserService, redis):
+    # Check if this is a private chat poll (look for the key)
+    # The key in Redis is quizbot:poll:{poll_id}
+    key = f"quizbot:poll:{poll_answer.poll_id}"
+    if not await redis.exists(key):
+        return # Not a private quiz poll
+        
     session = await session_service.get_session_by_poll(poll_answer.poll_id)
     if not session or not session.is_active:
         return
