@@ -130,15 +130,15 @@ async def handle_quiz_title(message: types.Message, state: FSMContext, user_serv
     await state.set_state(QuizStates.WAITING_FOR_SHUFFLE)
     await message.answer(
         Messages.get("ASK_SHUFFLE", lang),
-        reply_markup=get_inline_shuffle_keyboard(lang)
+        reply_markup=get_shuffle_keyboard(lang)
     )
 
-@router.callback_query(QuizStates.WAITING_FOR_SHUFFLE, F.data.startswith("shuffle_"))
-async def handle_quiz_shuffle_callback(callback: types.CallbackQuery, state: FSMContext, user_service: UserService, quiz_service: QuizService):
-    telegram_id = callback.from_user.id
+@router.message(QuizStates.WAITING_FOR_SHUFFLE, F.text.in_([Messages.get("SHUFFLE_YES", "UZ"), Messages.get("SHUFFLE_YES", "EN"), Messages.get("SHUFFLE_NO", "UZ"), Messages.get("SHUFFLE_NO", "EN")]))
+async def handle_quiz_shuffle(message: types.Message, state: FSMContext, user_service: UserService, quiz_service: QuizService):
+    telegram_id = message.from_user.id
     lang = await user_service.get_language(telegram_id)
     
-    shuffle = callback.data == "shuffle_yes"
+    shuffle = message.text in [Messages.get("SHUFFLE_YES", "UZ"), Messages.get("SHUFFLE_YES", "EN")]
     
     data = await state.get_data()
     title = data.get("title")
@@ -151,30 +151,21 @@ async def handle_quiz_shuffle_callback(callback: types.CallbackQuery, state: FSM
         title=title, count=len(questions), shuffle=shuffle_status
     )
     
-    # Combine summary and start prompt into one message
-    combined_text = f"{summary_text}\n\n{Messages.get('SELECT_BUTTON', lang)}"
-    
-    # Store quiz_id in state to start it later via reply button
+    # Store quiz_id and set status
     await state.update_data(current_quiz_id=quiz.id)
     await state.set_state(QuizStates.QUIZ_READY)
     
-    # Edit the message to show result and START button (as reply keyboard)
-    # Wait, if I edit the message, I can't change the reply keyboard.
-    # So I'll edit the message to remove inline buttons and show summary, 
-    # then send a NEW message with the reply keyboard to replace shuffle buttons.
-    # BUT wait, shuffle buttons were INLINE, so there is no reply keyboard to replace!
-    # AHH! So I should just send the start keyboard and edit the current message.
-    
-    await callback.message.edit_text(
+    # Send summary
+    await message.answer(
         summary_text,
         parse_mode="HTML"
     )
     
-    await callback.message.answer(
+    # Send START button (this will replace the shuffle keyboard)
+    await message.answer(
         Messages.get("SELECT_BUTTON", lang),
         reply_markup=get_start_quiz_keyboard(lang)
     )
-    await callback.answer()
 
 @router.callback_query(F.data.startswith("start_quiz_"))
 async def start_quiz_callback_handler(callback: types.CallbackQuery, state: FSMContext, 
@@ -365,10 +356,15 @@ async def delete_quiz_handler(callback: types.CallbackQuery, quiz_service: QuizS
     
     success = await quiz_service.delete_quiz(quiz_id, telegram_id)
     if success:
-        await callback.message.edit_text(Messages.get("QUIZ_DELETED", lang))
+        await callback.answer(Messages.get("QUIZ_DELETED", lang))
+        # Delete the info message and send a new main menu message to clean up keyboards
+        await callback.message.delete()
+        await callback.message.answer(
+            Messages.get("QUIZ_DELETED", lang),
+            reply_markup=get_main_keyboard(lang, telegram_id)
+        )
     else:
-        await callback.answer("❌ Xatolik yuz berdi.", show_alert=True)
-    await callback.answer()
+        await callback.answer(Messages.get("ERROR_GENERIC", lang), show_alert=True)
 
 @router.message(F.text)
 async def handle_quiz_selection(message: types.Message, quiz_service: QuizService, user_service: UserService):
