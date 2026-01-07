@@ -121,11 +121,17 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
             os.remove(local_path)
 
 @router.message(QuizStates.WAITING_FOR_TITLE, F.text)
-async def handle_quiz_title(message: types.Message, state: FSMContext, user_service: UserService):
+async def handle_quiz_title(message: types.Message, state: FSMContext, user_service: UserService, quiz_service: QuizService):
     telegram_id = message.from_user.id
     lang = await user_service.get_language(telegram_id)
     
     title = message.text.strip()
+    
+    # Check if title already exists for this user
+    if await quiz_service.is_title_taken(telegram_id, title):
+        await message.answer(Messages.get("QUIZ_TITLE_EXISTS", lang))
+        return
+
     await state.update_data(title=title)
     
     await state.set_state(QuizStates.WAITING_FOR_SHUFFLE)

@@ -19,6 +19,12 @@ class QuizService:
         await self.db.refresh(quiz)
         logger.info("Quiz saved", user_id=user_id, quiz_id=quiz.id, title=title)
         return quiz
+    
+    async def is_title_taken(self, user_id: int, title: str) -> bool:
+        result = await self.db.execute(
+            select(Quiz).filter(Quiz.user_id == user_id, Quiz.title == title)
+        )
+        return result.scalar_one_or_none() is not None
 
     async def get_user_quizzes(self, user_id: int):
         result = await self.db.execute(
