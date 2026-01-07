@@ -1,4 +1,5 @@
 from aiogram import Router, types, F
+from aiogram.fsm.context import FSMContext
 from aiogram.filters import CommandStart, Command
 from constants.messages import Messages
 from handlers.common import get_main_keyboard, enable_user_menu, get_contact_keyboard
@@ -10,13 +11,18 @@ router.message.filter(F.chat.type == "private")
 
 @router.message(CommandStart())
 @router.message(F.text.in_([Messages.get("START_BTN", "UZ"), Messages.get("START_BTN", "EN")]))
-async def cmd_start(message: types.Message, user_service: UserService, **kwargs):
+async def cmd_start(message: types.Message, user_service: UserService, state: FSMContext, **kwargs):
     data = kwargs
     telegram_id = message.from_user.id
     lang = await user_service.get_language(telegram_id)
     
     user = await user_service.get_or_create_user(telegram_id)
     if not user or not user.phone_number:
+        # Store deep link in state to resume after contact
+        args = message.text.split()
+        if len(args) > 1:
+            await state.update_data(pending_start=args[1])
+            
         await message.answer(
             Messages.get("SHARE_CONTACT_PROMPT", lang),
             reply_markup=get_contact_keyboard(lang)
@@ -56,9 +62,12 @@ async def cmd_start(message: types.Message, user_service: UserService, **kwargs)
 
     welcome_text = Messages.get("WELCOME", lang) + "\n\n" + Messages.get("FORMAT_INFO", lang)
     await message.answer(welcome_text, reply_markup=get_main_keyboard(lang, telegram_id))
+    # Clear any pending start after handling
+    await state.clear()
 
 @router.message(F.contact)
-async def process_contact(message: types.Message, user_service: UserService):
+async def process_contact(message: types.Message, user_service: UserService, state: FSMContext, **kwargs):
+    data = kwargs
     telegram_id = message.from_user.id
     contact = message.contact
     lang = await user_service.get_language(telegram_id)
@@ -78,6 +87,15 @@ async def process_contact(message: types.Message, user_service: UserService):
         Messages.get("CONTACT_SAVED", lang),
         reply_markup=get_main_keyboard(lang, telegram_id)
     )
+    
+    # Check for pending deep link
+    state_data = await state.get_data()
+    pending_payload = state_data.get("pending_start")
+    if pending_payload:
+        # Resume cmd_start with the payload
+        message.text = f"/start {pending_payload}"
+        await state.clear()
+        return await cmd_start(message, user_service, state, **data)
 
 @router.message(Command("help"))
 @router.message(F.text.in_([Messages.get("HELP_BTN", "UZ"), Messages.get("HELP_BTN", "EN")]))

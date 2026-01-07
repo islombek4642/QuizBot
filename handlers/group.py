@@ -86,7 +86,8 @@ async def on_bot_added_to_group(event: ChatMemberUpdated, user_service: UserServ
     try:
         await event.bot.send_message(
             chat.id,
-            Messages.get("BOT_ADDED_TO_GROUP", lang)
+            Messages.get("BOT_ADDED_TO_GROUP", lang),
+            reply_markup=types.ReplyKeyboardRemove()
         )
     except Exception as e:
         logger.error("Failed to send group welcome message", error=str(e), chat_id=chat.id)
@@ -207,7 +208,9 @@ async def confirm_group_quiz_callback(callback: types.CallbackQuery, user_servic
         return
     
     # Start group quiz session
-    await start_group_quiz(callback.bot, quiz, chat_id, telegram_id, lang, redis, session_service)
+    # Use group preference if stored for the start logic
+    group_lang = await redis.get(f"group_lang:{chat_id}")
+    await start_group_quiz(callback.bot, quiz, chat_id, telegram_id, group_lang or lang, redis, session_service)
     
     # Notify user
     await callback.message.edit_text(Messages.get("GROUP_QUIZ_STARTED", lang))
@@ -276,7 +279,16 @@ async def send_group_question(bot: Bot, chat_id: int, quiz_state: dict, redis, l
         type='quiz',
         correct_option_id=q['correct_option_id'],
         is_anonymous=False,
-        open_period=settings.POLL_DURATION_SECONDS
+        open_period=settings.POLL_DURATION_SECONDS,
+        reply_markup=types.ReplyKeyboardRemove() # Ensure no keyboard appears
+    )
+    
+    # Store poll message id to stop it if needed
+    quiz_state["active_poll_message_id"] = poll_message.message_id
+    await redis.set(
+        GROUP_QUIZ_KEY.format(chat_id=chat_id),
+        __import__('json').dumps(quiz_state),
+        ex=14400
     )
     
     # Store poll mapping
@@ -361,6 +373,14 @@ async def cmd_stop_group_quiz(message: types.Message, user_service: UserService,
     quiz_state["is_active"] = False
     await redis.set(GROUP_QUIZ_KEY.format(chat_id=chat_id), __import__('json').dumps(quiz_state), ex=3600)
     
+    # Stop the active poll timer
+    poll_message_id = quiz_state.get("active_poll_message_id")
+    if poll_message_id:
+        try:
+            await message.bot.stop_poll(chat_id, poll_message_id)
+        except Exception as e:
+            logger.error("Failed to stop poll", error=str(e), chat_id=chat_id)
+
     # Show statistics before finishing
     await finish_group_quiz(message.bot, chat_id, quiz_state, redis, lang)
 
@@ -378,7 +398,10 @@ async def cmd_group_set_language(message: types.Message, user_service: UserServi
     builder.button(text="English 🇬🇧", callback_data="set_group_lang_EN")
     builder.adjust(2)
     
-    await message.answer(Messages.get("CHOOSE_LANGUAGE", lang), reply_markup=builder.as_markup())
+    await message.answer(
+        Messages.get("CHOOSE_LANGUAGE", lang), 
+        reply_markup=builder.as_markup()
+    )
 
 
 @router.callback_query(F.data.startswith("set_group_lang_"))
@@ -447,7 +470,7 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
             name = f"User {uid}"
         leaderboard += f"{i}. {name}: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
         
-    await message.answer(leaderboard, parse_mode="HTML")
+    await message.answer(leaderboard, parse_mode="HTML", reply_markup=types.ReplyKeyboardRemove())
 
 
 @router.message(Command("quiz_help"), F.chat.type.in_({"group", "supergroup"}))
