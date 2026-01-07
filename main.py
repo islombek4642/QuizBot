@@ -17,8 +17,11 @@ async def main():
     
     # Initialize bot and dispatcher with Redis storage
     bot = Bot(token=settings.BOT_TOKEN)
-    bot["redis"] = redis  # Make redis accessible in handlers via bot.get("redis")
     dp = Dispatcher(storage=RedisStorage(redis=redis))
+    
+    # Store redis in dispatcher for access in handlers
+    dp["redis"] = redis
+
 
     # Set bot descriptions
     try:

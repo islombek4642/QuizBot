@@ -58,7 +58,7 @@ async def get_group_title(redis, chat_id: int) -> str:
 
 
 @router.my_chat_member(ChatMemberUpdatedFilter(IS_NOT_MEMBER >> IS_MEMBER))
-async def on_bot_added_to_group(event: ChatMemberUpdated, user_service: UserService):
+async def on_bot_added_to_group(event: ChatMemberUpdated, user_service: UserService, redis):
     """Handle bot being added to a group"""
     chat = event.chat
     user = event.from_user
@@ -70,7 +70,6 @@ async def on_bot_added_to_group(event: ChatMemberUpdated, user_service: UserServ
     lang = await user_service.get_language(user.id)
     
     # Store group in Redis
-    redis = event.bot.get("redis")
     if redis:
         await add_bot_group(redis, chat.id, chat.title or f"Group {chat.id}")
     
@@ -87,7 +86,7 @@ async def on_bot_added_to_group(event: ChatMemberUpdated, user_service: UserServ
 
 
 @router.my_chat_member(ChatMemberUpdatedFilter(IS_MEMBER >> IS_NOT_MEMBER))
-async def on_bot_removed_from_group(event: ChatMemberUpdated):
+async def on_bot_removed_from_group(event: ChatMemberUpdated, redis):
     """Handle bot being removed from a group"""
     chat = event.chat
     
@@ -95,7 +94,6 @@ async def on_bot_removed_from_group(event: ChatMemberUpdated):
         return
     
     # Remove group from Redis
-    redis = event.bot.get("redis")
     if redis:
         await remove_bot_group(redis, chat.id)
     
@@ -135,14 +133,13 @@ async def cmd_add_to_group(message: types.Message, user_service: UserService):
 
 @router.callback_query(F.data.startswith("start_group_quiz_"))
 async def start_group_quiz_callback(callback: types.CallbackQuery, user_service: UserService, 
-                                   quiz_service: QuizService, session_service: SessionService):
+                                   quiz_service: QuizService, session_service: SessionService, redis):
     """Handle 'Start in Group' button - show group selection"""
     quiz_id = int(callback.data.split("_")[3])
     telegram_id = callback.from_user.id
     lang = await user_service.get_language(telegram_id)
     
     # Get available groups
-    redis = callback.bot.get("redis")
     if not redis:
         await callback.answer(Messages.get("ERROR_GENERIC", lang), show_alert=True)
         return
@@ -171,7 +168,7 @@ async def start_group_quiz_callback(callback: types.CallbackQuery, user_service:
 
 @router.callback_query(F.data.startswith("confirm_group_quiz_"))
 async def confirm_group_quiz_callback(callback: types.CallbackQuery, user_service: UserService,
-                                      quiz_service: QuizService, session_service: SessionService):
+                                      quiz_service: QuizService, session_service: SessionService, redis):
     """Confirm and start quiz in selected group"""
     parts = callback.data.split("_")
     quiz_id = int(parts[3])
@@ -197,7 +194,6 @@ async def confirm_group_quiz_callback(callback: types.CallbackQuery, user_servic
         return
     
     # Start group quiz session
-    redis = callback.bot.get("redis")
     await start_group_quiz(callback.bot, quiz, chat_id, telegram_id, lang, redis, session_service)
     
     # Notify user
@@ -314,9 +310,8 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
 
 @router.poll_answer()
 async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot, 
-                                   session_service: SessionService, user_service: UserService):
+                                   session_service: SessionService, user_service: UserService, redis):
     """Handle poll answers for group quizzes"""
-    redis = bot.get("redis")
     if not redis:
         return
     
