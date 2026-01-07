@@ -103,6 +103,10 @@ async def on_bot_removed_from_group(event: ChatMemberUpdated, redis):
 @router.message(F.text.in_([Messages.get("ADD_TO_GROUP_BTN", "UZ"), Messages.get("ADD_TO_GROUP_BTN", "EN")]))
 async def cmd_add_to_group(message: types.Message, user_service: UserService):
     """Handle 'Add to Group' button - show inline button with group add link"""
+    # Only work in private chats
+    if message.chat.type != "private":
+        return
+    
     telegram_id = message.from_user.id
     lang = await user_service.get_language(telegram_id)
     
@@ -119,10 +123,12 @@ async def cmd_add_to_group(message: types.Message, user_service: UserService):
         await message.answer(Messages.get("ERROR_GENERIC", lang))
         return
     
+    # Use startgroup with admin rights request
+    # The admin parameter requests specific permissions
     builder = InlineKeyboardBuilder()
     builder.button(
         text=Messages.get("ADD_TO_GROUP_BTN", lang),
-        url=f"https://t.me/{bot_username}?startgroup=true"
+        url=f"https://t.me/{bot_username}?startgroup&admin=post_messages+delete_messages+restrict_members+pin_messages+manage_topics"
     )
     
     await message.answer(

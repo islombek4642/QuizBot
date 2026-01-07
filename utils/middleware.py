@@ -53,6 +53,10 @@ class AuthMiddleware(BaseMiddleware):
         if not isinstance(event, types.Message):
             return await handler(event, data)
 
+        # Skip auth checks for group chats - no keyboards should appear there
+        if event.chat.type in ("group", "supergroup"):
+            return await handler(event, data)
+
         # Allow /start (and its variations) and contact sharing
         is_start_command = False
         if event.text:
@@ -80,3 +84,4 @@ class AuthMiddleware(BaseMiddleware):
             return
 
         return await handler(event, data)
+
