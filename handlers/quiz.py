@@ -28,6 +28,8 @@ from services.session_service import SessionService
 from core.logger import logger
 
 router = Router()
+# Only handle private chats - no keyboard buttons in groups
+router.message.filter(F.chat.type == "private")
 
 @router.message(F.text.in_([Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN"), Messages.get("BACK_BTN", "UZ"), Messages.get("BACK_BTN", "EN")]))
 async def cmd_cancel(message: types.Message, state: FSMContext, user_service: UserService):

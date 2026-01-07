@@ -5,6 +5,8 @@ from handlers.common import get_main_keyboard, enable_user_menu, get_contact_key
 from services.user_service import UserService
 
 router = Router()
+# Only handle private chats - no keyboard buttons in groups
+router.message.filter(F.chat.type == "private")
 
 @router.message(CommandStart())
 @router.message(F.text.in_([Messages.get("START_BTN", "UZ"), Messages.get("START_BTN", "EN")]))

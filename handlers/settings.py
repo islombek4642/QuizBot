@@ -5,6 +5,8 @@ from handlers.common import get_language_keyboard, get_main_keyboard, enable_use
 from services.user_service import UserService
 
 router = Router()
+# Only handle private chats - no keyboard buttons in groups
+router.message.filter(F.chat.type == "private")
 
 @router.message(Command("set_language"))
 @router.message(F.text.in_([Messages.get("SET_LANGUAGE_BTN", "UZ"), Messages.get("SET_LANGUAGE_BTN", "EN")]))
