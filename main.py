@@ -6,7 +6,7 @@ from redis.asyncio import Redis
 from core.config import settings
 from core.logger import setup_logging, logger
 from handlers import start, quiz, settings as settings_handlers
-from utils.middleware import DbSessionMiddleware, RedisMiddleware
+from utils.middleware import DbSessionMiddleware, RedisMiddleware, AuthMiddleware
 
 async def main():
     # Setup structured logging
@@ -32,6 +32,7 @@ async def main():
     # Register Middlewares
     dp.update.outer_middleware(DbSessionMiddleware())
     dp.update.outer_middleware(RedisMiddleware(redis))
+    dp.message.middleware(AuthMiddleware())
 
     # Include routers
     dp.include_router(start.router)
