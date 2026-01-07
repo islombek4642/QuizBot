@@ -1,0 +1,317 @@
+import os
+import uuid
+import random
+import time
+import asyncio
+from typing import Dict, Any
+
+from aiogram import Router, types, F, Bot
+from aiogram.fsm.context import FSMContext
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+from utils.parser import parse_docx_to_json, ParserError
+from constants.messages import Messages
+from handlers.common import (
+    get_main_keyboard, 
+    get_contact_keyboard, 
+    QuizStates, 
+    get_shuffle_keyboard, 
+    get_stop_keyboard,
+    get_quizzes_keyboard
+)
+from services.user_service import UserService
+from services.quiz_service import QuizService
+from services.session_service import SessionService
+from core.logger import logger
+
+router = Router()
+
+@router.message(F.text.in_([Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN")]))
+async def cmd_cancel(message: types.Message, state: FSMContext, user_service: UserService):
+    telegram_id = message.from_user.id
+    lang = await user_service.get_language(telegram_id)
+    await state.clear()
+    await message.answer(
+        Messages.get("CANCELLED", lang),
+        reply_markup=get_main_keyboard(lang, telegram_id)
+    )
+
+@router.message(F.text.in_([Messages.get("CREATE_QUIZ_BTN", "UZ"), Messages.get("CREATE_QUIZ_BTN", "EN")]))
+async def cmd_create_quiz(message: types.Message, state: FSMContext, user_service: UserService):
+    telegram_id = message.from_user.id
+    lang = await user_service.get_language(telegram_id)
+    
+    user = await user_service.get_or_create_user(telegram_id)
+    if not user or not user.phone_number:
+        await message.answer(
+            Messages.get("SHARE_CONTACT_PROMPT", lang),
+            reply_markup=get_contact_keyboard(lang)
+        )
+        return
+
+    await state.set_state(QuizStates.WAITING_FOR_DOCX)
+    combined_msg = f"{Messages.get('WELCOME', lang)}\n\n{Messages.get('FORMAT_INFO', lang)}"
+    await message.answer(combined_msg, reply_markup=get_main_keyboard(lang, telegram_id))
+
+@router.message(F.text.in_([Messages.get("MY_QUIZZES_BTN", "UZ"), Messages.get("MY_QUIZZES_BTN", "EN")]))
+async def cmd_my_quizzes(message: types.Message, user_service: UserService, quiz_service: QuizService):
+    telegram_id = message.from_user.id
+    lang = await user_service.get_language(telegram_id)
+    
+    user = await user_service.get_or_create_user(telegram_id)
+    if not user or not user.phone_number:
+        await message.answer(
+            Messages.get("SHARE_CONTACT_PROMPT", lang),
+            reply_markup=get_contact_keyboard(lang)
+        )
+        return
+
+    quizzes = await quiz_service.get_user_quizzes(telegram_id)
+    if not quizzes:
+        await message.answer(Messages.get("NO_QUIZZES", lang))
+        return
+
+    # Helper function to format list for keyboard
+    quiz_list = [{"id": q.id, "title": q.title} for q in quizzes]
+    await message.answer(
+        Messages.get("MY_QUIZZES_BTN", lang),
+        reply_markup=get_quizzes_keyboard(quiz_list, lang)
+    )
+
+@router.message(QuizStates.WAITING_FOR_DOCX, F.document)
+async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, user_service: UserService):
+    telegram_id = message.from_user.id
+    lang = await user_service.get_language(telegram_id)
+    
+    document = message.document
+    if not document or not document.file_name or not document.file_name.endswith('.docx'):
+        await message.answer(Messages.get("ONLY_DOCX", lang))
+        return
+
+    temp_dir = "temp"
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+
+    file_info = await bot.get_file(document.file_id)
+    local_path = os.path.join(temp_dir, f"{uuid.uuid4()}.docx")
+    
+    await bot.download_file(file_info.file_path, local_path)
+
+    try:
+        # Offload parsing to thread to avoid blocking loop
+        questions = await asyncio.to_thread(parse_docx_to_json, local_path)
+        
+        await state.update_data(questions=questions)
+        await state.set_state(QuizStates.WAITING_FOR_TITLE)
+        
+        await message.answer(
+            Messages.get("QUIZ_UPLOADED", lang).format(count=len(questions))
+        )
+
+    except ParserError as e:
+        await message.answer(str(e))
+    except Exception as e:
+        logger.error("Error during docx parsing", error=str(e), user_id=telegram_id)
+        await message.answer(Messages.get("ERROR", lang).format(error="Tizim xatoligi"))
+    finally:
+        if os.path.exists(local_path):
+            os.remove(local_path)
+
+@router.message(QuizStates.WAITING_FOR_TITLE, F.text)
+async def handle_quiz_title(message: types.Message, state: FSMContext, user_service: UserService):
+    telegram_id = message.from_user.id
+    lang = await user_service.get_language(telegram_id)
+    
+    title = message.text.strip()
+    await state.update_data(title=title)
+    
+    await state.set_state(QuizStates.WAITING_FOR_SHUFFLE)
+    await message.answer(
+        Messages.get("ASK_SHUFFLE", lang),
+        reply_markup=get_shuffle_keyboard(lang)
+    )
+
+@router.message(QuizStates.WAITING_FOR_SHUFFLE, F.text.in_([Messages.get("SHUFFLE_YES", "UZ"), Messages.get("SHUFFLE_YES", "EN"), Messages.get("SHUFFLE_NO", "UZ"), Messages.get("SHUFFLE_NO", "EN")]))
+async def handle_quiz_shuffle(message: types.Message, state: FSMContext, user_service: UserService, quiz_service: QuizService):
+    telegram_id = message.from_user.id
+    lang = await user_service.get_language(telegram_id)
+    
+    shuffle = message.text in [Messages.get("SHUFFLE_YES", "UZ"), Messages.get("SHUFFLE_YES", "EN")]
+    
+    data = await state.get_data()
+    title = data.get("title")
+    questions = data.get("questions")
+    
+    quiz = await quiz_service.save_quiz(telegram_id, title, questions, shuffle)
+    
+    builder = InlineKeyboardBuilder()
+    builder.button(text=Messages.get("START_QUIZ_BTN", lang), callback_data=f"start_quiz_{quiz.id}")
+    
+    shuffle_status = Messages.get("SHUFFLE_TRUE", lang) if shuffle else Messages.get("SHUFFLE_FALSE", lang)
+    summary_text = Messages.get("QUIZ_READY_DETAILS", lang).format(
+        title=title, count=len(questions), shuffle=shuffle_status
+    )
+    
+    await message.answer(summary_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    await state.clear()
+
+@router.callback_query(F.data.startswith("start_quiz_"))
+async def start_quiz_handler(callback: types.CallbackQuery, state: FSMContext, 
+                             quiz_service: QuizService, session_service: SessionService, user_service: UserService):
+    quiz_id = int(callback.data.split("_")[2])
+    quiz = await quiz_service.get_quiz(quiz_id)
+    
+    if not quiz:
+        await callback.answer("❌ Test topilmadi.")
+        return
+    
+    telegram_id = callback.from_user.id
+    lang = await user_service.get_language(telegram_id)
+    questions = quiz.questions_json
+    
+    if quiz.shuffle_options:
+        random.shuffle(questions)
+        for q in questions:
+            options = q['options']
+            correct_answer = options[q['correct_option_id']]
+            random.shuffle(options)
+            q['correct_option_id'] = options.index(correct_answer)
+    
+    session = await session_service.create_session(
+        user_id=telegram_id, 
+        quiz_id=quiz_id, 
+        total_questions=len(questions),
+        session_data={'questions': questions}
+    )
+    
+    await callback.message.answer(
+        Messages.get("QUIZ_START_MSG", lang).format(title=quiz.title), 
+        reply_markup=get_stop_keyboard(lang),
+        parse_mode="HTML"
+    )
+    
+    await callback.answer()
+    await send_next_question(callback.message, session, session_service, lang)
+
+async def send_next_question(message: types.Message, session: Any, session_service: SessionService, lang: str):
+    questions = session.session_data['questions']
+    idx = session.current_index
+    
+    if idx >= session.total_questions:
+        # This shouldn't happen here if handled in advance_session
+        return
+
+    q = questions[idx]
+    poll_msg = await message.answer_poll(
+        question=f"{idx+1}/{session.total_questions}. {q['question']}",
+        options=q['options'],
+        is_anonymous=False,
+        type='quiz',
+        correct_option_id=q['correct_option_id'],
+        open_period=30
+    )
+    
+    await session_service.map_poll_to_session(poll_msg.poll.id, session.id)
+
+@router.poll_answer()
+async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_service: SessionService, user_service: UserService):
+    session = await session_service.get_session_by_poll(poll_answer.poll_id)
+    if not session or not session.is_active:
+        return
+
+    # Get user language
+    lang = await user_service.get_language(session.user_id)
+    
+    # Idempotency check happens inside advance_session via rowcount/atomic update
+    questions = session.session_data['questions']
+    q = questions[session.current_index]
+    is_correct = poll_answer.option_ids[0] == q['correct_option_id']
+    
+    updated_session = await session_service.advance_session(session.id, is_correct)
+    if not updated_session:
+        return
+
+    # Check if finished
+    if not updated_session.is_active:
+        await bot.send_message(
+            session.user_id, 
+            Messages.get("QUIZ_FINISHED", lang), 
+            reply_markup=get_main_keyboard(lang, session.user_id)
+        )
+        await show_stats(bot, updated_session, lang)
+    else:
+        # Using a dummy message object to reuse send_next_question
+        # In production, we might want a cleaner way to get the chat_id
+        dummy_message = types.Message(chat=types.Chat(id=session.user_id, type='private'), 
+                                     message_id=0, date=int(time.time()))
+        # Set bot for the dummy message
+        dummy_message._bot = bot
+        await send_next_question(dummy_message, updated_session, session_service, lang)
+
+async def show_stats(bot: Bot, session: Any, lang: str):
+    total = session.total_questions
+    correct = session.correct_count
+    answered = session.answered_count
+    
+    duration = time.time() - session.start_time
+    avg_time = duration / answered if answered > 0 else 0
+    percent = (correct / total * 100) if total > 0 else 0
+    
+    await bot.send_message(
+        session.user_id,
+        Messages.get("QUIZ_STATS", lang).format(
+            total=total,
+            correct=correct,
+            wrong=answered - correct,
+            avg_time=round(avg_time, 1),
+            percent=round(percent, 1)
+        ),
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.in_([Messages.get("STOP_QUIZ_BTN", "UZ"), Messages.get("STOP_QUIZ_BTN", "EN")]))
+async def cmd_stop_quiz(message: types.Message, session_service: SessionService, user_service: UserService):
+    telegram_id = message.from_user.id
+    session = await session_service.get_active_session(telegram_id)
+    lang = await user_service.get_language(telegram_id)
+    
+    if session:
+        await session_service.stop_session(telegram_id)
+        await message.answer(
+            Messages.get("QUIZ_STOPPED", lang), 
+            reply_markup=get_main_keyboard(lang, telegram_id)
+        )
+        # Refresh session object for stats
+        from sqlalchemy import select
+        async with session_service.db.begin():
+            res = await session_service.db.execute(select(session.__class__).filter_by(id=session.id))
+            session = res.scalar_one()
+        await show_stats(message.bot, session, lang)
+    else:
+        await message.answer(Messages.get("SELECT_BUTTON", lang), reply_markup=get_main_keyboard(lang, telegram_id))
+
+@router.message(F.text)
+async def handle_quiz_selection(message: types.Message, quiz_service: QuizService, user_service: UserService):
+    telegram_id = message.from_user.id
+    lang = await user_service.get_language(telegram_id)
+    
+    quizzes = await quiz_service.get_user_quizzes(telegram_id)
+    selected_quiz = next((q for q in quizzes if q.title == message.text), None)
+    
+    if selected_quiz:
+        builder = InlineKeyboardBuilder()
+        builder.button(text=Messages.get("START_QUIZ_BTN", lang), callback_data=f"start_quiz_{selected_quiz.id}")
+        builder.button(text=Messages.get("QUIZ_DELETE_BTN", lang), callback_data=f"delete_quiz_{selected_quiz.id}")
+        builder.adjust(1)
+        
+        shuffle_status = Messages.get("SHUFFLE_TRUE", lang) if selected_quiz.shuffle_options else Messages.get("SHUFFLE_FALSE", lang)
+        
+        await message.answer(
+            Messages.get("QUIZ_INFO_MSG", lang).format(
+                title=selected_quiz.title, 
+                count=len(selected_quiz.questions_json),
+                shuffle=shuffle_status
+            ),
+            reply_markup=builder.as_markup(),
+            parse_mode="HTML"
+        )
