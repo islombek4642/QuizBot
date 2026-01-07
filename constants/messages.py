@@ -53,6 +53,8 @@ class Messages:
             "GROUP_QUIZ_STARTED": "🚀 Test guruhda boshlandi!",
             "NO_GROUPS": "Bot hech qaysi guruhga qo'shilmagan. Avval botni guruhga qo'shing.",
             "GROUP_QUIZ_STATS": "📊 <b>Guruh test natijalari:</b>\n\n📝 Test: {title}\n👥 Qatnashchilar: {participants}\n✅ O'rtacha ball: {avg_score}%",
+            "NO_ACTIVE_QUIZ": "❌ Bu guruhda hozirda faol test mavjud emas.",
+            "NO_PARTICIPANTS": "ℹ️ Hozircha hech kim testda qatnashmadi.",
         },
         "EN": {
             "WELCOME": "Hello! Welcome to QuizBot.\n\nSend me a .docx file with tests, and I'll convert it into Telegram polls.",
@@ -107,6 +109,8 @@ class Messages:
             "GROUP_QUIZ_STARTED": "🚀 Quiz started in group!",
             "NO_GROUPS": "Bot is not added to any group. Please add it to a group first.",
             "GROUP_QUIZ_STATS": "📊 <b>Group Quiz Results:</b>\n\n📝 Quiz: {title}\n👥 Participants: {participants}\n✅ Average score: {avg_score}%",
+            "NO_ACTIVE_QUIZ": "❌ No active quiz found in this group.",
+            "NO_PARTICIPANTS": "ℹ️ No one has participated in the quiz yet.",
         }
     }
 

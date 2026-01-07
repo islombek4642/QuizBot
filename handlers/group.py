@@ -340,7 +340,9 @@ async def cmd_stop_group_quiz(message: types.Message, user_service: UserService,
     is_admin = member.status in ("administrator", "creator")
     
     if not (is_owner or is_admin):
-        return # Silently ignore or send message
+        # Notify that only admins can stop
+        await message.reply(Messages.get("ERROR_GENERIC", lang))
+        return
         
     quiz_state["is_active"] = False
     await redis.set(GROUP_QUIZ_KEY.format(chat_id=chat_id), __import__('json').dumps(quiz_state), ex=3600)
@@ -353,16 +355,22 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
     chat_id = message.chat.id
     lang = await user_service.get_language(message.from_user.id)
     
+    # Check permission (optional, user wanted all commands for admins but stats could be public)
+    # User said: "guruhdagi kommandalar hammasi faqat guruh adminlari uchun ishlasin"
+    member = await message.chat.get_member(message.from_user.id)
+    if member.status not in ("administrator", "creator"):
+        return
+    
     quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
     if not quiz_state_raw:
-        await message.answer(Messages.get("NO_ACTIVE_QUIZ", lang) if "NO_ACTIVE_QUIZ" in Messages.UZ else "Active quiz not found.")
+        await message.answer(Messages.get("NO_ACTIVE_QUIZ", lang))
         return
         
     quiz_state = __import__('json').loads(quiz_state_raw)
     participants = quiz_state.get("participants", {})
     
     if not participants:
-        await message.answer(Messages.get("NO_PARTICIPANTS", lang) if "NO_PARTICIPANTS" in Messages.UZ else "No participants yet.")
+        await message.answer(Messages.get("NO_PARTICIPANTS", lang))
         return
         
     # Sort by correct then total
@@ -382,16 +390,20 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
 
 @router.message(Command("quiz_help"), F.chat.type.in_({"group", "supergroup"}))
 async def cmd_group_quiz_help(message: types.Message, user_service: UserService):
-    """Show help for group quizzes"""
+    """Show help for group quizzes (available to everyone)"""
     lang = await user_service.get_language(message.from_user.id)
     help_text = (
         "🤖 <b>Group Quiz Help</b>\n\n"
-        "/quiz_stats - Current leaderboard\n"
+        "/quiz_stats - Current leaderboard (Admins only)\n"
         "/stop_quiz - Stop current quiz (Admins only)\n"
         "/quiz_help - This help message\n\n"
         "To start a quiz, go to the bot's private chat and select 'Start in Group'."
     )
-    await message.answer(help_text, parse_mode="HTML")
+    
+    builder = InlineKeyboardBuilder()
+    builder.button(text=Messages.get("CONTACT_ADMIN_BTN", lang), url=f"tg://user?id={settings.ADMIN_ID}")
+    
+    await message.answer(help_text, reply_markup=builder.as_markup(), parse_mode="HTML")
 
 
 @router.poll_answer(is_group_poll)
