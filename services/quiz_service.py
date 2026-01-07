@@ -31,14 +31,19 @@ class QuizService:
         return result.scalar_one_or_none()
 
     async def delete_quiz(self, quiz_id: int, user_id: int) -> bool:
-        # Delete related sessions first to avoid foreign key constraints
+        # Import here to avoid circular dependencies
         from models.session import QuizSession
-        await self.db.execute(
-            delete(QuizSession).filter(QuizSession.quiz_id == quiz_id)
-        )
         
+        # Delete related sessions first to avoid foreign key constraints
+        # Ensure we delete ONLY sessions belonging to this quiz
+        await self.db.execute(
+            delete(QuizSession).where(QuizSession.quiz_id == quiz_id)
+        )
+        await self.db.commit() # Commit session deletion separately for safety
+        
+        # Now delete the quiz
         result = await self.db.execute(
-            delete(Quiz).filter(Quiz.id == quiz_id, Quiz.user_id == user_id)
+            delete(Quiz).where(Quiz.id == quiz_id, Quiz.user_id == user_id)
         )
         await self.db.commit()
         success = result.rowcount > 0

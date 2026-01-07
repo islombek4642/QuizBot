@@ -53,7 +53,7 @@ async def cmd_create_quiz(message: types.Message, state: FSMContext, user_servic
 
     await state.set_state(QuizStates.WAITING_FOR_DOCX)
     combined_msg = f"{Messages.get('WELCOME', lang)}\n\n{Messages.get('FORMAT_INFO', lang)}"
-    await message.answer(combined_msg, reply_markup=get_main_keyboard(lang, telegram_id))
+    await message.answer(combined_msg, reply_markup=get_cancel_keyboard(lang))
 
 @router.message(F.text.in_([Messages.get("MY_QUIZZES_BTN", "UZ"), Messages.get("MY_QUIZZES_BTN", "EN")]))
 async def cmd_my_quizzes(message: types.Message, user_service: UserService, quiz_service: QuizService):
@@ -155,16 +155,14 @@ async def handle_quiz_shuffle(message: types.Message, state: FSMContext, user_se
     await state.update_data(current_quiz_id=quiz.id)
     await state.set_state(QuizStates.QUIZ_READY)
     
-    # Send summary
-    await message.answer(
-        summary_text,
-        parse_mode="HTML"
-    )
+    # Combined summary and action prompt
+    combined_msg = f"{summary_text}\n\n{Messages.get('SELECT_BUTTON', lang)}"
     
-    # Send START button (this will replace the shuffle keyboard)
+    # Send all info in one message with the START keyboard
     await message.answer(
-        Messages.get("SELECT_BUTTON", lang),
-        reply_markup=get_start_quiz_keyboard(lang)
+        combined_msg,
+        reply_markup=get_start_quiz_keyboard(lang),
+        parse_mode="HTML"
     )
 
 @router.callback_query(F.data.startswith("start_quiz_"))
@@ -357,8 +355,9 @@ async def delete_quiz_handler(callback: types.CallbackQuery, quiz_service: QuizS
     success = await quiz_service.delete_quiz(quiz_id, telegram_id)
     if success:
         await callback.answer(Messages.get("QUIZ_DELETED", lang))
-        # Delete the info message and send a new main menu message to clean up keyboards
+        # Remove the info message (inline buttons message)
         await callback.message.delete()
+        # Clean success message with main keyboard
         await callback.message.answer(
             Messages.get("QUIZ_DELETED", lang),
             reply_markup=get_main_keyboard(lang, telegram_id)
@@ -382,27 +381,22 @@ async def handle_quiz_selection(message: types.Message, quiz_service: QuizServic
         
         shuffle_status = Messages.get("SHUFFLE_TRUE", lang) if selected_quiz.shuffle_options else Messages.get("SHUFFLE_FALSE", lang)
         
-        # Explicitly remove the reply keyboard (quiz list) when showing details
-        # This solves the issue of the quiz list keyboard staying visible.
+        info_text = Messages.get("QUIZ_INFO_MSG", lang).format(
+            title=selected_quiz.title, 
+            count=len(selected_quiz.questions_json),
+            shuffle=shuffle_status
+        )
+        
+        # Combined message: Info text + Action buttons
+        # We use ReplyKeyboardRemove to ensure previous list is gone
         await message.answer(
-            Messages.get("QUIZ_INFO_MSG", lang).format(
-                title=selected_quiz.title, 
-                count=len(selected_quiz.questions_json),
-                shuffle=shuffle_status
-            ),
-            reply_markup=types.ReplyKeyboardRemove(),
+            f"{info_text}\n\n{Messages.get('SELECT_BUTTON', lang)}",
+            reply_markup=builder.as_markup(),
             parse_mode="HTML"
         )
         
-        # Send the inline buttons as a separate message or together
-        # Actually, let's just send them together in one message with ReplyKeyboardRemove
-        # In Aiogram 3, you can't have both in the same message. 
-        # So we send a "cleaning" message or just use the next message.
-        
-        await message.answer(
-            Messages.get("SELECT_BUTTON", lang),
-            reply_markup=builder.as_markup()
-        )
+        # We also need a way to let the user "clean" the ReplyKeyboardRemove 
+        # but since we want to keep the UI clean, we'll let subsequent actions handle it.
+        # Actually, if we send a separate message with ReplyKeyboardRemove, the keyboard drawer closes immediately.
     else:
-        # If no quiz selected, maybe return to main menu or just ignore
         pass
