@@ -37,14 +37,21 @@ async def cmd_start(message: types.Message, user_service: UserService, **kwargs)
             # Trigger quiz info view
             quiz_id = int(payload.split("_")[1])
             from handlers.quiz import show_quiz_info
-            from services.quiz_service import QuizService
-            # Get quiz_service from context if available, otherwise we might need to inject it
-            # But in aiogram handlers it's usually in 'data'
-            # Here we can just create it or get it from bot context if we had it there
-            # For simplicity in this quick fix, we'll assume it's available or just import it
-            # Actually we need an engine/session. Let's try to get it from message context
-            # dispatcher passes middleware data.
-            quiz_service = QuizService(session=data["session"])
+            
+            # Use injected quiz_service
+            quiz_service = data.get("quiz_service")
+            if not quiz_service:
+                # Fallback if middleware missed it (shouldn't happen)
+                from db.session import AsyncSessionLocal
+                from services.quiz_service import QuizService
+                async with AsyncSessionLocal() as session:
+                    quiz_service = QuizService(session)
+            
+            # Feature: Add to user's list if not already there
+            cloned_quiz = await quiz_service.clone_quiz(quiz_id, telegram_id)
+            if cloned_quiz:
+                await message.answer(f"✅ <b>{cloned_quiz.title}</b> testi ro'yxatingizga qo'shildi!", parse_mode="HTML")
+            
             return await show_quiz_info(message.bot, message.chat.id, quiz_id, lang, quiz_service)
 
     welcome_text = Messages.get("WELCOME", lang) + "\n\n" + Messages.get("FORMAT_INFO", lang)

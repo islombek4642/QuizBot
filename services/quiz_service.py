@@ -41,11 +41,10 @@ class QuizService:
         from models.session import QuizSession
         
         # Delete related sessions first to avoid foreign key constraints
-        # Ensure we delete ONLY sessions belonging to this quiz
         await self.db.execute(
             delete(QuizSession).where(QuizSession.quiz_id == quiz_id)
         )
-        await self.db.commit() # Commit session deletion separately for safety
+        await self.db.commit()
         
         # Now delete the quiz
         result = await self.db.execute(
@@ -55,3 +54,27 @@ class QuizService:
         success = result.rowcount > 0
         logger.info("Quiz deleted", quiz_id=quiz_id, user_id=user_id, success=success)
         return success
+
+    async def clone_quiz(self, quiz_id: int, new_user_id: int) -> Optional[Quiz]:
+        """Clone an existing quiz for a new user"""
+        quiz = await self.get_quiz(quiz_id)
+        if not quiz or quiz.user_id == new_user_id:
+            return None
+            
+        # Check if title already exists for this user
+        final_title = quiz.title
+        if await self.is_title_taken(new_user_id, final_title):
+            import time
+            final_title = f"{quiz.title} ({int(time.time() % 1000)})"
+            
+        new_quiz = Quiz(
+            user_id=new_user_id,
+            title=final_title,
+            questions_json=quiz.questions_json,
+            shuffle_options=quiz.shuffle_options
+        )
+        self.db.add(new_quiz)
+        await self.db.commit()
+        await self.db.refresh(new_quiz)
+        logger.info("Quiz cloned", from_id=quiz.id, to_id=new_quiz.id, user_id=new_user_id)
+        return new_quiz
