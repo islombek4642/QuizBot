@@ -12,6 +12,14 @@ async def cmd_start(message: types.Message, user_service: UserService):
     telegram_id = message.from_user.id
     lang = await user_service.get_language(telegram_id)
     
+    user = await user_service.get_or_create_user(telegram_id)
+    if not user or not user.phone_number:
+        await message.answer(
+            Messages.get("SHARE_CONTACT_PROMPT", lang),
+            reply_markup=get_contact_keyboard(lang)
+        )
+        return
+
     await enable_user_menu(message.bot, telegram_id)
     welcome_text = Messages.get("WELCOME", lang) + "\n\n" + Messages.get("FORMAT_INFO", lang)
     

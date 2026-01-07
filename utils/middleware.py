@@ -8,6 +8,7 @@ from services.quiz_service import QuizService
 from services.session_service import SessionService
 from constants.messages import Messages
 from handlers.common import get_contact_keyboard
+from core.logger import logger
 
 class DbSessionMiddleware(BaseMiddleware):
     async def __call__(
@@ -52,8 +53,14 @@ class AuthMiddleware(BaseMiddleware):
         if not isinstance(event, types.Message):
             return await handler(event, data)
 
-        # Allow /start and contact sharing
-        if event.text == "/start" or event.contact:
+        # Allow /start (and its variations) and contact sharing
+        is_start_command = False
+        if event.text:
+            command_part = event.text.split()[0]
+            if command_part == "/start" or command_part.startswith("/start@"):
+                is_start_command = True
+        
+        if is_start_command or event.contact:
             return await handler(event, data)
 
         user_service: UserService = data.get("user_service")
@@ -64,7 +71,8 @@ class AuthMiddleware(BaseMiddleware):
         user = await user_service.get_or_create_user(telegram_id)
         
         if not user or not user.phone_number:
-            lang = await user_service.get_language(telegram_id)
+            lang = user.language if user else "UZ"
+            logger.info("Access denied - contact sharing required", telegram_id=telegram_id)
             await event.answer(
                 Messages.get("SHARE_CONTACT_PROMPT", lang),
                 reply_markup=get_contact_keyboard(lang)
