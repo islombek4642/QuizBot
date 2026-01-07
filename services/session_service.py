@@ -95,3 +95,11 @@ class SessionService:
             data['last_poll_message_id'] = message_id
             session.session_data = data
             await self.db.commit()
+
+    async def set_stop_signal(self, user_id: int):
+        key = f"quizbot:stop:{user_id}"
+        await self.redis.set(key, 1, ex=15) # Signal active for 15 seconds
+
+    async def is_stopped(self, user_id: int) -> bool:
+        key = f"quizbot:stop:{user_id}"
+        return await self.redis.exists(key) > 0

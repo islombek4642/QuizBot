@@ -17,7 +17,8 @@ from handlers.common import (
     QuizStates, 
     get_shuffle_keyboard, 
     get_stop_keyboard,
-    get_quizzes_keyboard
+    get_quizzes_keyboard,
+    get_start_quiz_keyboard
 )
 from services.user_service import UserService
 from services.quiz_service import QuizService
@@ -144,44 +145,57 @@ async def handle_quiz_shuffle(message: types.Message, state: FSMContext, user_se
     
     quiz = await quiz_service.save_quiz(telegram_id, title, questions, shuffle)
     
-    builder = InlineKeyboardBuilder()
-    builder.button(text=Messages.get("START_QUIZ_BTN", lang), callback_data=f"start_quiz_{quiz.id}")
-    
-    shuffle_status = Messages.get("SHUFFLE_TRUE", lang) if shuffle else Messages.get("SHUFFLE_FALSE", lang)
-    summary_text = Messages.get("QUIZ_READY_DETAILS", lang).format(
-        title=title, count=len(questions), shuffle=shuffle_status
-    )
-    
-    # Combine summary and start prompt into one message with inline keyboard
+    # Combine summary and start prompt into one message
     combined_text = f"{summary_text}\n\n{Messages.get('SELECT_BUTTON', lang)}"
+    
+    # Store quiz_id in state to start it later via reply button
+    await state.update_data(current_quiz_id=quiz.id)
+    await state.set_state(QuizStates.QUIZ_READY)
     
     await message.answer(
         combined_text, 
-        reply_markup=builder.as_markup(),
+        reply_markup=get_start_quiz_keyboard(lang),
         parse_mode="HTML"
     )
-    await state.clear()
 
 @router.callback_query(F.data.startswith("start_quiz_"))
-async def start_quiz_handler(callback: types.CallbackQuery, state: FSMContext, 
-                             quiz_service: QuizService, session_service: SessionService, user_service: UserService):
+async def start_quiz_callback_handler(callback: types.CallbackQuery, state: FSMContext, 
+                                     quiz_service: QuizService, session_service: SessionService, user_service: UserService):
     quiz_id = int(callback.data.split("_")[2])
-    quiz = await quiz_service.get_quiz(quiz_id)
-    
-    if not quiz:
-        await callback.answer("❌ Test topilmadi.")
+    await process_start_quiz(callback.message, quiz_id, quiz_service, session_service, user_service)
+    await callback.answer()
+
+@router.message(QuizStates.QUIZ_READY, F.text.in_([Messages.get("START_QUIZ_BTN", "UZ"), Messages.get("START_QUIZ_BTN", "EN")]))
+async def start_quiz_message_handler(message: types.Message, state: FSMContext, 
+                                    quiz_service: QuizService, session_service: SessionService, user_service: UserService):
+    data = await state.get_data()
+    quiz_id = data.get("current_quiz_id")
+    if not quiz_id:
+        await message.answer("❌ Xatolik: Test ID topilmadi.")
+        await state.clear()
         return
     
-    telegram_id = callback.from_user.id
+    await process_start_quiz(message, quiz_id, quiz_service, session_service, user_service)
+    await state.clear()
+
+async def process_start_quiz(message: types.Message, quiz_id: int, quiz_service: QuizService, 
+                            session_service: SessionService, user_service: UserService):
+    quiz = await quiz_service.get_quiz(quiz_id)
+    if not quiz:
+        await message.answer("❌ Test topilmadi.")
+        return
+    
+    telegram_id = message.chat.id
     lang = await user_service.get_language(telegram_id)
-    questions = quiz.questions_json
+    questions = list(quiz.questions_json) # Copy to avoid mutating original if cached
     
     if quiz.shuffle_options:
         random.shuffle(questions)
         for q in questions:
-            options = q['options']
+            options = list(q['options'])
             correct_answer = options[q['correct_option_id']]
             random.shuffle(options)
+            q['options'] = options
             q['correct_option_id'] = options.index(correct_answer)
     
     session = await session_service.create_session(
@@ -191,14 +205,13 @@ async def start_quiz_handler(callback: types.CallbackQuery, state: FSMContext,
         session_data={'questions': questions}
     )
     
-    await callback.message.answer(
+    await message.answer(
         Messages.get("QUIZ_START_MSG", lang).format(title=quiz.title), 
         reply_markup=get_stop_keyboard(lang),
         parse_mode="HTML"
     )
     
-    await callback.answer()
-    await send_next_question(callback.message, session, session_service, lang)
+    await send_next_question(message, session, session_service, lang)
 
 async def send_next_question(message: types.Message, session: Any, session_service: SessionService, lang: str):
     questions = session.session_data['questions']
@@ -249,11 +262,14 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
         await show_stats(bot, updated_session, lang)
     else:
         await asyncio.sleep(3)
-        # Re-verify session is still active after the delay
-        # (It might have been stopped by the user during these 3 seconds)
+        # Re-verify session is still active and NOT hard-stopped after the delay
+        if await session_service.is_stopped(session.user_id):
+            logger.info("Session hard-stopped during delay, aborting next question", user_id=session.user_id)
+            return
+
         current_session = await session_service.get_active_session(session.user_id)
         if not current_session or current_session.id != updated_session.id:
-            logger.info("Session stopped during delay, aborting next question", user_id=session.user_id)
+            logger.info("Session stopped or changed during delay, aborting", user_id=session.user_id)
             return
 
         # Using a dummy message object to reuse send_next_question
@@ -308,6 +324,8 @@ async def cmd_stop_quiz(message: types.Message, session_service: SessionService,
             except Exception as e:
                 logger.warning(f"Failed to stop poll: {e}")
 
+        # Set hard-stop signal in Redis
+        await session_service.set_stop_signal(telegram_id)
         await session_service.stop_session(telegram_id)
         await message.answer(
             Messages.get("QUIZ_STOPPED", lang), 

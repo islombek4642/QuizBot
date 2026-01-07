@@ -12,6 +12,7 @@ class QuizStates(StatesGroup):
     WAITING_FOR_DOCX = State()
     WAITING_FOR_TITLE = State()
     WAITING_FOR_SHUFFLE = State()
+    QUIZ_READY = State()
     SESSION_RUNNING = State()
 
 def get_main_keyboard(lang: str, user_id: int = None):
@@ -63,6 +64,13 @@ def get_shuffle_keyboard(lang: str):
 def get_stop_keyboard(lang: str):
     builder = ReplyKeyboardBuilder()
     builder.button(text=Messages.get("STOP_QUIZ_BTN", lang))
+    return builder.as_markup(resize_keyboard=True)
+
+def get_start_quiz_keyboard(lang: str):
+    builder = ReplyKeyboardBuilder()
+    builder.button(text=Messages.get("START_QUIZ_BTN", lang))
+    builder.button(text=Messages.get("CANCEL_BTN", lang))
+    builder.adjust(1)
     return builder.as_markup(resize_keyboard=True)
 
 async def enable_user_menu(bot: Bot, user_id: int):
