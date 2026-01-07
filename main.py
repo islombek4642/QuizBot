@@ -5,7 +5,7 @@ from redis.asyncio import Redis
 
 from core.config import settings
 from core.logger import setup_logging, logger
-from handlers import start, quiz, settings as settings_handlers
+from handlers import start, quiz, settings as settings_handlers, group
 from utils.middleware import DbSessionMiddleware, RedisMiddleware, AuthMiddleware
 
 async def main():
@@ -17,6 +17,7 @@ async def main():
     
     # Initialize bot and dispatcher with Redis storage
     bot = Bot(token=settings.BOT_TOKEN)
+    bot["redis"] = redis  # Make redis accessible in handlers via bot.get("redis")
     dp = Dispatcher(storage=RedisStorage(redis=redis))
 
     # Set bot descriptions
@@ -35,6 +36,7 @@ async def main():
     dp.message.middleware(AuthMiddleware())
 
     # Include routers
+    dp.include_router(group.router)  # Group router first for my_chat_member events
     dp.include_router(start.router)
     dp.include_router(settings_handlers.router)
     dp.include_router(quiz.router)

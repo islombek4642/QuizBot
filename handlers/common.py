@@ -19,11 +19,13 @@ def get_main_keyboard(lang: str, user_id: int = None):
     builder = ReplyKeyboardBuilder()
     builder.button(text=Messages.get("CREATE_QUIZ_BTN", lang))
     builder.button(text=Messages.get("MY_QUIZZES_BTN", lang))
+    builder.button(text=Messages.get("ADD_TO_GROUP_BTN", lang))
     builder.button(text=Messages.get("SET_LANGUAGE_BTN", lang))
     builder.button(text=Messages.get("HELP_BTN", lang))
     
     builder.adjust(2)
     return builder.as_markup(resize_keyboard=True)
+
 
 def get_contact_keyboard(lang: str):
     keyboard = ReplyKeyboardMarkup(

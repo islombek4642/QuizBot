@@ -44,6 +44,15 @@ class Messages:
             "SHUFFLE_TRUE": "Ha ✅",
             "SHUFFLE_FALSE": "Yo'q ❌",
             "CONTACT_ADMIN_BTN": "👨‍💻 Admin bilan bog'lanish",
+            "ERROR_GENERIC": "❌ Xatolik yuz berdi. Qaytadan urinib ko'ring.",
+            "ADD_TO_GROUP_BTN": "➕ Guruhga qo'shish",
+            "START_IN_GROUP_BTN": "🚀 Guruhda boshlash",
+            "BOT_ADDED_TO_GROUP": "✅ Bot guruhga qo'shildi! Endi bu guruhda testlar o'tkazish mumkin.",
+            "BOT_NEEDS_ADMIN": "⚠️ Test o'tkazish uchun botga admin huquqi bering.",
+            "SELECT_GROUP": "Qaysi guruhda test o'tkazmoqchisiz? Quyidagi ro'yxatdan tanlang:",
+            "GROUP_QUIZ_STARTED": "🚀 Test guruhda boshlandi!",
+            "NO_GROUPS": "Bot hech qaysi guruhga qo'shilmagan. Avval botni guruhga qo'shing.",
+            "GROUP_QUIZ_STATS": "📊 <b>Guruh test natijalari:</b>\n\n📝 Test: {title}\n👥 Qatnashchilar: {participants}\n✅ O'rtacha ball: {avg_score}%",
         },
         "EN": {
             "WELCOME": "Hello! Welcome to QuizBot.\n\nSend me a .docx file with tests, and I'll convert it into Telegram polls.",
@@ -89,6 +98,15 @@ class Messages:
             "SHUFFLE_TRUE": "Yes ✅",
             "SHUFFLE_FALSE": "No ❌",
             "CONTACT_ADMIN_BTN": "👨‍💻 Contact Admin",
+            "ERROR_GENERIC": "❌ An error occurred. Please try again.",
+            "ADD_TO_GROUP_BTN": "➕ Add to Group",
+            "START_IN_GROUP_BTN": "🚀 Start in Group",
+            "BOT_ADDED_TO_GROUP": "✅ Bot added to group! You can now run quizzes here.",
+            "BOT_NEEDS_ADMIN": "⚠️ Please give admin rights to run quizzes.",
+            "SELECT_GROUP": "Which group do you want to run the quiz in? Select from the list:",
+            "GROUP_QUIZ_STARTED": "🚀 Quiz started in group!",
+            "NO_GROUPS": "Bot is not added to any group. Please add it to a group first.",
+            "GROUP_QUIZ_STATS": "📊 <b>Group Quiz Results:</b>\n\n📝 Quiz: {title}\n👥 Participants: {participants}\n✅ Average score: {avg_score}%",
         }
     }
 

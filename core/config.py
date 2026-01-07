@@ -7,6 +7,7 @@ class Settings(BaseSettings):
 
     BOT_TOKEN: str
     ADMIN_ID: int = Field(0, description="Telegram ID of the admin")
+    BOT_USERNAME: str = Field("", description="Bot username without @ symbol (e.g., QuizTestBot)")
     
     # Database
     DATABASE_URL: str = Field(..., description="Async PostgreSQL connection string (postgresql+asyncpg://...)")

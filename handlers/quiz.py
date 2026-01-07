@@ -383,6 +383,7 @@ async def handle_quiz_selection(message: types.Message, quiz_service: QuizServic
     if selected_quiz:
         builder = InlineKeyboardBuilder()
         builder.button(text=Messages.get("START_QUIZ_BTN", lang), callback_data=f"start_quiz_{selected_quiz.id}")
+        builder.button(text=Messages.get("START_IN_GROUP_BTN", lang), callback_data=f"start_group_quiz_{selected_quiz.id}")
         builder.button(text=Messages.get("QUIZ_DELETE_BTN", lang), callback_data=f"delete_quiz_{selected_quiz.id}")
         builder.adjust(1)
         
@@ -394,16 +395,10 @@ async def handle_quiz_selection(message: types.Message, quiz_service: QuizServic
             shuffle=shuffle_status
         )
         
-        # Combined message: Info text + Action buttons
-        # We use ReplyKeyboardRemove to ensure previous list is gone
         await message.answer(
             f"{info_text}\n\n{Messages.get('SELECT_BUTTON', lang)}",
             reply_markup=builder.as_markup(),
             parse_mode="HTML"
         )
-        
-        # We also need a way to let the user "clean" the ReplyKeyboardRemove 
-        # but since we want to keep the UI clean, we'll let subsequent actions handle it.
-        # Actually, if we send a separate message with ReplyKeyboardRemove, the keyboard drawer closes immediately.
     else:
         pass
