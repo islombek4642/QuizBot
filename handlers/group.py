@@ -14,7 +14,7 @@ from typing import Optional, Dict, Any
 from aiogram import Router, types, F, Bot
 from aiogram.types import ChatMemberUpdated
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.filters import ChatMemberUpdatedFilter, IS_MEMBER, IS_NOT_MEMBER
+from aiogram.filters import ChatMemberUpdatedFilter, IS_MEMBER, IS_NOT_MEMBER, Command
 
 from constants.messages import Messages
 from handlers.common import get_main_keyboard
