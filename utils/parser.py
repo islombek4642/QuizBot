@@ -93,15 +93,24 @@ def validate_question(q: Dict, line_num: int, lang: str):
         raise ParserError(msg)
         
     if len(q['options']) > 10:
-        msg = Messages.get("PARSER_TOO_MANY_OPTIONS", lang).format(line=line_num, count=len(q['options']))
-        raise ParserError(msg)
+        # Telegram limit: max 10 options. Slice silently as requested.
+        q['options'] = q['options'][:10]
+        # Ensure correct option is still within range if it was > 9? 
+        # Actually parse_docx_to_json sets correct_option_id based on index.
+        # If the correct answer was index 11, it is now lost or invalid.
+        # But 'correct_option_id' is an integer index.
+        # If we slice options, we must ensure correct_option_id < 10.
+        if q['correct_option_id'] >= 10:
+            # If the correct answer was cut off, this question is invalid functionally.
+            # But "format" might be okay. 
+            # However, a quiz without correct answer is broken.
+            # I will raise error ONLY if correct answer is lost by slicing.
+            raise ParserError(Messages.get("PARSER_NO_CORRECT_OPTION", lang).format(line=line_num, text=q['question'][:20] + "..."))
     
-    # Check length limits for Telegram
+    # Check length limits for Telegram - Truncate instead of error
     if len(q['question']) > 300:
-        msg = Messages.get("PARSER_QUESTION_TOO_LONG", lang).format(line=line_num, count=len(q['question']))
-        raise ParserError(msg)
+        q['question'] = q['question'][:297] + "..."
 
     for i, opt in enumerate(q['options']):
         if len(opt) > 100:
-             msg = Messages.get("PARSER_OPTION_TOO_LONG", lang).format(line=line_num, text=opt[:20] + "...", count=len(opt))
-             raise ParserError(msg)
+             q['options'][i] = opt[:97] + "..."
