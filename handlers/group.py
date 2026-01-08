@@ -603,29 +603,35 @@ class IsGroupPoll(BaseFilter):
 async def handle_group_poll_update(poll: types.Poll, bot: Bot, redis):
     """Handle poll updates, specifically closing, to advance the quiz"""
     if not poll.is_closed:
+        # logger.info("Group poll update ignored: poll not closed", poll_id=poll.id)
         return
         
     # Key existence is guaranteed by filter
     key = f"group_poll:{poll.id}"
     poll_mapping_raw = await redis.get(key)
     if not poll_mapping_raw:
+        logger.warning("Group poll update ignored: mapping not found", poll_id=poll.id)
         return
         
     poll_mapping = __import__('json').loads(poll_mapping_raw)
     chat_id = poll_mapping["chat_id"]
     question_index = poll_mapping["question_index"]
+    logger.info("Processing closed group poll", chat_id=chat_id, question_index=question_index)
     
     # Get quiz state
     quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
     if not quiz_state_raw:
+        logger.warning("Group poll update ignored: quiz state not found", chat_id=chat_id)
         return
     
     quiz_state = __import__('json').loads(quiz_state_raw)
     if not quiz_state.get("is_active"):
+        logger.warning("Group poll update ignored: quiz not active", chat_id=chat_id)
         return
         
     # Only advance if this is the current active question
     if question_index != quiz_state["current_index"]:
+        logger.warning("Group poll update ignored: index mismatch", current=quiz_state["current_index"], received=question_index)
         return
 
     # Check advancement lock to prevent race conditions
