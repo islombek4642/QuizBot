@@ -437,7 +437,7 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
         sorted_p = sorted(participants.items(), key=lambda x: (x[1]['correct'], x[1]['answered']), reverse=True)
         
         leaderboard = f"🏁 <b>{quiz_title}</b>\n\n"
-        leaderboard += "🏆 <b>Final Leaderboard:</b>\n"
+        leaderboard += Messages.get("FINAL_LEADERBOARD", lang) + "\n"
         
         for i, (uid, stats) in enumerate(sorted_p[:15], 1):
             try:
@@ -471,6 +471,11 @@ async def cmd_stop_group_quiz(message: types.Message, user_service: UserService,
     try:
         chat_id = message.chat.id
         lang = await user_service.get_language(message.from_user.id)
+        
+        # Use preference if stored
+        group_lang = await redis.get(f"group_lang:{chat_id}")
+        if group_lang:
+            lang = group_lang
         
         quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
         if not quiz_state_raw:
@@ -562,7 +567,7 @@ async def cmd_group_create_quiz(message: types.Message, user_service: UserServic
     builder.button(text=Messages.get("CREATE_QUIZ_BTN", lang), url=f"https://t.me/{bot_info.username}?start=create")
     
     await message.answer(
-        "📝 Test yaratish uchun botning o'ziga o'ting / To create a quiz, go to the bot's private chat.",
+        Messages.get("CREATE_QUIZ_REDIRECT", lang).format(username=bot_info.username),
         reply_markup=builder.as_markup()
     )
 
@@ -598,7 +603,9 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
     # Sort by correct then total
     sorted_p = sorted(participants.items(), key=lambda x: (x[1]['correct'], x[1]['answered']), reverse=True)
     
-    leaderboard = f"🏆 <b>{quiz_state.get('title', 'Quiz')} - Leaderboard</b>\n\n"
+    sorted_p = sorted(participants.items(), key=lambda x: (x[1]['correct'], x[1]['answered']), reverse=True)
+    
+    leaderboard = Messages.get("LEADERBOARD_TITLE", lang).format(title=quiz_state.get('title', 'Quiz')) + "\n\n"
     for i, (uid, stats) in enumerate(sorted_p[:15], 1):
         try:
             member = await message.chat.get_member(int(uid))
@@ -626,15 +633,10 @@ async def cmd_group_quiz_help(message: types.Message, user_service: UserService,
     if group_lang:
         lang = group_lang
         
-    help_text = (
-        "🤖 <b>Group Quiz Help</b>\n\n"
-        "/quiz_stats - Leaderboard\n"
-        "/stop_quiz - Stop current quiz (Admins only)\n"
-        "/set_language - Change group language (Admins only)\n"
-        "/create_quiz - Create a new quiz via bot\n"
-        "/quiz_help - This help message\n\n"
-        "To start a quiz, select 'Start in Group' in the bot's private chat."
-    )
+    if group_lang:
+        lang = group_lang
+        
+    help_text = Messages.get("GROUP_HELP_TEXT", lang)
     
     builder = InlineKeyboardBuilder()
     builder.button(text=Messages.get("CONTACT_ADMIN_BTN", lang), url=f"tg://user?id={settings.ADMIN_ID}")
