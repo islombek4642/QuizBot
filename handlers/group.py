@@ -555,108 +555,122 @@ async def cmd_group_quiz_help(message: types.Message, user_service: UserService,
 async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot, 
                                    session_service: SessionService, user_service: UserService, redis):
     """Handle poll answers for group quizzes"""
-    key = f"group_poll:{poll_answer.poll_id}"
-    # Filter already checked via is_group_poll
-        
-    poll_mapping_raw = await redis.get(key)
-    poll_mapping = __import__('json').loads(poll_mapping_raw)
-    chat_id = poll_mapping["chat_id"]
-    question_index = poll_mapping["question_index"]
-    
-    # Get quiz state
-    quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
-    if not quiz_state_raw:
-        return
-    
-    quiz_state = __import__('json').loads(quiz_state_raw)
-    if not quiz_state.get("is_active"):
-        return
-    
-    # Idempotency check - don't process same answer twice
-    user_id = poll_answer.user.id
-    answer_key = f"group_answered:{chat_id}:{question_index}:{user_id}"
-    if await redis.exists(answer_key):
-        return
-    await redis.set(answer_key, "1", ex=settings.POLL_MAPPING_TTL_SECONDS)
-    
-    # Get user language
-    lang = await user_service.get_language(user_id)
-    
-    # Track user answer
-    questions = quiz_state["questions"]
-    q = questions[question_index]
-    is_correct = poll_answer.option_ids[0] == q['correct_option_id']
-    
-    # Update participant stats
-    participants = quiz_state.get("participants", {})
-    user_key = str(user_id)
-    if user_key not in participants:
-        participants[user_key] = {"correct": 0, "answered": 0}
-    
-    participants[user_key]["answered"] += 1
-    if is_correct:
-        participants[user_key]["correct"] += 1
-    
-    quiz_state["participants"] = participants
-    
-    # Just save the updated stats. Advancement now happens when poll closes.
-    logger.info("Group poll answer recorded", chat_id=chat_id, user_id=user_id, question_index=question_index)
-    await redis.set(
-        GROUP_QUIZ_KEY.format(chat_id=chat_id),
-        __import__('json').dumps(quiz_state),
-        ex=14400
-    )
+    try:
+        logger.info("Entering handle_group_poll_answer", user_id=poll_answer.user.id, poll_id=poll_answer.poll_id)
+        key = f"group_poll:{poll_answer.poll_id}"
+        # Filter already checked via is_group_poll
+            
+        poll_mapping_raw = await redis.get(key)
+        if not poll_mapping_raw:
+            logger.warning("Group answer ignored: mapping not found", poll_id=poll_answer.poll_id)
+            return
 
-
-@router.poll(IsGroupPoll())
-async def handle_group_poll_update(poll: types.Poll, bot: Bot, redis):
-    """Handle poll updates, specifically closing, to advance the quiz"""
-    if not poll.is_closed:
-        # logger.info("Group poll update ignored: poll not closed", poll_id=poll.id)
-        return
+        poll_mapping = __import__('json').loads(poll_mapping_raw)
+        chat_id = poll_mapping["chat_id"]
+        question_index = poll_mapping["question_index"]
         
-    # Key existence is guaranteed by filter
-    key = f"group_poll:{poll.id}"
-    poll_mapping_raw = await redis.get(key)
-    if not poll_mapping_raw:
-        logger.warning("Group poll update ignored: mapping not found", poll_id=poll.id)
-        return
+        # Get quiz state
+        quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
+        if not quiz_state_raw:
+            logger.warning("Group answer ignored: state not found", chat_id=chat_id)
+            return
         
-    poll_mapping = __import__('json').loads(poll_mapping_raw)
-    chat_id = poll_mapping["chat_id"]
-    question_index = poll_mapping["question_index"]
-    logger.info("Processing closed group poll", chat_id=chat_id, question_index=question_index)
-    
-    # Get quiz state
-    quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
-    if not quiz_state_raw:
-        logger.warning("Group poll update ignored: quiz state not found", chat_id=chat_id)
-        return
-    
-    quiz_state = __import__('json').loads(quiz_state_raw)
-    if not quiz_state.get("is_active"):
-        logger.warning("Group poll update ignored: quiz not active", chat_id=chat_id)
-        return
+        quiz_state = __import__('json').loads(quiz_state_raw)
+        if not quiz_state.get("is_active"):
+            logger.warning("Group answer ignored: quiz inactive", chat_id=chat_id)
+            return
         
-    # Only advance if this is the current active question
-    if question_index != quiz_state["current_index"]:
-        logger.warning("Group poll update ignored: index mismatch", current=quiz_state["current_index"], received=question_index)
-        return
-
-    # Check advancement lock to prevent race conditions
-    advancement_lock_key = f"quiz_advancing:{chat_id}:{question_index}"
-    if await redis.set(advancement_lock_key, "1", nx=True, ex=10):
-        quiz_state["current_index"] += 1
+        # Idempotency check - don't process same answer twice
+        user_id = poll_answer.user.id
+        answer_key = f"group_answered:{chat_id}:{question_index}:{user_id}"
+        if await redis.exists(answer_key):
+            logger.info("Group answer ignored: duplicate", user_id=user_id)
+            return
+        await redis.set(answer_key, "1", ex=settings.POLL_MAPPING_TTL_SECONDS)
         
-        # Save state
+        # Get user language
+        lang = await user_service.get_language(user_id)
+        
+        # Track user answer
+        questions = quiz_state["questions"]
+        q = questions[question_index]
+        is_correct = poll_answer.option_ids[0] == q['correct_option_id']
+        
+        # Update participant stats
+        participants = quiz_state.get("participants", {})
+        user_key = str(user_id)
+        if user_key not in participants:
+            participants[user_key] = {"correct": 0, "answered": 0}
+        
+        participants[user_key]["answered"] += 1
+        if is_correct:
+            participants[user_key]["correct"] += 1
+        
+        quiz_state["participants"] = participants
+        
+        # Just save the updated stats. Advancement now happens when poll closes.
+        logger.info("Group poll answer recorded", chat_id=chat_id, user_id=user_id, question_index=question_index)
         await redis.set(
             GROUP_QUIZ_KEY.format(chat_id=chat_id),
             __import__('json').dumps(quiz_state),
             ex=14400
         )
+    except Exception as e:
+        logger.error("Error in handle_group_poll_answer", error=str(e), poll_id=poll_answer.poll_id)
+
+
+@router.poll(IsGroupPoll())
+async def handle_group_poll_update(poll: types.Poll, bot: Bot, redis):
+    """Handle poll updates, specifically closing, to advance the quiz"""
+    try:
+        if not poll.is_closed:
+            # logger.info("Group poll update ignored: poll not closed", poll_id=poll.id)
+            return
+            
+        # Key existence is guaranteed by filter
+        key = f"group_poll:{poll.id}"
+        poll_mapping_raw = await redis.get(key)
+        if not poll_mapping_raw:
+            logger.warning("Group poll update ignored: mapping not found", poll_id=poll.id)
+            return
+            
+        poll_mapping = __import__('json').loads(poll_mapping_raw)
+        chat_id = poll_mapping["chat_id"]
+        question_index = poll_mapping["question_index"]
+        logger.info("Processing closed group poll", chat_id=chat_id, question_index=question_index)
         
-        # Wait 3 seconds then send next question
-        await asyncio.sleep(3)
+        # Get quiz state
+        quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
+        if not quiz_state_raw:
+            logger.warning("Group poll update ignored: quiz state not found", chat_id=chat_id)
+            return
+        
+        quiz_state = __import__('json').loads(quiz_state_raw)
+        if not quiz_state.get("is_active"):
+            logger.warning("Group poll update ignored: quiz not active", chat_id=chat_id)
+            return
+            
+        # Only advance if this is the current active question
+        if question_index != quiz_state["current_index"]:
+            logger.warning("Group poll update ignored: index mismatch", current=quiz_state["current_index"], received=question_index)
+            return
+
+        # Check advancement lock to prevent race conditions
+        advancement_lock_key = f"quiz_advancing:{chat_id}:{question_index}"
+        if await redis.set(advancement_lock_key, "1", nx=True, ex=10):
+            quiz_state["current_index"] += 1
+            
+            # Save state
+            await redis.set(
+                GROUP_QUIZ_KEY.format(chat_id=chat_id),
+                __import__('json').dumps(quiz_state),
+                ex=14400
+            )
+            
+            # Wait 3 seconds then send next question
+            await asyncio.sleep(3)
+    except Exception as e:
+        logger.error("Error in handle_group_poll_update", error=str(e), poll_id=poll.id)
         
         # Re-fetch state to check if still active
         quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
