@@ -56,7 +56,7 @@ async def cmd_start(message: types.Message, user_service: UserService, state: FS
             # Feature: Add to user's list if not already there
             cloned_quiz = await quiz_service.clone_quiz(quiz_id, telegram_id)
             if cloned_quiz:
-                await message.answer(f"✅ <b>{cloned_quiz.title}</b> testi ro'yxatingizga qo'shildi!", parse_mode="HTML")
+                await message.answer(Messages.get("QUIZ_ADDED_TO_LIST", lang).format(title=cloned_quiz.title), parse_mode="HTML")
             
             return await show_quiz_info(message.bot, message.chat.id, quiz_id, lang, quiz_service)
 

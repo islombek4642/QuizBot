@@ -195,7 +195,11 @@ async def start_quiz_message_handler(message: types.Message, state: FSMContext,
     data = await state.get_data()
     quiz_id = data.get("current_quiz_id")
     if not quiz_id:
-        await message.answer("❌ Xatolik: Test ID topilmadi.")
+        # We need language here, but state context implies user interact. 
+        # Actually user_service is available.
+        telegram_id = message.from_user.id
+        lang = await user_service.get_language(telegram_id)
+        await message.answer(Messages.get("ERROR_QUIZ_NOT_FOUND", lang))
         await state.clear()
         return
     
@@ -204,13 +208,13 @@ async def start_quiz_message_handler(message: types.Message, state: FSMContext,
 
 async def process_start_quiz(message: types.Message, quiz_id: int, quiz_service: QuizService, 
                             session_service: SessionService, user_service: UserService):
-    quiz = await quiz_service.get_quiz(quiz_id)
-    if not quiz:
-        await message.answer("❌ Test topilmadi.")
-        return
-    
     telegram_id = message.chat.id
     lang = await user_service.get_language(telegram_id)
+
+    quiz = await quiz_service.get_quiz(quiz_id)
+    if not quiz:
+        await message.answer(Messages.get("ERROR_TEST_NOT_FOUND", lang))
+        return
     questions = list(quiz.questions_json) # Copy to avoid mutating original if cached
     
     if quiz.shuffle_options:
@@ -474,10 +478,11 @@ async def handle_quiz_selection(message: types.Message, quiz_service: QuizServic
 
 
 @router.inline_query()
-async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: QuizService):
+async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: QuizService, user_service: UserService):
     """Handle quiz sharing via inline query"""
     query = inline_query.query
     telegram_id = inline_query.from_user.id
+    lang = await user_service.get_language(telegram_id)
     
     # If query matches quiz_ID, show that specific quiz
     if query.startswith("quiz_"):
@@ -488,10 +493,12 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
                 bot_info = await inline_query.bot.get_me()
                 
                 builder = InlineKeyboardBuilder()
-                builder.button(text="🚀 Testni boshlash", url=f"https://t.me/{bot_info.username}?start=quiz_{quiz_id}")
-                builder.button(text="👥 Guruhda boshlash", url=f"https://t.me/{bot_info.username}?startgroup=quiz_{quiz_id}")
-                builder.button(text="📤 Ulashish", switch_inline_query=f"quiz_{quiz_id}")
+                builder.button(text=Messages.get("INLINE_START_BTN", lang), url=f"https://t.me/{bot_info.username}?start=quiz_{quiz_id}")
+                builder.button(text=Messages.get("INLINE_START_GROUP_BTN", lang), url=f"https://t.me/{bot_info.username}?startgroup=quiz_{quiz_id}")
+                builder.button(text=Messages.get("INLINE_SHARE_BTN", lang), switch_inline_query=f"quiz_{quiz_id}")
                 builder.adjust(1)
+
+                msg_text = Messages.get("INLINE_SHARE_MSG", lang).format(title=quiz.title, count=len(quiz.questions_json))
 
                 results = [
                     types.InlineQueryResultArticle(
@@ -499,7 +506,7 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
                         title=quiz.title,
                         description=f"Savollar soni: {len(quiz.questions_json)}",
                         input_message_content=types.InputTextMessageContent(
-                            message_text=f"🚀 <b>{quiz.title}</b>\n\nUshbu testni yechib ko'ring!\nSavollar soni: {len(quiz.questions_json)}",
+                            message_text=msg_text,
                             parse_mode="HTML"
                         ),
                         reply_markup=builder.as_markup()
@@ -517,10 +524,12 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
     
     for q in quizzes[:10]:
         builder = InlineKeyboardBuilder()
-        builder.button(text="🚀 Testni boshlash", url=f"https://t.me/{bot_info.username}?start=quiz_{q.id}")
-        builder.button(text="👥 Guruhda boshlash", url=f"https://t.me/{bot_info.username}?startgroup=quiz_{q.id}")
-        builder.button(text="📤 Ulashish", switch_inline_query=f"quiz_{q.id}")
+        builder.button(text=Messages.get("INLINE_START_BTN", lang), url=f"https://t.me/{bot_info.username}?start=quiz_{q.id}")
+        builder.button(text=Messages.get("INLINE_START_GROUP_BTN", lang), url=f"https://t.me/{bot_info.username}?startgroup=quiz_{q.id}")
+        builder.button(text=Messages.get("INLINE_SHARE_BTN", lang), switch_inline_query=f"quiz_{q.id}")
         builder.adjust(1)
+        
+        msg_text = Messages.get("INLINE_SHARE_MSG", lang).format(title=q.title, count=len(q.questions_json))
 
         results.append(
             types.InlineQueryResultArticle(
@@ -528,7 +537,7 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
                 title=q.title,
                 description=f"Savollar soni: {len(q.questions_json)}",
                 input_message_content=types.InputTextMessageContent(
-                    message_text=f"🚀 <b>{q.title}</b>\n\nUshbu testni yechib ko'ring!\nSavollar soni: {len(q.questions_json)}",
+                    message_text=msg_text,
                     parse_mode="HTML"
                 ),
                 reply_markup=builder.as_markup()
