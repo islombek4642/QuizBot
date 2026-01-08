@@ -48,6 +48,12 @@ class IsGroupPoll(BaseFilter):
             return False
             
         exists = await redis.exists(f"group_poll:{poll_id}")
+        if not exists:
+            # Only log if it's NOT a generic public poll (noise reduction)
+            # But for debugging we want to see it.
+            # logger.info(f"IsGroupPoll fail: poll_id={poll_id}") 
+            pass
+            
         logger.info(f"IsGroupPoll check: poll_id={poll_id}, exists={exists}, event_type={type(event).__name__}")
         return bool(exists)
 
@@ -349,6 +355,69 @@ async def send_group_question(bot: Bot, chat_id: int, quiz_state: dict, redis, l
         __import__('json').dumps(poll_mapping),
         ex=settings.POLL_MAPPING_TTL_SECONDS
     )
+    
+    # Spawn failsafe task to ensure advancement if Telegram update is missed
+    asyncio.create_task(
+        _failsafe_advance_quiz(bot, chat_id, quiz_state["quiz_id"], current_index, redis)
+    )
+
+async def _failsafe_advance_quiz(bot: Bot, chat_id: int, quiz_id: int, question_index: int, redis):
+    """Wait for poll duration + buffer, then force advance if not already done"""
+    await asyncio.sleep(settings.POLL_DURATION_SECONDS + 2)
+    # Try to advance
+    await _advance_group_quiz(bot, chat_id, quiz_id, question_index, redis)
+
+async def _advance_group_quiz(bot: Bot, chat_id: int, quiz_id: int, question_index: int, redis):
+    """Shared logic to advance quiz to next question safely"""
+    try:
+        # Get quiz state
+        quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
+        if not quiz_state_raw:
+            return
+        
+        quiz_state = __import__('json').loads(quiz_state_raw)
+        if not quiz_state.get("is_active"):
+            return
+            
+        # Only advance if this is the current active question and matching quiz
+        if quiz_state["quiz_id"] != quiz_id or quiz_state["current_index"] != question_index:
+            return
+
+        # Check advancement lock to prevent race conditions
+        advancement_lock_key = f"quiz_advancing:{chat_id}:{question_index}"
+        if await redis.set(advancement_lock_key, "1", nx=True, ex=10):
+            logger.info("Advancing quiz triggered", chat_id=chat_id, index=question_index)
+            
+            # Stop the specific poll message just in case it's still open
+            poll_msg_id = quiz_state.get("active_poll_message_id")
+            if poll_msg_id:
+                try:
+                    await bot.stop_poll(chat_id, poll_msg_id)
+                except:
+                    pass
+
+            quiz_state["current_index"] += 1
+            
+            # Save state
+            await redis.set(
+                GROUP_QUIZ_KEY.format(chat_id=chat_id),
+                __import__('json').dumps(quiz_state),
+                ex=14400
+            )
+            
+            # Wait 2 seconds then send next question
+            await asyncio.sleep(2)
+            
+            # Re-fetch state to check if still active
+            quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
+            if quiz_state_raw:
+                quiz_state = __import__('json').loads(quiz_state_raw)
+                if quiz_state.get("is_active"):
+                    # Use group language if set
+                    group_lang = await redis.get(f"group_lang:{chat_id}")
+                    await send_group_question(bot, chat_id, quiz_state, redis, group_lang or "UZ")
+    except Exception as e:
+        logger.error("Error in _advance_group_quiz", error=str(e), chat_id=chat_id)
     
     logger.info("Group poll sent", chat_id=chat_id, poll_id=poll_message.poll.id, question_index=current_index)
 
@@ -656,29 +725,8 @@ async def handle_group_poll_update(poll: types.Poll, bot: Bot, redis):
             logger.warning("Group poll update ignored: index mismatch", current=quiz_state["current_index"], received=question_index)
             return
 
-        # Check advancement lock to prevent race conditions
-        advancement_lock_key = f"quiz_advancing:{chat_id}:{question_index}"
-        if await redis.set(advancement_lock_key, "1", nx=True, ex=10):
-            quiz_state["current_index"] += 1
-            
-            # Save state
-            await redis.set(
-                GROUP_QUIZ_KEY.format(chat_id=chat_id),
-                __import__('json').dumps(quiz_state),
-                ex=14400
-            )
-            
-            # Wait 3 seconds then send next question
-            await asyncio.sleep(3)
+        # Use shared advancement logic
+        await _advance_group_quiz(bot, chat_id, quiz_state["quiz_id"], question_index, redis)
+
     except Exception as e:
         logger.error("Error in handle_group_poll_update", error=str(e), poll_id=poll.id)
-        
-        # Re-fetch state to check if still active
-        quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
-        if quiz_state_raw:
-            quiz_state = __import__('json').loads(quiz_state_raw)
-            if quiz_state.get("is_active"):
-                # Use group language if set
-                group_lang = await redis.get(f"group_lang:{chat_id}")
-                logger.info("Advancing group quiz to next question", chat_id=chat_id, next_index=quiz_state["current_index"])
-                await send_group_question(bot, chat_id, quiz_state, redis, group_lang or "UZ")
