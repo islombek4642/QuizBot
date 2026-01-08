@@ -398,39 +398,45 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
 @router.message(Command("stop_quiz"), F.chat.type.in_({"group", "supergroup"}))
 async def cmd_stop_group_quiz(message: types.Message, user_service: UserService, redis):
     """Stop active quiz in group (only owner or admin)"""
-    chat_id = message.chat.id
-    lang = await user_service.get_language(message.from_user.id)
-    
-    quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
-    if not quiz_state_raw:
-        return
+    try:
+        chat_id = message.chat.id
+        lang = await user_service.get_language(message.from_user.id)
         
-    quiz_state = __import__('json').loads(quiz_state_raw)
-    
-    # Check permission
-    is_owner = message.from_user.id == quiz_state.get("owner_id")
-    member = await message.chat.get_member(message.from_user.id)
-    is_admin = member.status in ("administrator", "creator")
-    
-    if not (is_owner or is_admin):
-        # Notify that only admins can stop
+        quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
+        if not quiz_state_raw:
+            return
+            
+        quiz_state = __import__('json').loads(quiz_state_raw)
+        
+        # Check permission
+        is_owner = message.from_user.id == quiz_state.get("owner_id")
+        member = await message.chat.get_member(message.from_user.id)
+        is_admin = member.status in ("administrator", "creator")
+        
+        if not (is_owner or is_admin):
+            # Notify that only admins can stop
+            await message.reply(Messages.get("ERROR_GENERIC", lang))
+            return
+            
+        quiz_state["is_active"] = False
+        await redis.set(GROUP_QUIZ_KEY.format(chat_id=chat_id), __import__('json').dumps(quiz_state), ex=3600)
+        
+        # Stop the active poll timer
+        poll_message_id = quiz_state.get("active_poll_message_id")
+        if poll_message_id:
+            try:
+                await message.bot.stop_poll(chat_id, poll_message_id)
+            except Exception as e:
+                # Ignore common poll errors
+                if "poll has already been closed" not in str(e) and "poll can't be stopped" not in str(e):
+                    logger.warning("Failed to stop poll", error=str(e), chat_id=chat_id)
+                    
+        # Show statistics before finishing
+        await finish_group_quiz(message.bot, chat_id, quiz_state, redis, lang)
+        
+    except Exception as e:
+        logger.error("Error stopping group quiz", error=str(e), chat_id=message.chat.id)
         await message.reply(Messages.get("ERROR_GENERIC", lang))
-        return
-        
-    quiz_state["is_active"] = False
-    await redis.set(GROUP_QUIZ_KEY.format(chat_id=chat_id), __import__('json').dumps(quiz_state), ex=3600)
-    
-    # Stop the active poll timer
-    poll_message_id = quiz_state.get("active_poll_message_id")
-    if poll_message_id:
-        try:
-            await message.bot.stop_poll(chat_id, poll_message_id)
-        except Exception as e:
-            if "poll has already been closed" not in str(e) and "poll can't be stopped" not in str(e):
-                logger.warning("Failed to stop poll", error=str(e), chat_id=chat_id)
-
-    # Show statistics before finishing
-    await finish_group_quiz(message.bot, chat_id, quiz_state, redis, lang)
 
 
 @router.message(Command("set_language"), F.chat.type.in_({"group", "supergroup"}))
