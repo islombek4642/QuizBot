@@ -159,8 +159,19 @@ async def start_group_quiz_callback(callback: types.CallbackQuery, user_service:
         return
     
     groups = await get_bot_groups(redis)
-    if not groups:
-        # If no groups found, show "Add to Group" button
+    # Filter groups where user is admin
+    user_admin_groups = []
+    for group_id in groups:
+        try:
+            member = await callback.bot.get_chat_member(chat_id=int(group_id), user_id=telegram_id)
+            if member.status in ('administrator', 'creator'):
+                user_admin_groups.append(group_id)
+        except Exception as e:
+            logger.warning(f"Could not check member status for {group_id}: {e}")
+            continue
+
+    if not user_admin_groups:
+        # If no groups found where user is admin, show "Add to Group" button
         bot_username = settings.BOT_USERNAME
         if not bot_username:
             try:
@@ -184,10 +195,10 @@ async def start_group_quiz_callback(callback: types.CallbackQuery, user_service:
         else:
             await callback.answer(Messages.get("NO_GROUPS", lang), show_alert=True)
             return
-    
+
     # Build group selection keyboard
     builder = InlineKeyboardBuilder()
-    for group_id in groups:
+    for group_id in user_admin_groups:
         title = await get_group_title(redis, int(group_id))
         builder.button(
             text=title,
