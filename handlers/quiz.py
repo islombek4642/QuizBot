@@ -251,7 +251,7 @@ async def send_next_question(message: types.Message, session: Any, session_servi
         is_anonymous=False,
         type='quiz',
         correct_option_id=q['correct_option_id'],
-        open_period=30
+        open_period=settings.POLL_DURATION_SECONDS
     )
     
     await session_service.map_poll_to_session(poll_msg.poll.id, session.id)
