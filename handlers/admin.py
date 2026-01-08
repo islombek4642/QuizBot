@@ -39,9 +39,9 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
     builder = InlineKeyboardBuilder()
     for i, user in enumerate(users, 1 + offset):
         if user.username:
-            text += f"{i}. <a href='https://t.me/{user.username}'>{name}</a>\n"
+            text += f"{i}. <a href='https://t.me/{user.username}'>{user.full_name}</a>\n"
         else:
-            text += f"{i}. <a href='tg://user?id={user.telegram_id}'>{name}</a> (ID: {user.telegram_id})\n"
+            text += f"{i}. <a href='tg://user?id={user.telegram_id}'>{user.full_name}</a> (ID: {user.telegram_id})\n"
         
     text += "\n" + Messages.get("ADMIN_PAGE", lang).format(page=page+1, total=(total_users + limit - 1) // limit)
     

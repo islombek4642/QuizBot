@@ -379,8 +379,9 @@ async def run_countdown_and_start(bot: Bot, chat_id: int, lobby_state: dict, red
         text = Messages.get("STARTING_IN", lang).format(seconds=i)
         try:
             await bot.edit_message_text(text, chat_id, msg_id)
-        except:
-            pass
+            logger.info(f"Countdown: {i}", chat_id=chat_id)
+        except Exception as e:
+            logger.warning(f"Countdown edit failed: {e}", chat_id=chat_id)
         await asyncio.sleep(1)
         
     # Start quiz
