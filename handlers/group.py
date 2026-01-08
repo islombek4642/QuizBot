@@ -262,14 +262,138 @@ async def confirm_group_quiz_callback(callback: types.CallbackQuery, user_servic
         await callback.answer(Messages.get("ERROR_GENERIC", lang), show_alert=True)
         return
     
-    # Start group quiz session
+    # Start group quiz lobby instead of immediate start
     # Use group preference if stored for the start logic
     group_lang = await redis.get(f"group_lang:{chat_id}")
-    await start_group_quiz(callback.bot, quiz, chat_id, telegram_id, group_lang or lang, redis, session_service)
+    await announce_group_quiz(callback.bot, quiz, chat_id, telegram_id, group_lang or lang, redis)
     
     # Notify user
-    await callback.message.edit_text(Messages.get("GROUP_QUIZ_STARTED", lang))
+    await callback.message.edit_text(Messages.get("GROUP_QUIZ_STARTED", lang)) # "Started in group" message
     await callback.answer()
+
+
+async def announce_group_quiz(bot: Bot, quiz, chat_id: int, owner_id: int, lang: str, redis):
+    """Send quiz announcement and wait for players"""
+    # Create lobby state
+    lobby_key = f"quiz_lobby:{chat_id}"
+    
+    # Check if active quiz exists
+    active_quiz = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
+    if active_quiz:
+        # Just ignore or warn? Assuming prior checks passed.
+        pass
+
+    lobby_state = {
+        "quiz_id": quiz.id,
+        "owner_id": owner_id,
+        "joined_users": [],
+        "min_players": 2,
+        "status": "waiting",
+        "quiz_title": quiz.title,
+        "questions_count": len(quiz.questions_json)
+    }
+    
+    msg_text = Messages.get("QUIZ_LOBBY_MSG", lang).format(
+        title=quiz.title,
+        count=len(quiz.questions_json),
+        ready_count=0
+    )
+    
+    builder = InlineKeyboardBuilder()
+    builder.button(text=Messages.get("I_AM_READY_BTN", lang), callback_data="join_lobby")
+    
+    msg = await bot.send_message(chat_id, msg_text, parse_mode="HTML", reply_markup=builder.as_markup())
+    
+    lobby_state["message_id"] = msg.message_id
+    await redis.set(lobby_key, __import__('json').dumps(lobby_state), ex=3600)
+
+
+@router.callback_query(F.data == "join_lobby")
+async def on_join_lobby(callback: types.CallbackQuery, user_service: UserService, redis, session_service: SessionService):
+    """Handle user joining the lobby"""
+    chat_id = callback.message.chat.id
+    user_id = callback.from_user.id
+    lobby_key = f"quiz_lobby:{chat_id}"
+    
+    state_raw = await redis.get(lobby_key)
+    if not state_raw:
+        await callback.answer(Messages.get("NO_ACTIVE_QUIZ", "UZ"), show_alert=True)
+        return
+        
+    state = __import__('json').loads(state_raw)
+    
+    # Check status
+    if state.get("status") != "waiting":
+        await callback.answer(Messages.get("ALREADY_READY", "UZ"), show_alert=True) # Or "Started"
+        return
+        
+    if user_id in state["joined_users"]:
+        await callback.answer(Messages.get("ALREADY_READY", "UZ"), show_alert=True)
+        return
+        
+    state["joined_users"].append(user_id)
+    await redis.set(lobby_key, __import__('json').dumps(state), ex=3600)
+    
+    await callback.answer(Messages.get("LOBBY_JOINED", "UZ"))
+    
+    # Update message
+    lang = await user_service.get_language(user_id) # Or group lang?
+    # Better use group lang if set
+    group_lang = await redis.get(f"group_lang:{chat_id}")
+    display_lang = group_lang or lang
+    
+    join_count = len(state["joined_users"])
+    
+    msg_text = Messages.get("QUIZ_LOBBY_MSG", display_lang).format(
+        title=state["quiz_title"],
+        count=state["questions_count"],
+        ready_count=join_count
+    )
+    
+    # Check if ready to start
+    if join_count >= state["min_players"]:
+        state["status"] = "starting"
+        await redis.set(lobby_key, __import__('json').dumps(state), ex=3600)
+        
+        # Start countdown
+        asyncio.create_task(run_countdown_and_start(callback.bot, chat_id, state, redis, session_service, display_lang))
+    else:
+        builder = InlineKeyboardBuilder()
+        builder.button(text=Messages.get("I_AM_READY_BTN", display_lang), callback_data="join_lobby")
+        try:
+            await callback.message.edit_text(msg_text, parse_mode="HTML", reply_markup=builder.as_markup())
+        except:
+            pass
+
+
+async def run_countdown_and_start(bot: Bot, chat_id: int, lobby_state: dict, redis, session_service, lang: str):
+    """Run 3-2-1 countdown and start quiz"""
+    msg_id = lobby_state.get("message_id")
+    
+    for i in range(3, 0, -1):
+        text = Messages.get("STARTING_IN", lang).format(seconds=i)
+        try:
+            await bot.edit_message_text(text, chat_id, msg_id)
+        except:
+            pass
+        await asyncio.sleep(1)
+        
+    # Start quiz
+    # We need quiz object. But start_group_quiz expects quiz object or we can modify it to take ID.
+    # Current start_group_quiz takes `quiz` object.
+    # We need to fetch it.
+    quiz_service = QuizService(session_service.session_factory)
+    quiz = await quiz_service.get_quiz(lobby_state["quiz_id"])
+    
+    if quiz:
+        try:
+            await bot.delete_message(chat_id, msg_id)
+        except:
+            pass
+        await start_group_quiz(bot, quiz, chat_id, lobby_state["owner_id"], lang, redis, session_service)
+    
+    # Cleanup lobby
+    await redis.delete(f"quiz_lobby:{chat_id}")
 
 
 async def start_group_quiz(bot: Bot, quiz, chat_id: int, owner_id: int, lang: str, 
