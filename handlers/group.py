@@ -418,8 +418,6 @@ async def _advance_group_quiz(bot: Bot, chat_id: int, quiz_id: int, question_ind
                     await send_group_question(bot, chat_id, quiz_state, redis, group_lang or "UZ")
     except Exception as e:
         logger.error("Error in _advance_group_quiz", error=str(e), chat_id=chat_id)
-    
-    logger.info("Group poll sent", chat_id=chat_id, poll_id=poll_message.poll.id, question_index=current_index)
 
 
 async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lang: str):
@@ -484,7 +482,7 @@ async def cmd_stop_group_quiz(message: types.Message, user_service: UserService,
         
         if not (is_owner or is_admin):
             # Notify that only admins can stop
-            await message.reply(Messages.get("ERROR_GENERIC", lang))
+            await message.reply(Messages.get("ONLY_ADMINS", lang))
             return
             
         quiz_state["is_active"] = False
@@ -511,8 +509,10 @@ async def cmd_stop_group_quiz(message: types.Message, user_service: UserService,
 @router.message(Command("set_language"), F.chat.type.in_({"group", "supergroup"}))
 async def cmd_group_set_language(message: types.Message, user_service: UserService):
     """Set language for the group (Admins only)"""
+    lang = await user_service.get_language(message.from_user.id)
     member = await message.chat.get_member(message.from_user.id)
     if member.status not in ("administrator", "creator"):
+        await message.reply(Messages.get("ONLY_ADMINS", lang))
         return
         
     lang = await user_service.get_language(message.from_user.id)
@@ -547,6 +547,11 @@ async def cb_set_group_lang(callback: types.CallbackQuery, user_service: UserSer
 async def cmd_group_create_quiz(message: types.Message, user_service: UserService):
     """Redirect to bot to create a quiz"""
     lang = await user_service.get_language(message.from_user.id)
+    
+    member = await message.chat.get_member(message.from_user.id)
+    if member.status not in ("administrator", "creator"):
+        await message.reply(Messages.get("ONLY_ADMINS", lang))
+        return
     bot_info = await message.bot.get_me()
     
     builder = InlineKeyboardBuilder()
@@ -563,6 +568,11 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
     """Show current quiz stats/leaderboard"""
     chat_id = message.chat.id
     lang = await user_service.get_language(message.from_user.id)
+    
+    member = await message.chat.get_member(message.from_user.id)
+    if member.status not in ("administrator", "creator"):
+        await message.reply(Messages.get("ONLY_ADMINS", lang))
+        return
     
     # Use preference if stored
     group_lang = await redis.get(f"group_lang:{chat_id}")
@@ -600,6 +610,11 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
 async def cmd_group_quiz_help(message: types.Message, user_service: UserService, redis):
     """Show help for group quizzes (available to everyone)"""
     lang = await user_service.get_language(message.from_user.id)
+    
+    member = await message.chat.get_member(message.from_user.id)
+    if member.status not in ("administrator", "creator"):
+        await message.reply(Messages.get("ONLY_ADMINS", lang))
+        return
     group_lang = await redis.get(f"group_lang:{message.chat.id}")
     if group_lang:
         lang = group_lang
