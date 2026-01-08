@@ -445,7 +445,10 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
                 name = member.user.full_name
             except:
                 name = f"User {uid}"
-            leaderboard += f"{i}. {name}: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
+            
+            medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+            rank_str = medals.get(i, f"{i}.")
+            leaderboard += f"{rank_str} {name}: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
         
         # Summary footer
         total_correct = sum(p.get("correct", 0) for p in participants.values())
@@ -471,6 +474,7 @@ async def cmd_stop_group_quiz(message: types.Message, user_service: UserService,
         
         quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
         if not quiz_state_raw:
+            await message.reply(Messages.get("NO_ACTIVE_QUIZ", lang))
             return
             
         quiz_state = __import__('json').loads(quiz_state_raw)
@@ -601,7 +605,10 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
             name = member.user.full_name
         except:
             name = f"User {uid}"
-        leaderboard += f"{i}. {name}: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
+            
+        medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+        rank_str = medals.get(i, f"{i}.")
+        leaderboard += f"{rank_str} {name}: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
         
     await message.answer(leaderboard, parse_mode="HTML", reply_markup=types.ReplyKeyboardRemove())
 
