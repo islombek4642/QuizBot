@@ -378,7 +378,7 @@ async def run_countdown_and_start(bot: Bot, chat_id: int, lobby_state: dict, red
     for i in range(3, 0, -1):
         text = Messages.get("STARTING_IN", lang).format(seconds=i)
         try:
-            await bot.edit_message_text(text, chat_id, msg_id)
+            await bot.edit_message_text(text=text, chat_id=chat_id, message_id=msg_id)
             logger.info(f"Countdown: {i}", chat_id=chat_id)
         except Exception as e:
             logger.warning(f"Countdown edit failed: {e}", chat_id=chat_id)
