@@ -324,7 +324,7 @@ async def on_join_lobby(callback: types.CallbackQuery, user_service: UserService
     
     # Check status
     if state.get("status") != "waiting":
-        await callback.answer(Messages.get("ALREADY_READY", "UZ"), show_alert=True) # Or "Started"
+        await callback.answer(Messages.get("GAME_ALREADY_STARTING", "UZ"), show_alert=True)
         return
         
     if user_id in state["joined_users"]:
@@ -382,7 +382,7 @@ async def run_countdown_and_start(bot: Bot, chat_id: int, lobby_state: dict, red
     # We need quiz object. But start_group_quiz expects quiz object or we can modify it to take ID.
     # Current start_group_quiz takes `quiz` object.
     # We need to fetch it.
-    quiz_service = QuizService(session_service.session_factory)
+    quiz_service = QuizService(session_service.db)
     quiz = await quiz_service.get_quiz(lobby_state["quiz_id"])
     
     if quiz:
