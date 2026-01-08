@@ -593,8 +593,11 @@ from aiogram.filters import BaseFilter
 class IsGroupPoll(BaseFilter):
     async def __call__(self, poll: types.Poll, redis) -> bool:
         if not redis:
+            logger.warning("IsGroupPoll: redis not available")
             return False
-        return await redis.exists(f"group_poll:{poll.id}")
+        exists = await redis.exists(f"group_poll:{poll.id}")
+        logger.info(f"IsGroupPoll check: poll_id={poll.id}, exists={exists}")
+        return bool(exists)
 
 @router.poll(IsGroupPoll())
 async def handle_group_poll_update(poll: types.Poll, bot: Bot, redis):
