@@ -451,7 +451,7 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
             
             medals = {1: "🥇", 2: "🥈", 3: "🥉"}
             rank_str = medals.get(i, f"{i}.")
-            leaderboard += f"{rank_str} {name}: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
+            leaderboard += f"{rank_str} <a href='tg://user?id={uid}'>{name}</a>: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
         
         # Summary footer
         total_correct = sum(p.get("correct", 0) for p in participants.values())
@@ -606,8 +606,6 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
     # Sort by correct then total
     sorted_p = sorted(participants.items(), key=lambda x: (x[1]['correct'], x[1]['answered']), reverse=True)
     
-    sorted_p = sorted(participants.items(), key=lambda x: (x[1]['correct'], x[1]['answered']), reverse=True)
-    
     leaderboard = Messages.get("LEADERBOARD_TITLE", lang).format(title=quiz_state.get('title', 'Quiz')) + "\n\n"
     for i, (uid, stats) in enumerate(sorted_p[:15], 1):
         try:
@@ -618,7 +616,7 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
             
         medals = {1: "🥇", 2: "🥈", 3: "🥉"}
         rank_str = medals.get(i, f"{i}.")
-        leaderboard += f"{rank_str} {name}: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
+        leaderboard += f"{rank_str} <a href='tg://user?id={uid}'>{name}</a>: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
         
     await message.answer(leaderboard, parse_mode="HTML", reply_markup=types.ReplyKeyboardRemove())
 
@@ -632,10 +630,6 @@ async def cmd_group_quiz_help(message: types.Message, user_service: UserService,
     if member.status not in ("administrator", "creator"):
         await message.reply(Messages.get("ONLY_ADMINS", lang))
         return
-    group_lang = await redis.get(f"group_lang:{message.chat.id}")
-    if group_lang:
-        lang = group_lang
-        
     if group_lang:
         lang = group_lang
         

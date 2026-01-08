@@ -38,10 +38,10 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
     
     builder = InlineKeyboardBuilder()
     for i, user in enumerate(users, 1 + offset):
-        name = user.full_name or user.username or f"User {user.telegram_id}"
-        # Create a link to the user
-        link = f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.telegram_id}"
-        text += f"{i}. <a href='{link}'>{name}</a>\n"
+        if user.username:
+            text += f"{i}. <a href='https://t.me/{user.username}'>{name}</a>\n"
+        else:
+            text += f"{i}. <a href='tg://user?id={user.telegram_id}'>{name}</a> (ID: {user.telegram_id})\n"
         
     text += f"\nSahifa: {page + 1}/{(total_users + limit - 1) // limit}"
     
@@ -95,7 +95,7 @@ async def show_groups_page(message_or_query, redis, lang: str, page: int):
             text += f"{i}. <a href='https://t.me/{username}'>{title}</a>\n"
         else:
             # Cannot link to private group easily without invite link
-            text += f"{i}. <b>{title}</b>\n"
+            text += f"{i}. <b>{title}</b> (ID: {group_id})\n"
         
     text += f"\nSahifa: {page + 1}/{(total_groups + limit - 1) // limit if total_groups > 0 else 1}"
     
@@ -109,9 +109,9 @@ async def show_groups_page(message_or_query, redis, lang: str, page: int):
         builder.row(*nav_buttons)
         
     if isinstance(message_or_query, types.Message):
-        await message_or_query.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+        await message_or_query.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML", link_preview_options=types.LinkPreviewOptions(is_disabled=True))
     else:
-        await message_or_query.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+        await message_or_query.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML", link_preview_options=types.LinkPreviewOptions(is_disabled=True))
 
 @router.callback_query(F.data.startswith("admin_groups_page_"))
 async def admin_groups_pagination(callback: types.CallbackQuery, redis, user_service: UserService):
