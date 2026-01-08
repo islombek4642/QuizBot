@@ -43,7 +43,7 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
         else:
             text += f"{i}. <a href='tg://user?id={user.telegram_id}'>{name}</a> (ID: {user.telegram_id})\n"
         
-    text += f"\nSahifa: {page + 1}/{(total_users + limit - 1) // limit}"
+    text += "\n" + Messages.get("ADMIN_PAGE", lang).format(page=page+1, total=(total_users + limit - 1) // limit)
     
     # Pagination buttons
     nav_buttons = []
@@ -97,7 +97,7 @@ async def show_groups_page(message_or_query, redis, lang: str, page: int):
             # Cannot link to private group easily without invite link
             text += f"{i}. <b>{title}</b> (ID: {group_id})\n"
         
-    text += f"\nSahifa: {page + 1}/{(total_groups + limit - 1) // limit if total_groups > 0 else 1}"
+    text += "\n" + Messages.get("ADMIN_PAGE", lang).format(page=page+1, total=(total_groups + limit - 1) // limit if total_groups > 0 else 1)
     
     nav_buttons = []
     if page > 0:

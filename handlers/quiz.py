@@ -112,7 +112,7 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
 
     try:
         # Offload parsing to thread to avoid blocking loop
-        questions = await asyncio.to_thread(parse_docx_to_json, local_path)
+        questions = await asyncio.to_thread(parse_docx_to_json, local_path, lang)
         
         await state.update_data(questions=questions)
         await state.set_state(QuizStates.WAITING_FOR_TITLE)
