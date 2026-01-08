@@ -582,9 +582,10 @@ async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot,
         
         # Idempotency check - don't process same answer twice
         user_id = poll_answer.user.id
-        answer_key = f"group_answered:{chat_id}:{question_index}:{user_id}"
+        # Use poll_id to enable multiple quizzes in same group without index collision
+        answer_key = f"group_answered:{poll_answer.poll_id}:{user_id}"
         if await redis.exists(answer_key):
-            logger.info("Group answer ignored: duplicate", user_id=user_id)
+            logger.info("Group answer ignored: duplicate", user_id=user_id, poll_id=poll_answer.poll_id)
             return
         await redis.set(answer_key, "1", ex=settings.POLL_MAPPING_TTL_SECONDS)
         
@@ -623,8 +624,8 @@ async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot,
 async def handle_group_poll_update(poll: types.Poll, bot: Bot, redis):
     """Handle poll updates, specifically closing, to advance the quiz"""
     try:
+        logger.info(f"Group poll update received: {poll.id}, closed={poll.is_closed}")
         if not poll.is_closed:
-            # logger.info("Group poll update ignored: poll not closed", poll_id=poll.id)
             return
             
         # Key existence is guaranteed by filter
