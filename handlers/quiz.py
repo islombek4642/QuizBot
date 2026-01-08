@@ -305,7 +305,15 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
         dummy_message._bot = bot
         await send_next_question(dummy_message, current_session, session_service, lang)
 
-@router.poll()
+from aiogram.filters import BaseFilter
+
+class IsPrivatePoll(BaseFilter):
+    async def __call__(self, poll: types.Poll, session_service: SessionService) -> bool:
+        # Check if we have a session mapped to this poll
+        session_id = await session_service.redis.get(f"quizbot:poll:{poll.id}")
+        return bool(session_id)
+
+@router.poll(IsPrivatePoll())
 async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service: SessionService, user_service: UserService):
     """Handle poll updates for private quizzes, advancing when a poll closes (timeout)"""
     if not poll.is_closed:

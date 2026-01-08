@@ -577,12 +577,21 @@ async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot,
         ex=14400
     )
 
-@router.poll()
+from aiogram.filters import BaseFilter
+
+class IsGroupPoll(BaseFilter):
+    async def __call__(self, poll: types.Poll, redis) -> bool:
+        if not redis:
+            return False
+        return await redis.exists(f"group_poll:{poll.id}")
+
+@router.poll(IsGroupPoll())
 async def handle_group_poll_update(poll: types.Poll, bot: Bot, redis):
     """Handle poll updates, specifically closing, to advance the quiz"""
     if not poll.is_closed:
         return
         
+    # Key existence is guaranteed by filter
     key = f"group_poll:{poll.id}"
     poll_mapping_raw = await redis.get(key)
     if not poll_mapping_raw:
@@ -596,7 +605,7 @@ async def handle_group_poll_update(poll: types.Poll, bot: Bot, redis):
     quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
     if not quiz_state_raw:
         return
-        
+    
     quiz_state = __import__('json').loads(quiz_state_raw)
     if not quiz_state.get("is_active"):
         return
