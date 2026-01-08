@@ -276,17 +276,18 @@ async def announce_group_quiz(bot: Bot, quiz, chat_id: int, owner_id: int, lang:
     """Send quiz announcement and wait for players"""
     # Create lobby state
     lobby_key = f"quiz_lobby:{chat_id}"
+    users_key = f"quiz_lobby_users:{chat_id}"
     
-    # Check if active quiz exists
+    # Clear old users set
+    await redis.delete(users_key)
+    
     active_quiz = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
     if active_quiz:
-        # Just ignore or warn? Assuming prior checks passed.
         pass
 
     lobby_state = {
         "quiz_id": quiz.id,
         "owner_id": owner_id,
-        "joined_users": [],
         "min_players": 2,
         "status": "waiting",
         "quiz_title": quiz.title,
@@ -314,6 +315,7 @@ async def on_join_lobby(callback: types.CallbackQuery, user_service: UserService
     chat_id = callback.message.chat.id
     user_id = callback.from_user.id
     lobby_key = f"quiz_lobby:{chat_id}"
+    users_key = f"quiz_lobby_users:{chat_id}"
     
     state_raw = await redis.get(lobby_key)
     if not state_raw:
@@ -327,22 +329,21 @@ async def on_join_lobby(callback: types.CallbackQuery, user_service: UserService
         await callback.answer(Messages.get("GAME_ALREADY_STARTING", "UZ"), show_alert=True)
         return
         
-    if user_id in state["joined_users"]:
+    # Atomic add to set
+    is_new = await redis.sadd(users_key, str(user_id))
+    if not is_new:
         await callback.answer(Messages.get("ALREADY_READY", "UZ"), show_alert=True)
         return
         
-    state["joined_users"].append(user_id)
-    await redis.set(lobby_key, __import__('json').dumps(state), ex=3600)
-    
     await callback.answer(Messages.get("LOBBY_JOINED", "UZ"))
     
+    # Get count
+    join_count = await redis.scard(users_key)
+    
     # Update message
-    lang = await user_service.get_language(user_id) # Or group lang?
-    # Better use group lang if set
+    lang = await user_service.get_language(user_id)
     group_lang = await redis.get(f"group_lang:{chat_id}")
     display_lang = group_lang or lang
-    
-    join_count = len(state["joined_users"])
     
     msg_text = Messages.get("QUIZ_LOBBY_MSG", display_lang).format(
         title=state["quiz_title"],
@@ -352,23 +353,27 @@ async def on_join_lobby(callback: types.CallbackQuery, user_service: UserService
     
     # Check if ready to start
     if join_count >= state["min_players"]:
+        # Only start if we are the one tipping the scale
+        # Start countdown
+        # Update status first to prevent double start
         state["status"] = "starting"
         await redis.set(lobby_key, __import__('json').dumps(state), ex=3600)
         
-        # Start countdown
         asyncio.create_task(run_countdown_and_start(callback.bot, chat_id, state, redis, session_service, display_lang))
     else:
         builder = InlineKeyboardBuilder()
         builder.button(text=Messages.get("I_AM_READY_BTN", display_lang), callback_data="join_lobby")
         try:
             await callback.message.edit_text(msg_text, parse_mode="HTML", reply_markup=builder.as_markup())
-        except:
+        except Exception as e:
+            # message not modified or other error
             pass
 
 
 async def run_countdown_and_start(bot: Bot, chat_id: int, lobby_state: dict, redis, session_service, lang: str):
     """Run 3-2-1 countdown and start quiz"""
     msg_id = lobby_state.get("message_id")
+    users_key = f"quiz_lobby_users:{chat_id}"
     
     for i in range(3, 0, -1):
         text = Messages.get("STARTING_IN", lang).format(seconds=i)
@@ -379,9 +384,6 @@ async def run_countdown_and_start(bot: Bot, chat_id: int, lobby_state: dict, red
         await asyncio.sleep(1)
         
     # Start quiz
-    # We need quiz object. But start_group_quiz expects quiz object or we can modify it to take ID.
-    # Current start_group_quiz takes `quiz` object.
-    # We need to fetch it.
     quiz_service = QuizService(session_service.db)
     quiz = await quiz_service.get_quiz(lobby_state["quiz_id"])
     
@@ -394,6 +396,7 @@ async def run_countdown_and_start(bot: Bot, chat_id: int, lobby_state: dict, red
     
     # Cleanup lobby
     await redis.delete(f"quiz_lobby:{chat_id}")
+    await redis.delete(users_key)
 
 
 async def start_group_quiz(bot: Bot, quiz, chat_id: int, owner_id: int, lang: str, 
