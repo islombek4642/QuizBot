@@ -323,7 +323,7 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
         # Sort by correct then total
         sorted_p = sorted(participants.items(), key=lambda x: (x[1]['correct'], x[1]['answered']), reverse=True)
         
-        leaderboard = f"🏁 <b>{quiz_title} - {Messages.get('QUIZ_FINISHED', lang)}</b>\n\n"
+        leaderboard = f"🏁 <b>{quiz_title}</b>\n\n"
         leaderboard += "🏆 <b>Final Leaderboard:</b>\n"
         
         for i, (uid, stats) in enumerate(sorted_p[:15], 1):

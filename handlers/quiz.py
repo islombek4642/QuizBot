@@ -25,6 +25,7 @@ from handlers.common import (
 from services.user_service import UserService
 from services.quiz_service import QuizService
 from services.session_service import SessionService
+from core.config import settings
 from core.logger import logger
 
 router = Router()
