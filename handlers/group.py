@@ -32,11 +32,24 @@ GROUP_QUIZ_KEY = "group_quiz:{chat_id}"  # Active quiz in a group
 GROUP_USER_ANSWER_KEY = "group_answer:{chat_id}:{quiz_id}:{user_id}"  # Individual user answers
 
 
-async def is_group_poll(poll_answer: types.PollAnswer, redis) -> bool:
-    """Filter to check if the poll belongs to a group quiz"""
-    if not redis:
-        return False
-    return await redis.exists(f"group_poll:{poll_answer.poll_id}")
+from aiogram.filters import BaseFilter
+
+class IsGroupPoll(BaseFilter):
+    async def __call__(self, event: types.TelegramObject, redis) -> bool:
+        if isinstance(event, types.PollAnswer):
+            poll_id = event.poll_id
+        elif isinstance(event, types.Poll):
+            poll_id = event.id
+        else:
+            return False
+            
+        if not redis:
+            logger.warning("IsGroupPoll: redis not available")
+            return False
+            
+        exists = await redis.exists(f"group_poll:{poll_id}")
+        logger.info(f"IsGroupPoll check: poll_id={poll_id}, exists={exists}, event_type={type(event).__name__}")
+        return bool(exists)
 
 
 async def get_bot_groups(redis) -> list:
@@ -532,7 +545,7 @@ async def cmd_group_quiz_help(message: types.Message, user_service: UserService,
     await message.answer(help_text, reply_markup=builder.as_markup(), parse_mode="HTML")
 
 
-@router.poll_answer(is_group_poll)
+@router.poll_answer(IsGroupPoll())
 async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot, 
                                    session_service: SessionService, user_service: UserService, redis):
     """Handle poll answers for group quizzes"""
@@ -588,16 +601,6 @@ async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot,
         ex=14400
     )
 
-from aiogram.filters import BaseFilter
-
-class IsGroupPoll(BaseFilter):
-    async def __call__(self, poll: types.Poll, redis) -> bool:
-        if not redis:
-            logger.warning("IsGroupPoll: redis not available")
-            return False
-        exists = await redis.exists(f"group_poll:{poll.id}")
-        logger.info(f"IsGroupPoll check: poll_id={poll.id}, exists={exists}")
-        return bool(exists)
 
 @router.poll(IsGroupPoll())
 async def handle_group_poll_update(poll: types.Poll, bot: Bot, redis):
