@@ -160,8 +160,30 @@ async def start_group_quiz_callback(callback: types.CallbackQuery, user_service:
     
     groups = await get_bot_groups(redis)
     if not groups:
-        await callback.answer(Messages.get("NO_GROUPS", lang), show_alert=True)
-        return
+        # If no groups found, show "Add to Group" button
+        bot_username = settings.BOT_USERNAME
+        if not bot_username:
+            try:
+                bot_info = await callback.bot.get_me()
+                bot_username = bot_info.username
+            except:
+                bot_username = ""
+        
+        if bot_username:
+            builder = InlineKeyboardBuilder()
+            builder.button(
+                text=Messages.get("ADD_TO_GROUP_BTN", lang),
+                url=f"https://t.me/{bot_username}?startgroup&admin=post_messages+delete_messages+restrict_members+pin_messages+manage_topics"
+            )
+            await callback.message.answer(
+                Messages.get("NO_GROUPS", lang),
+                reply_markup=builder.as_markup()
+            )
+            await callback.answer()
+            return
+        else:
+            await callback.answer(Messages.get("NO_GROUPS", lang), show_alert=True)
+            return
     
     # Build group selection keyboard
     builder = InlineKeyboardBuilder()
