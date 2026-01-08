@@ -359,7 +359,7 @@ async def on_join_lobby(callback: types.CallbackQuery, user_service: UserService
         state["status"] = "starting"
         await redis.set(lobby_key, __import__('json').dumps(state), ex=3600)
         
-        asyncio.create_task(run_countdown_and_start(callback.bot, chat_id, state, redis, session_service, display_lang))
+        await run_countdown_and_start(callback.bot, chat_id, state, redis, session_service, display_lang)
     else:
         builder = InlineKeyboardBuilder()
         builder.button(text=Messages.get("I_AM_READY_BTN", display_lang), callback_data="join_lobby")
@@ -757,6 +757,8 @@ async def cmd_group_quiz_help(message: types.Message, user_service: UserService,
     if member.status not in ("administrator", "creator"):
         await message.reply(Messages.get("ONLY_ADMINS", lang))
         return
+        
+    group_lang = await redis.get(f"group_lang:{message.chat.id}")
     if group_lang:
         lang = group_lang
         
