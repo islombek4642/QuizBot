@@ -264,6 +264,8 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
     if not session or not session.is_active:
         return
 
+    logger.info("Private poll answer recorded", user_id=session.user_id, session_id=session.id)
+
     # Get user language
     lang = await user_service.get_language(session.user_id)
     

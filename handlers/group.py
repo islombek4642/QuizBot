@@ -548,6 +548,7 @@ async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot,
     quiz_state["participants"] = participants
     
     # Just save the updated stats. Advancement now happens when poll closes.
+    logger.info("Group poll answer recorded", chat_id=chat_id, user_id=user_id, question_index=question_index)
     await redis.set(
         GROUP_QUIZ_KEY.format(chat_id=chat_id),
         __import__('json').dumps(quiz_state),
@@ -604,4 +605,5 @@ async def handle_group_poll_update(poll: types.Poll, bot: Bot, redis):
             if quiz_state.get("is_active"):
                 # Use group language if set
                 group_lang = await redis.get(f"group_lang:{chat_id}")
+                logger.info("Advancing group quiz to next question", chat_id=chat_id, next_index=quiz_state["current_index"])
                 await send_group_question(bot, chat_id, quiz_state, redis, group_lang or "UZ")
