@@ -56,9 +56,9 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
         builder.row(*nav_buttons)
         
     if isinstance(message_or_query, types.Message):
-        await message_or_query.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+        await message_or_query.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML", link_preview_options=types.LinkPreviewOptions(is_disabled=True))
     else:
-        await message_or_query.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+        await message_or_query.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML", link_preview_options=types.LinkPreviewOptions(is_disabled=True))
 
 @router.callback_query(F.data.startswith("admin_users_page_"))
 async def admin_users_pagination(callback: types.CallbackQuery, db: AsyncSession, user_service: UserService):
@@ -87,8 +87,15 @@ async def show_groups_page(message_or_query, redis, lang: str, page: int):
     
     builder = InlineKeyboardBuilder()
     for i, group_id in enumerate(groups_slice, 1 + offset):
-        title = await redis.hget(f"group_info:{group_id}", "title") or f"Group {group_id}"
-        text += f"{i}. <b>{title}</b> (ID: {group_id})\n"
+        info = await redis.hgetall(f"group_info:{group_id}")
+        title = info.get("title") or f"Group {group_id}"
+        username = info.get("username")
+        
+        if username:
+            text += f"{i}. <a href='https://t.me/{username}'>{title}</a>\n"
+        else:
+            # Cannot link to private group easily without invite link
+            text += f"{i}. <b>{title}</b>\n"
         
     text += f"\nSahifa: {page + 1}/{(total_groups + limit - 1) // limit if total_groups > 0 else 1}"
     

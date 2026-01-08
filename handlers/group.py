@@ -64,11 +64,14 @@ async def get_bot_groups(redis) -> list:
     return list(groups) if groups else []
 
 
-async def add_bot_group(redis, chat_id: int, chat_title: str):
+async def add_bot_group(redis, chat_id: int, chat_title: str, username: str = None):
     """Add a group to bot's group list"""
     await redis.sadd(GROUP_MEMBERS_KEY, str(chat_id))
-    # Store group title for display
-    await redis.hset(f"group_info:{chat_id}", "title", chat_title)
+    # Store group title and username
+    mapping = {"title": chat_title}
+    if username:
+        mapping["username"] = username
+    await redis.hset(f"group_info:{chat_id}", mapping=mapping)
 
 
 async def remove_bot_group(redis, chat_id: int):
@@ -97,7 +100,7 @@ async def on_bot_added_to_group(event: ChatMemberUpdated, user_service: UserServ
     
     # Store group in Redis
     if redis:
-        await add_bot_group(redis, chat.id, chat.title or f"Group {chat.id}")
+        await add_bot_group(redis, chat.id, chat.title or f"Group {chat.id}", chat.username)
     
     logger.info("Bot added to group", chat_id=chat.id, chat_title=chat.title, added_by=user.id)
     
