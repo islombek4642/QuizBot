@@ -237,6 +237,7 @@ async def start_group_quiz(bot: Bot, quiz, chat_id: int, owner_id: int, lang: st
         "chat_id": chat_id,
         "current_index": 0,
         "total_questions": len(questions),
+        "title": quiz.title,
         "questions": questions,
         "participants": {},  # user_id -> {correct: X, answered: Y}
         "start_time": time.time(),
@@ -379,7 +380,8 @@ async def cmd_stop_group_quiz(message: types.Message, user_service: UserService,
         try:
             await message.bot.stop_poll(chat_id, poll_message_id)
         except Exception as e:
-            logger.error("Failed to stop poll", error=str(e), chat_id=chat_id)
+            if "poll has already been closed" not in str(e) and "poll can't be stopped" not in str(e):
+                logger.warning("Failed to stop poll", error=str(e), chat_id=chat_id)
 
     # Show statistics before finishing
     await finish_group_quiz(message.bot, chat_id, quiz_state, redis, lang)
@@ -545,35 +547,61 @@ async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot,
     
     quiz_state["participants"] = participants
     
-    # Check if this is the current question and we should advance
-    if question_index == quiz_state["current_index"]:
-        # Atomically check if we already started advancing for this question
-        advancement_lock_key = f"quiz_advancing:{chat_id}:{question_index}"
-        if await redis.set(advancement_lock_key, "1", nx=True, ex=10):
-            quiz_state["current_index"] += 1
-            
-            # Save state
-            await redis.set(
-                GROUP_QUIZ_KEY.format(chat_id=chat_id),
-                __import__('json').dumps(quiz_state),
-                ex=14400
-            )
-            
-            # Wait 3 seconds then send next question
-            await asyncio.sleep(3)
-            
-            # Re-fetch state to check if still active
-            quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
-            if quiz_state_raw:
-                quiz_state = __import__('json').loads(quiz_state_raw)
-                if quiz_state.get("is_active"):
-                    # Use group language if set
-                    group_lang = await redis.get(f"group_lang:{chat_id}")
-                    await send_group_question(bot, chat_id, quiz_state, redis, group_lang or lang)
-    else:
-        # Just save the updated stats if it's an old question answer
+    # Just save the updated stats. Advancement now happens when poll closes.
+    await redis.set(
+        GROUP_QUIZ_KEY.format(chat_id=chat_id),
+        __import__('json').dumps(quiz_state),
+        ex=14400
+    )
+
+@router.poll()
+async def handle_group_poll_update(poll: types.Poll, bot: Bot, redis):
+    """Handle poll updates, specifically closing, to advance the quiz"""
+    if not poll.is_closed:
+        return
+        
+    key = f"group_poll:{poll.id}"
+    poll_mapping_raw = await redis.get(key)
+    if not poll_mapping_raw:
+        return
+        
+    poll_mapping = __import__('json').loads(poll_mapping_raw)
+    chat_id = poll_mapping["chat_id"]
+    question_index = poll_mapping["question_index"]
+    
+    # Get quiz state
+    quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
+    if not quiz_state_raw:
+        return
+        
+    quiz_state = __import__('json').loads(quiz_state_raw)
+    if not quiz_state.get("is_active"):
+        return
+        
+    # Only advance if this is the current active question
+    if question_index != quiz_state["current_index"]:
+        return
+
+    # Check advancement lock to prevent race conditions
+    advancement_lock_key = f"quiz_advancing:{chat_id}:{question_index}"
+    if await redis.set(advancement_lock_key, "1", nx=True, ex=10):
+        quiz_state["current_index"] += 1
+        
+        # Save state
         await redis.set(
             GROUP_QUIZ_KEY.format(chat_id=chat_id),
             __import__('json').dumps(quiz_state),
             ex=14400
         )
+        
+        # Wait 3 seconds then send next question
+        await asyncio.sleep(3)
+        
+        # Re-fetch state to check if still active
+        quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
+        if quiz_state_raw:
+            quiz_state = __import__('json').loads(quiz_state_raw)
+            if quiz_state.get("is_active"):
+                # Use group language if set
+                group_lang = await redis.get(f"group_lang:{chat_id}")
+                await send_group_question(bot, chat_id, quiz_state, redis, group_lang or "UZ")

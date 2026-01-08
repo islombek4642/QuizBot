@@ -302,6 +302,44 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
         dummy_message._bot = bot
         await send_next_question(dummy_message, current_session, session_service, lang)
 
+@router.poll()
+async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service: SessionService, user_service: UserService):
+    """Handle poll updates for private quizzes, advancing when a poll closes (timeout)"""
+    if not poll.is_closed:
+        return
+        
+    session = await session_service.get_session_by_poll(poll.id)
+    if not session or not session.is_active:
+        return
+        
+    # Check if the user already answered this (handled by poll_answer)
+    # If index has already advanced, advance_session will return None or we can check index
+    # But advance_session is already atomic and idempotent-safe for this purpose
+    
+    # Advance without adding to correct count
+    updated_session = await session_service.advance_session(session.id, is_correct=False)
+    if not updated_session:
+        return
+        
+    lang = await user_service.get_language(session.user_id)
+    
+    if not updated_session.is_active:
+        await bot.send_message(
+            session.user_id, 
+            Messages.get("QUIZ_FINISHED", lang), 
+            reply_markup=get_main_keyboard(lang, session.user_id)
+        )
+        await show_stats(bot, updated_session, lang)
+    else:
+        # Wait 3 seconds and send next question
+        await asyncio.sleep(3)
+        current_session = await session_service.get_active_session(session.user_id)
+        if current_session and current_session.id == updated_session.id:
+            dummy_message = types.Message(chat=types.Chat(id=session.user_id, type='private'), 
+                                         message_id=0, date=int(time.time()))
+            dummy_message._bot = bot
+            await send_next_question(dummy_message, current_session, session_service, lang)
+
 async def show_stats(bot: Bot, session: Any, lang: str):
     total = session.total_questions
     correct = session.correct_count

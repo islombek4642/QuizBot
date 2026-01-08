@@ -55,6 +55,14 @@ class Messages:
             "GROUP_QUIZ_STATS": "📊 <b>Guruh test natijalari:</b>\n\n📝 Test: {title}\n👥 Qatnashchilar: {participants}\n✅ O'rtacha ball: {avg_score}%",
             "NO_ACTIVE_QUIZ": "❌ Bu guruhda hozirda faol test mavjud emas.",
             "NO_PARTICIPANTS": "ℹ️ Hozircha hech kim testda qatnashmadi.",
+            "ADMIN_USERS_BTN": "👥 Foydalanuvchilar",
+            "ADMIN_GROUPS_BTN": "🏘 Guruhlar",
+            "ADMIN_STATS_BTN": "📊 Statistika",
+            "ADMIN_STATS_MSG": "📊 <b>Bot Statistikasi</b>\n\n👤 Jami foydalanuvchilar: {total_users}\n👥 Jami guruhlar: {total_groups}\n📝 Jami testlar: {total_quizzes}\n🔥 Faol testlar: {active_quizzes}",
+            "ADMIN_USERS_TITLE": "👥 Foydalanuvchilar ro'yxati (Jami: {total}):",
+            "ADMIN_GROUPS_TITLE": "🏘 Guruhlar ro'yxati (Jami: {total}):",
+            "PREV_BTN": "⬅️ Oldingi",
+            "NEXT_BTN": "Keyingi ➡️",
         },
         "EN": {
             "WELCOME": "Hello! Welcome to QuizBot.\n\nSend me a .docx file with tests, and I'll convert it into Telegram polls.",
@@ -111,6 +119,14 @@ class Messages:
             "GROUP_QUIZ_STATS": "📊 <b>Group Quiz Results:</b>\n\n📝 Quiz: {title}\n👥 Participants: {participants}\n✅ Average score: {avg_score}%",
             "NO_ACTIVE_QUIZ": "❌ No active quiz found in this group.",
             "NO_PARTICIPANTS": "ℹ️ No one has participated in the quiz yet.",
+            "ADMIN_USERS_BTN": "👥 Users",
+            "ADMIN_GROUPS_BTN": "🏘 Groups",
+            "ADMIN_STATS_BTN": "📊 Statistics",
+            "ADMIN_STATS_MSG": "📊 <b>Bot Statistics</b>\n\n👤 Total Users: {total_users}\n👥 Total Groups: {total_groups}\n📝 Total Quizzes: {total_quizzes}\n🔥 Active Quizzes: {active_quizzes}",
+            "ADMIN_USERS_TITLE": "👥 User List (Total: {total}):",
+            "ADMIN_GROUPS_TITLE": "🏘 Group List (Total: {total}):",
+            "PREV_BTN": "⬅️ Previous",
+            "NEXT_BTN": "Next ➡️",
         }
     }
 

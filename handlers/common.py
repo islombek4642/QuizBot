@@ -23,6 +23,13 @@ def get_main_keyboard(lang: str, user_id: int = None):
     builder.button(text=Messages.get("SET_LANGUAGE_BTN", lang))
     builder.button(text=Messages.get("HELP_BTN", lang))
     
+    # Admin buttons
+    from core.config import settings
+    if user_id == settings.ADMIN_ID:
+        builder.button(text=Messages.get("ADMIN_USERS_BTN", lang))
+        builder.button(text=Messages.get("ADMIN_GROUPS_BTN", lang))
+        builder.button(text=Messages.get("ADMIN_STATS_BTN", lang))
+    
     builder.adjust(2)
     return builder.as_markup(resize_keyboard=True)
 

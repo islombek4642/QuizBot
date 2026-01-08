@@ -5,7 +5,7 @@ from redis.asyncio import Redis
 
 from core.config import settings
 from core.logger import setup_logging, logger
-from handlers import start, quiz, settings as settings_handlers, group
+from handlers import start, quiz, settings as settings_handlers, group, admin
 from utils.middleware import DbSessionMiddleware, RedisMiddleware, AuthMiddleware
 
 async def main():
@@ -40,6 +40,7 @@ async def main():
 
     # Include routers
     dp.include_router(group.router)  # Group router first for my_chat_member events
+    dp.include_router(admin.router)
     dp.include_router(start.router)
     dp.include_router(settings_handlers.router)
     dp.include_router(quiz.router)

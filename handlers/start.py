@@ -37,8 +37,8 @@ async def cmd_start(message: types.Message, user_service: UserService, state: FS
         payload = args[1]
         if payload == "create":
             from handlers.quiz import cmd_create_quiz
-            # Mocking message to reuse handler logic
-            return await cmd_create_quiz(message, user_service)
+            # Correctly passing state
+            return await cmd_create_quiz(message, state, user_service)
         elif payload.startswith("quiz_"):
             # Trigger quiz info view
             quiz_id = int(payload.split("_")[1])
