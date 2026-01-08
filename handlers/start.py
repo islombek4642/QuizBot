@@ -7,9 +7,9 @@ from services.user_service import UserService
 
 router = Router()
 # Only handle private chats - no keyboard buttons in groups
-router.message.filter(F.chat.type == "private")
+# router.message.filter(F.chat.type == "private") # Removed global filter
 
-@router.message(CommandStart())
+@router.message(CommandStart(), F.chat.type == "private")
 @router.message(F.text.in_([Messages.get("START_BTN", "UZ"), Messages.get("START_BTN", "EN")]))
 async def cmd_start(message: types.Message, user_service: UserService, state: FSMContext, **kwargs):
     data = kwargs
@@ -65,7 +65,7 @@ async def cmd_start(message: types.Message, user_service: UserService, state: FS
     # Clear any pending start after handling
     await state.clear()
 
-@router.message(F.contact)
+@router.message(F.contact, F.chat.type == "private")
 async def process_contact(message: types.Message, user_service: UserService, state: FSMContext, **kwargs):
     data = kwargs
     telegram_id = message.from_user.id
@@ -97,7 +97,7 @@ async def process_contact(message: types.Message, user_service: UserService, sta
         await state.clear()
         return await cmd_start(message, user_service, state, **data)
 
-@router.message(Command("help"))
+@router.message(Command("help"), F.chat.type == "private")
 @router.message(F.text.in_([Messages.get("HELP_BTN", "UZ"), Messages.get("HELP_BTN", "EN")]))
 async def cmd_help(message: types.Message, user_service: UserService):
     telegram_id = message.from_user.id
@@ -118,3 +118,68 @@ async def cmd_help(message: types.Message, user_service: UserService):
         parse_mode="HTML",
         reply_markup=builder.as_markup()
     )
+
+
+@router.message(CommandStart(), F.chat.type.in_({"group", "supergroup"}))
+async def cmd_start_group(message: types.Message, user_service: UserService, state: FSMContext, redis, **kwargs):
+    """Handle /start in groups (Deep Linking only)"""
+    args = message.text.split()
+    if len(args) < 2:
+        return # Ignore bare /start in groups
+        
+    payload = args[1]
+    if not payload.startswith("quiz_"):
+        return
+        
+    # Check admin permission
+    member = await message.chat.get_member(message.from_user.id)
+    lang = await user_service.get_language(message.from_user.id)
+    
+    if member.status not in ("administrator", "creator"):
+        await message.reply(Messages.get("ONLY_ADMINS", lang))
+        return
+        
+    # Get services
+    data = kwargs
+    quiz_service = data.get("quiz_service")
+    if not quiz_service:
+        from db.session import AsyncSessionLocal
+        from services.quiz_service import QuizService
+        async with AsyncSessionLocal() as session:
+            quiz_service = QuizService(session)
+            
+    # Get quiz
+    try:
+        quiz_id = int(payload.split("_")[1])
+        quiz = await quiz_service.get_quiz(quiz_id)
+        if not quiz:
+            await message.reply(Messages.get("ERROR_TEST_NOT_FOUND", lang))
+            return
+            
+        # Import start_group_quiz
+        from handlers.group import start_group_quiz
+        
+        # We need session_service.
+        session_service = data.get("session_service")
+        if not session_service:
+             db = data.get("db")
+             if db:
+                 from services.session_service import SessionService
+                 session_service = SessionService(db, redis)
+        
+        # Use group language preference if set
+        group_lang = await redis.get(f"group_lang:{message.chat.id}")
+        
+        await start_group_quiz(
+            message.bot, 
+            quiz, 
+            message.chat.id, 
+            message.from_user.id, 
+            group_lang or lang, 
+            redis, 
+            session_service
+        )
+        
+    except Exception as e:
+        from core.logger import logger
+        logger.error("Error in cmd_start_group", error=str(e))
