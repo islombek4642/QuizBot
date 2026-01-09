@@ -125,12 +125,11 @@ def validate_question(q: Dict, line_num: int, lang: str):
         msg = Messages.get("PARSER_TOO_MANY_OPTIONS", lang).format(line=line_num, count=len(q['options']))
         raise ParserError(msg)
     
-    # Check length limits for Telegram - Increased to 500 per user request
-    # NOTE: Telegram API limit is 300/100. We relax logic here but this may fail at sending.
-    if len(q['question']) > 500:
-        q['question'] = q['question'][:497] + "..."
-        # Or raise error? User said "limit 500". I will truncate at 500.
+    # Check length limits for Telegram - HARD LIMITS
+    # We MUST truncate to 300 (Question) and 100 (Option) or Telegram throws BadRequest
+    if len(q['question']) > 300:
+        q['question'] = q['question'][:297] + "..."
 
     for i, opt in enumerate(q['options']):
-        if len(opt) > 500:
-             q['options'][i] = opt[:497] + "..."
+        if len(opt) > 100:
+             q['options'][i] = opt[:97] + "..."
