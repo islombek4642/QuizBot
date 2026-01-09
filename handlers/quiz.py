@@ -113,7 +113,7 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
     # Verify file exists and is not empty
     if not os.path.exists(local_path) or os.path.getsize(local_path) == 0:
         logger.error("File download failed or empty", path=local_path)
-        await message.answer(Messages.get("ERROR", lang).format(error="Fayl yuklashda xatolik"))
+        await message.answer(Messages.get("FILE_DOWNLOAD_ERROR", lang))
         return
 
     try:

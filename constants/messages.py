@@ -95,6 +95,7 @@ class Messages:
             "LOBBY_JOINED": "✅ Siz qatnashchilar ro'yxatiga qo'shildingiz!",
             "PREV_BTN": "⬅️ Oldingi",
             "NEXT_BTN": "Keyingi ➡️",
+            "FILE_DOWNLOAD_ERROR": "❌ Faylni yuklab bo'lmadi yoki u bo'sh. Qaytadan urinib ko'ring.",
         },
         "EN": {
             "WELCOME": "Hello! Welcome to QuizBot.\n\nSend me a .docx file with tests, and I'll convert it into Telegram polls.",
@@ -191,6 +192,7 @@ class Messages:
             "LOBBY_JOINED": "✅ You have joined the lobby!",
             "PREV_BTN": "⬅️ Previous",
             "NEXT_BTN": "Next ➡️",
+            "FILE_DOWNLOAD_ERROR": "❌ Failed to download file or it is empty. Please try again.",
         }
     }
 
