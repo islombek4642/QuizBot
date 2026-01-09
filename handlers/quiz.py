@@ -118,14 +118,39 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
 
     try:
         # Offload parsing to thread to avoid blocking loop
-        questions = await asyncio.to_thread(parse_docx_to_json, local_path, lang)
+        # Now returns tuple (questions, errors)
+        questions, errors = await asyncio.to_thread(parse_docx_to_json, local_path, lang)
         
+        if not questions:
+             # All failed
+             error_list = "\n".join(errors[:15])
+             if len(errors) > 15:
+                 error_list += f"\n... va yana {len(errors)-15} ta xatolik."
+                 
+             await message.answer(Messages.get("QUIZ_ALL_FAILED", lang).format(errors=error_list))
+             return
+
         await state.update_data(questions=questions)
         await state.set_state(QuizStates.WAITING_FOR_TITLE)
         
-        await message.answer(
-            Messages.get("QUIZ_UPLOADED", lang).format(count=len(questions))
-        )
+        if errors:
+             # Partial success
+             error_list = "\n".join(errors[:10])
+             if len(errors) > 10:
+                 error_list += f"\n... (+{len(errors)-10})"
+            
+             await message.answer(
+                Messages.get("QUIZ_PARTIAL_SUCCESS", lang).format(
+                    count=len(questions),
+                    errors_count=len(errors),
+                    errors=error_list
+                )
+             )
+        else:
+             # Full success
+             await message.answer(
+                Messages.get("QUIZ_UPLOADED", lang).format(count=len(questions))
+             )
 
     except ParserError as e:
         await message.answer(str(e))
