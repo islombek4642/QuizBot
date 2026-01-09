@@ -101,7 +101,7 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
         await message.answer(Messages.get("ONLY_DOCX", lang))
         return
 
-    temp_dir = "temp"
+    temp_dir = os.path.join(os.getcwd(), "temp")
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
 
@@ -109,6 +109,12 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
     local_path = os.path.join(temp_dir, f"{uuid.uuid4()}.docx")
     
     await bot.download_file(file_info.file_path, local_path)
+    
+    # Verify file exists and is not empty
+    if not os.path.exists(local_path) or os.path.getsize(local_path) == 0:
+        logger.error("File download failed or empty", path=local_path)
+        await message.answer(Messages.get("ERROR", lang).format(error="Fayl yuklashda xatolik"))
+        return
 
     try:
         # Offload parsing to thread to avoid blocking loop
