@@ -81,7 +81,7 @@ class Messages:
             "PARSER_EMPTY_QUESTION": "Xatolik {line}-qatorda: Savol matni bo'sh.",
             "PARSER_FEW_OPTIONS": "Xatolik {line}-qatorda: '{text}' savolida kamida 2 ta variant bo'lishi kerak. Hozirgi soni: {count}",
             "PARSER_NO_CORRECT_OPTION": "Xatolik {line}-qatorda: '{text}' savolida to'g'ri javob ko'rsatilmagan. To'g'ri javob oldiga '+' qo'ying.",
-            "PARSER_TOO_MANY_OPTIONS": "Xatolik {line}-qatorda: Telegram pollari maksimal 10 ta variantni qo'llab-quvvatlaydi. Ssizda {count} ta bor.",
+            "PARSER_TOO_MANY_OPTIONS": "Xatolik {line}-qatorda: Telegram pollari maksimal 10 ta variantni qo'llab-quvvatlaydi. Sizda {count} ta bor.",
             "PARSER_QUESTION_TOO_LONG": "Xatolik {line}-qatorda: Savol matni juda uzun (maksimal 300 belgi). Sizda: {count} belgi.",
             "PARSER_OPTION_TOO_LONG": "Xatolik {line}-qatorda: '{text}' javob varianti juda uzun (maksimal 100 belgi). Sizda: {count} belgi.",
             "CREATE_QUIZ_REDIRECT": "📝 Test yaratish uchun botning o'ziga o'ting: @{username}",
