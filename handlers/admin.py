@@ -39,14 +39,15 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
     
     builder = InlineKeyboardBuilder()
     for i, user in enumerate(users, 1 + offset):
-        # Determine display name: prefer full_name, fallback to username, then ID
-        display_name = user.full_name or user.username or f"ID: {user.telegram_id}"
+        # Consistently show Name, ID and Phone
+        name = user.full_name or (f"@{user.username}" if user.username else "Noma'lum foydalanuvchi")
+        phone = f" — <code>{user.phone_number}</code>" if user.phone_number else " — [Raqamsiz]"
+        id_info = f" (<code>{user.telegram_id}</code>)"
         
-        phone = f" — <code>{user.phone_number}</code>" if user.phone_number else ""
         if user.username:
-            text += f"{i}. <a href='https://t.me/{user.username}'>{display_name}</a>{phone}\n"
+            text += f"{i}. <a href='https://t.me/{user.username}'>{name}</a>{id_info}{phone}\n"
         else:
-            text += f"{i}. <a href='tg://user?id={user.telegram_id}'>{display_name}</a>{phone}\n"
+            text += f"{i}. <a href='tg://user?id={user.telegram_id}'>{name}</a>{id_info}{phone}\n"
         
     text += "\n" + Messages.get("ADMIN_PAGE", lang).format(page=page+1, total=(total_users + limit - 1) // limit)
     
