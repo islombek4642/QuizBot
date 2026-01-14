@@ -53,9 +53,14 @@ class IsPrivatePoll(BaseFilter):
             
         key = f"quizbot:poll:{poll_id}"
         mapping = await redis.get(key)
-        # Detailed log to identify why it might fail
-        logger.info(f"IsPrivatePoll filter check: {poll_id} exists={mapping is not None}", poll_id=poll_id, key=key)
-        return mapping is not None
+        
+        # Explicitly log every check to see if it even reaches here
+        if mapping:
+            logger.info(f"IsPrivatePoll filter MATCHED: {poll_id}", poll_id=poll_id, key=key)
+            return True
+        else:
+            # logger.debug(f"IsPrivatePoll filter MISSED: {poll_id}", poll_id=poll_id, key=key)
+            return False
 
 @router.message(F.text.in_([Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN"), Messages.get("BACK_BTN", "UZ"), Messages.get("BACK_BTN", "EN")]))
 async def cmd_cancel(message: types.Message, state: FSMContext, user_service: UserService):
@@ -326,10 +331,10 @@ async def send_next_question(bot: Bot, chat_id: int, session: Any, session_servi
 async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_service: SessionService, user_service: UserService, redis):
     try:
         # Get mapping
-        logger.info("Processing private poll answer", poll_id=poll_answer.poll_id, user_id=poll_answer.user.id if poll_answer.user else "N/A")
-        mapping_raw = await redis.get(f"quizbot:poll:{poll_answer.poll_id}")
+        logger.info("Processing private poll answer START", poll_id=poll_answer.poll_id, user_id=poll_answer.user.id if poll_answer.user else "N/A")
+        mapping_raw = await redis.get(f"quizbot:poll:{poll_answer.poll.id}")
         if not mapping_raw:
-            logger.warning("Private poll answer ignored: mapping disappeared", poll_id=poll_answer.poll_id)
+            logger.warning("Private poll answer ignored: mapping disappeared in handler", poll_id=poll_answer.poll.id)
             return
             
         try:
@@ -346,23 +351,28 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
             mapped_index = None
 
         if session_id is None:
+            logger.error("Session ID is None in handle_poll_answer")
             return
 
         # Get session
         result = await session_service.db.execute(select(QuizSession).filter(QuizSession.id == session_id))
         session = result.scalar_one_or_none()
         
-        if not session or not session.is_active:
-            logger.info("Private poll answer ignored: session not active", session_id=session_id)
+        if not session:
+            logger.warning("Private poll answer ignored: session NOT FOUND in DB", session_id=session_id)
+            return
+            
+        if not session.is_active:
+            logger.info("Private poll answer ignored: session INACTIVE", session_id=session_id)
             return
 
         # Check if this answer matches the current session index
         if mapped_index is not None and session.current_index != mapped_index:
-            logger.warning("Private poll answer ignored: index mismatch", 
+            logger.warning("Private poll answer ignored: INDEX MISMATCH", 
                            user_id=session.user_id, current=session.current_index, mapped=mapped_index)
             return
 
-        logger.info("Private poll answer recorded", user_id=session.user_id, session_id=session.id, index=session.current_index)
+        logger.info("Private poll answer logic proceeding", user_id=session.user_id, session_id=session.id, index=session.current_index)
 
         # Get user language
         lang = await user_service.get_language(session.user_id)
@@ -374,11 +384,14 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
         
         updated_session = await session_service.advance_session(session.id, is_correct)
         if not updated_session:
-            logger.warning("Failed to advance private session (likely duplicate answer)", session_id=session.id)
+            logger.warning("Failed to advance private session (advance_session returned None)", session_id=session.id)
             return
+
+        logger.info("Private session advanced successfully", session_id=session.id, next_index=updated_session.current_index)
 
         # Check if finished
         if not updated_session.is_active:
+            logger.info("Quiz finished for user", user_id=session.user_id)
             await bot.send_message(
                 session.user_id, 
                 Messages.get("QUIZ_FINISHED", lang), 
@@ -389,15 +402,15 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
             await asyncio.sleep(3)
             # Re-verify session is still active and NOT hard-stopped after the delay
             if await session_service.is_stopped(session.user_id):
-                logger.info("Private session hard-stopped during delay, aborting next question", user_id=session.user_id)
+                logger.info("Private session hard-stopped during 3s delay", user_id=session.user_id)
                 return
 
             current_session = await session_service.get_active_session(session.user_id)
             if not current_session or current_session.id != updated_session.id:
-                logger.info("Private session stopped or changed during delay, aborting", user_id=session.user_id)
+                logger.info("Session changed or terminated during 3s delay", user_id=session.user_id)
                 return
 
-            logger.info("Advancing private quiz to next question", user_id=session.user_id, next_index=current_session.current_index)
+            logger.info("Sending next question for user", user_id=session.user_id, index=current_session.current_index)
             await send_next_question(bot, session.user_id, current_session, session_service, lang)
     except Exception as e:
         logger.exception(f"Exception in handle_poll_answer: {e}")
