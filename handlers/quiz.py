@@ -297,7 +297,7 @@ async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, r
 # ===================== TEST CONVERSION =====================
 
 @router.message(F.text.in_([Messages.get("CONVERT_BTN", "UZ"), Messages.get("CONVERT_BTN", "EN")]))
-async def cmd_convert_test(message: types.Message, state: FSMContext, lang: str, user: Any):
+async def cmd_convert_test(message: types.Message, state: FSMContext, redis, lang: str, user: Any):
     """Handle Test Conversion button press"""
     telegram_id = message.from_user.id
     
@@ -306,6 +306,12 @@ async def cmd_convert_test(message: types.Message, state: FSMContext, lang: str,
             Messages.get("SHARE_CONTACT_PROMPT", lang),
             reply_markup=get_contact_keyboard(lang)
         )
+        return
+    
+    # Check AI Limit early
+    allowed, time_rem = await check_ai_limit(telegram_id, "conv", redis, lang)
+    if not allowed:
+        await message.answer(Messages.get("AI_LIMIT_REACHED", lang).format(time=time_rem), parse_mode="HTML")
         return
     
     # Check if API key is configured
@@ -324,12 +330,6 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
     """Handle file upload for test conversion"""
     telegram_id = message.from_user.id
     doc = message.document
-    
-    # Check AI Limit
-    allowed, time_rem = await check_ai_limit(telegram_id, "conv", redis, lang)
-    if not allowed:
-        await message.answer(Messages.get("AI_LIMIT_REACHED", lang).format(time=time_rem), parse_mode="HTML")
-        return
     
     # Check file type
     file_ext = doc.file_name.split(".")[-1].lower() if doc.file_name else ""
