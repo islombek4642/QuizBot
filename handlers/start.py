@@ -153,46 +153,46 @@ async def cmd_start_group(message: types.Message, user_service: UserService, sta
         await message.reply(Messages.get("ONLY_ADMINS", lang))
         return
         
-    # Get services
+    # Get services and process
     data = kwargs
-    quiz_service = data.get("quiz_service")
-    if not quiz_service:
-        from db.session import AsyncSessionLocal
-        from services.quiz_service import QuizService
-        async with AsyncSessionLocal() as session:
-            quiz_service = QuizService(session)
+    db = data.get("db")
+    redis = data.get("redis") or redis
+    
+    from services.quiz_service import QuizService
+    from services.session_service import SessionService
+    from db.session import AsyncSessionLocal
+    
+    async with AsyncSessionLocal() as session:
+        quiz_service = QuizService(session)
+        session_service = SessionService(session, redis)
+        
+        try:
+            quiz_id = int(payload.split("_")[1])
+            quiz = await quiz_service.get_quiz(quiz_id)
+            if not quiz:
+                await message.reply(Messages.get("ERROR_TEST_NOT_FOUND", lang))
+                return
+                
+            # Import start_group_quiz
+            from handlers.group import start_group_quiz
             
-    # Get quiz
-    try:
-        quiz_id = int(payload.split("_")[1])
-        quiz = await quiz_service.get_quiz(quiz_id)
-        if not quiz:
-            await message.reply(Messages.get("ERROR_TEST_NOT_FOUND", lang))
-            return
+            # Use group language preference if set
+            group_lang = await redis.get(f"group_lang:{message.chat.id}")
             
-        # Import start_group_quiz
-        from handlers.group import start_group_quiz
-        
-        # We need session_service.
-        session_service = data.get("session_service")
-        if not session_service:
-             db = data.get("db")
-             if db:
-                 from services.session_service import SessionService
-                 session_service = SessionService(db, redis)
-        
-        # Use group language preference if set
-        group_lang = await redis.get(f"group_lang:{message.chat.id}")
-        
-        await start_group_quiz(
-            message.bot, 
-            quiz, 
-            message.chat.id, 
-            message.from_user.id, 
-            group_lang or lang, 
-            redis, 
-            session_service
-        )
+            await start_group_quiz(
+                message.bot, 
+                quiz, 
+                message.chat.id, 
+                message.from_user.id, 
+                group_lang or lang, 
+                redis, 
+                session_service
+            )
+            
+        except (ValueError, IndexError):
+            logger.warning(f"Invalid quiz payload: {payload}")
+        except Exception as e:
+            logger.error("Error in cmd_start_group", error=str(e))
         
     except Exception as e:
         from core.logger import logger

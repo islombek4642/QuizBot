@@ -561,64 +561,69 @@ async def send_next_question(bot: Bot, chat_id: int, session: Any, session_servi
     logger.info("Private poll sent and mapped", user_id=session.user_id, poll_id=poll_msg.poll.id, index=idx, redis_key=key, redis_success=success)
 
     # Set failsafe task to advance if no answer is received
-    asyncio.create_task(_failsafe_advance_private_quiz(bot, chat_id, session.id, idx, session_service, lang))
+    asyncio.create_task(_failsafe_advance_private_quiz(bot, chat_id, session.id, idx, session_service.redis, lang))
 
 async def _failsafe_advance_private_quiz(bot: Bot, chat_id: int, session_id: int, question_index: int, 
-                                        session_service: SessionService, lang: str):
+                                        redis, lang: str):
     """Wait for poll duration + buffer, then force advance if not already done (Private Quiz)"""
     # Wait for duration + a small buffer
     await asyncio.sleep(settings.POLL_DURATION_SECONDS + 2)
     
-    try:
-        # Get session via direct DB query to ensure we have the latest state
-        result = await session_service.db.execute(select(QuizSession).filter(QuizSession.id == session_id))
-        session = result.scalar_one_or_none()
-        
-        if not session or not session.is_active:
-            return
-
-        # If the user already answered, current_index will have moved past question_index
-        if session.current_index != question_index:
-            return
-
-        # If we are here, it means the poll closed/timed out without an answer being processed
-        logger.info("Failsafe: Private poll timed out", user_id=chat_id, session_id=session_id, index=question_index)
-
-        # Advance session without adding to correct count
-        updated_session = await session_service.advance_session(session_id, is_correct=False)
-        if not updated_session:
-            return
-        
-        # Notify about timeout/no answer
+    from db.session import AsyncSessionLocal
+    from services.session_service import SessionService
+    
+    async with AsyncSessionLocal() as db:
         try:
-            logger.info("Failsafe: Sending no-answer notification (Private)", user_id=chat_id, index=question_index + 1)
-            await bot.send_message(chat_id, Messages.get("NO_ONE_ANSWERED", lang).format(index=question_index + 1))
-        except Exception as e:
-            logger.warning(f"Failsafe: Failed to send timeout message: {e}")
+            session_service = SessionService(db, redis)
             
-        if not updated_session.is_active:
-            await bot.send_message(
-                chat_id, 
-                Messages.get("QUIZ_FINISHED", lang), 
-                reply_markup=get_main_keyboard(lang, chat_id)
-            )
-            # Need to define/import show_stats if not available, but it should be defined in quiz.py
-            await show_stats(bot, updated_session, lang)
-        else:
-            await asyncio.sleep(2)
-            # Re-verify session is still active and NOT hard-stopped after the delay
-            if await session_service.is_stopped(chat_id):
-                logger.info("Failsafe: Session hard-stopped during delay", user_id=chat_id)
+            # Get session via direct DB query to ensure we have the latest state
+            result = await db.execute(select(QuizSession).filter(QuizSession.id == session_id))
+            session = result.scalar_one_or_none()
+            
+            if not session or not session.is_active:
                 return
 
-            current_session = await session_service.get_active_session(chat_id)
-            if not current_session or current_session.id != updated_session.id:
+            # If the user already answered, current_index will have moved past question_index
+            if session.current_index != question_index:
                 return
 
-            logger.info("Failsafe: Sending next question", user_id=chat_id, index=current_session.current_index)
-            await send_next_question(bot, chat_id, current_session, session_service, lang)
-    except Exception as e:
-        logger.exception(f"Exception in _failsafe_advance_private_quiz: {e}")
+            # If we are here, it means the poll closed/timed out without an answer being processed
+            logger.info("Failsafe: Private poll timed out", user_id=chat_id, session_id=session_id, index=question_index)
+
+            # Advance session without adding to correct count
+            updated_session = await session_service.advance_session(session_id, is_correct=False)
+            if not updated_session:
+                return
+            
+            # Notify about timeout/no answer
+            try:
+                logger.info("Failsafe: Sending no-answer notification (Private)", user_id=chat_id, index=question_index + 1)
+                await bot.send_message(chat_id, Messages.get("NO_ONE_ANSWERED", lang).format(index=question_index + 1))
+            except Exception as e:
+                logger.warning(f"Failsafe: Failed to send timeout message: {e}")
+                
+            if not updated_session.is_active:
+                await bot.send_message(
+                    chat_id, 
+                    Messages.get("QUIZ_FINISHED", lang), 
+                    reply_markup=get_main_keyboard(lang, chat_id)
+                )
+                await show_stats(bot, updated_session, lang)
+            else:
+                await asyncio.sleep(2)
+                # Re-verify session is still active and NOT hard-stopped after the delay
+                if await session_service.is_stopped(chat_id):
+                    logger.info("Failsafe: Session hard-stopped during delay", user_id=chat_id)
+                    return
+
+                current_session = await session_service.get_active_session(chat_id)
+                if not current_session or current_session.id != updated_session.id:
+                    return
+
+                logger.info("Failsafe: Sending next question", user_id=chat_id, index=current_session.current_index)
+                await send_next_question(bot, chat_id, current_session, session_service, lang)
+        except Exception as e:
+            logger.exception(f"Exception in _failsafe_advance_private_quiz: {e}")
 
 @router.poll_answer(IsPrivatePoll())
 async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_service: SessionService, user_service: UserService, redis):
