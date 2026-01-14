@@ -1085,6 +1085,8 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
         
     # Create deep link with referrer ID
     # This allows us to track referrals in /start
+    builder = InlineKeyboardBuilder()
+    # This allows us to track referrals in /start
     builder.button(
         text=Messages.get("START_BTN", lang), 
         url=f"https://t.me/{me.username}?start=ref_{me.id}"
