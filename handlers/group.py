@@ -583,6 +583,9 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
             leaderboard += f"{rank_str} <a href='tg://user?id={uid}'>{name}</a>: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
         
         # Summary footer
+        total_correct = sum(p['correct'] for p in participants.values())
+        avg_score = total_correct / len(participants)
+        
         summary = Messages.get("GROUP_QUIZ_SUMMARY", lang).format(
             count=len(participants),
             avg_score=f"{avg_score:.1f}"
