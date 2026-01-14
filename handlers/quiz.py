@@ -234,14 +234,14 @@ async def handle_quiz_shuffle(message: types.Message, state: FSMContext, quiz_se
 
 @router.callback_query(F.data.startswith("start_quiz_"))
 async def start_quiz_callback_handler(callback: types.CallbackQuery, state: FSMContext, 
-                                     quiz_service: QuizService, session_service: SessionService, user_service: UserService, lang: str):
+                                     quiz_service: QuizService, session_service: SessionService, lang: str):
     quiz_id = int(callback.data.split("_")[2])
-    await process_start_quiz(callback.message, quiz_id, quiz_service, session_service, user_service, lang)
+    await process_start_quiz(callback.message, quiz_id, quiz_service, session_service, lang)
     await callback.answer()
 
 @router.message(QuizStates.QUIZ_READY, F.text.in_([Messages.get("START_QUIZ_BTN", "UZ"), Messages.get("START_QUIZ_BTN", "EN")]))
 async def start_quiz_message_handler(message: types.Message, state: FSMContext, 
-                                    quiz_service: QuizService, session_service: SessionService, user_service: UserService, lang: str):
+                                    quiz_service: QuizService, session_service: SessionService, lang: str):
     data = await state.get_data()
     quiz_id = data.get("current_quiz_id")
     if not quiz_id:
@@ -250,7 +250,7 @@ async def start_quiz_message_handler(message: types.Message, state: FSMContext,
         await state.clear()
         return
     
-    await process_start_quiz(message, quiz_id, quiz_service, session_service, user_service)
+    await process_start_quiz(message, quiz_id, quiz_service, session_service, lang)
     await state.clear()
 
 async def process_start_quiz(message: types.Message, quiz_id: int, quiz_service: QuizService, 
