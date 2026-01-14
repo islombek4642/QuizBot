@@ -1086,10 +1086,54 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
         except:
             pass
 
+    # Handle "share" query specifically
+    if query.strip().lower().startswith("share"):
+        me = await inline_query.bot.get_me()
+        promo_text = Messages.get("BOT_PROMO_TEXT", lang).format(username=me.username)
+        
+        builder = InlineKeyboardBuilder()
+        builder.button(text=Messages.get("START_BTN", lang), url=f"https://t.me/{me.username}?start=ref")
+        builder.adjust(1)
+        
+        results = [
+            types.InlineQueryResultArticle(
+                id="share_bot",
+                title=Messages.get("SHARE_BOT_BTN", lang),
+                description=f"@{me.username}",
+                thumb_url=f"https://ui-avatars.com/api/?name={me.first_name}&background=0D8ABC&color=fff", # Placeholder thumb
+                input_message_content=types.InputTextMessageContent(
+                    message_text=promo_text,
+                    parse_mode="HTML"
+                ),
+                reply_markup=builder.as_markup()
+            )
+        ]
+        await inline_query.answer(results, cache_time=300, is_personal=True)
+        return
+
     # Otherwise show user's recent quizzes
     quizzes = await quiz_service.get_user_quizzes(telegram_id)
     results = []
     bot_info = await inline_query.bot.get_me()
+    
+    # Add Share Bot option at the top for empty queries too
+    if not query:
+        promo_text = Messages.get("BOT_PROMO_TEXT", lang).format(username=bot_info.username)
+        share_builder = InlineKeyboardBuilder()
+        share_builder.button(text=Messages.get("START_BTN", lang), url=f"https://t.me/{bot_info.username}?start=ref")
+        
+        results.append(
+             types.InlineQueryResultArticle(
+                id="share_bot_top",
+                title=Messages.get("SHARE_BOT_BTN", lang),
+                description=f"Invite friends to @{bot_info.username}",
+                input_message_content=types.InputTextMessageContent(
+                    message_text=promo_text,
+                    parse_mode="HTML"
+                ),
+                reply_markup=share_builder.as_markup()
+            )
+        )
     
     for q in quizzes[:10]:
         builder = InlineKeyboardBuilder()

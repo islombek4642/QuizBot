@@ -143,10 +143,10 @@ async def cmd_share_bot(message: types.Message, bot: Bot, lang: str):
     
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
-    # switch_inline_query with empty string allows sharing the bot with friends easily
+    # switch_inline_query with 'share' keyword to trigger specific result
     builder.button(
         text=Messages.get("INVITE_FRIENDS_BTN", lang),
-        switch_inline_query=""
+        switch_inline_query="share"
     )
     
     await message.answer(
