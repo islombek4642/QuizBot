@@ -93,32 +93,24 @@ async def check_ai_limit(user_id: int, limit_type: str, redis, lang: str):
     if user_id == settings.ADMIN_ID:
         return True, ""
         
+    # Check for referral credits first
+    credit_key = f"ai_credits:{limit_type}:{user_id}"
+    credits = await redis.get(credit_key)
+    if credits and int(credits) > 0:
+        return True, ""
+        
     key = f"ai_limit:{limit_type}:{user_id}"
     ttl = await redis.ttl(key)
     
     if ttl > 0:
         hours = ttl // 3600
         minutes = (ttl % 3600) // 60
-        seconds = ttl % 60
-        
-        time_str = ""
-        if hours > 0:
-            time_str += f"{hours}h "
-        if minutes > 0:
-            time_str += f"{minutes}m "
-        if not time_str or (hours == 0 and minutes < 5):
-            time_str += f"{seconds}s"
-            
-        return False, time_str.strip()
+        time_str = f"{hours}h {minutes}m"
+        return False, time_str
         
     return True, ""
 
 async def set_ai_limit(user_id: int, limit_type: str, redis):
-    """Set cooldown for user after successful AI use."""
-    if user_id == settings.ADMIN_ID:
-        return
-        
-    # Get limit from general settings or use default
     setting_key = f"global_settings:ai_{limit_type}_limit"
     limit_hours = await redis.get(setting_key)
     
@@ -1091,25 +1083,29 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
         me = await inline_query.bot.get_me()
         promo_text = Messages.get("BOT_PROMO_TEXT", lang).format(username=me.username)
         
-        builder = InlineKeyboardBuilder()
-        builder.button(text=Messages.get("START_BTN", lang), url=f"https://t.me/{me.username}?start=ref")
-        builder.adjust(1)
-        
-        results = [
-            types.InlineQueryResultArticle(
-                id="share_bot",
-                title=Messages.get("SHARE_BOT_BTN", lang),
-                description=f"@{me.username}",
-                # thumb_url removed to prevent WEBDOCUMENT_URL_INVALID error
-                input_message_content=types.InputTextMessageContent(
-                    message_text=promo_text,
-                    parse_mode="HTML"
-                ),
-                reply_markup=builder.as_markup()
-            )
-        ]
-        await inline_query.answer(results, cache_time=300, is_personal=True)
-        return
+    # Create deep link with referrer ID
+    # This allows us to track referrals in /start
+    builder.button(
+        text=Messages.get("START_BTN", lang), 
+        url=f"https://t.me/{me.username}?start=ref_{me.id}"
+    )
+    builder.adjust(1)
+    
+    results = [
+        types.InlineQueryResultArticle(
+            id="share_bot",
+            title=Messages.get("SHARE_BOT_BTN", lang),
+            description=f"@{me.username}",
+            # thumb_url removed to prevent WEBDOCUMENT_URL_INVALID error
+            input_message_content=types.InputTextMessageContent(
+                message_text=promo_text,
+                parse_mode="HTML"
+            ),
+            reply_markup=builder.as_markup()
+        )
+    ]
+    await inline_query.answer(results, cache_time=300, is_personal=True)
+    return
 
     # Otherwise show user's recent quizzes
     quizzes = await quiz_service.get_user_quizzes(telegram_id)
@@ -1120,7 +1116,9 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
     if not query:
         promo_text = Messages.get("BOT_PROMO_TEXT", lang).format(username=bot_info.username)
         share_builder = InlineKeyboardBuilder()
-        share_builder.button(text=Messages.get("START_BTN", lang), url=f"https://t.me/{bot_info.username}?start=ref")
+        # Use simple ref for generic top share, or dynamic if we want to track self-shares (but inline doesn't give sender ID easily here without extra context)
+        # Better to keep it generic or use telegram_id from update
+        share_builder.button(text=Messages.get("START_BTN", lang), url=f"https://t.me/{bot_info.username}?start=ref_{telegram_id}")
         
         results.append(
              types.InlineQueryResultArticle(

@@ -43,7 +43,7 @@ async def cmd_start(
     # Handle deep links
     args = message.text.split()
     if len(args) > 1:
-        return await handle_payload(args[1], message, user_service, quiz_service, state, lang)
+        return await handle_payload(args[1], message, user_service, quiz_service, state, lang, redis)
 
     welcome_text = Messages.get("WELCOME", lang) + "\n\n" + Messages.get("FORMAT_INFO", lang)
     await message.answer(welcome_text, reply_markup=get_main_keyboard(lang, telegram_id))
@@ -116,7 +116,7 @@ async def process_contact(
     
     # Process pending payload if exists
     if pending_payload:
-        return await handle_payload(pending_payload, message, user_service, quiz_service, state, lang)
+        return await handle_payload(pending_payload, message, user_service, quiz_service, state, lang, redis)
     
     # Clear state if no pending payload
     await state.clear()
@@ -134,6 +134,30 @@ async def check_and_deliver_broadcast(bot: Bot, user_id: int, redis):
             )
     except Exception as e:
         logger.error(f"Error delivering last broadcast to {user_id}: {e}")
+
+async def handle_referral(referrer_id: int, bot: Bot, redis, user_service: UserService):
+    """Process referral reward"""
+    try:
+        # Avoid self-referral
+        if referrer_id <= 0: return
+
+        # Increment credits
+        await redis.incr(f"ai_credits:gen:{referrer_id}")
+        await redis.incr(f"ai_credits:conv:{referrer_id}")
+        
+        # Remove cooldowns immediately
+        await redis.delete(f"ai_limit:gen:{referrer_id}")
+        await redis.delete(f"ai_limit:conv:{referrer_id}")
+        
+        # Notify referrer
+        referrer_lang = await user_service.get_language(referrer_id)
+        await bot.send_message(
+            referrer_id,
+            Messages.get("REFERRAL_SUCCESS", referrer_lang),
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        logger.error("Referral error", error=str(e))
 
 @router.message(F.text.in_([Messages.get("SHARE_BOT_BTN", "UZ"), Messages.get("SHARE_BOT_BTN", "EN")]))
 async def cmd_share_bot(message: types.Message, bot: Bot, lang: str):

@@ -132,6 +132,7 @@ class Messages:
             "SHARE_BOT_BTN": "📢 Botni ulashish",
             "INVITE_FRIENDS_BTN": "👥 Do'stlarni taklif qilish",
             "BOT_PROMO_TEXT": "🚀 <b>QuizBot — Bilimingizni sinab ko'ring!</b>\n\nBu bot orqali:\n✅ Tayyor Word/PDF testlarni Telegramga o'tkazish\n🤖 AI yordamida har qanday mavzuda test yaratish\n👥 Guruhlarda testlar o'tkazish mumkin.\n\nHoziroq sinab ko'ring: @{username}",
+            "REFERRAL_SUCCESS": "🎉 <b>Tabriklaymiz!</b>\n\nSizning havolangiz orqali yangi foydalanuvchi qo'shildi!\n\n🎁 <b>Mukofot:</b>\n✅ +1 ta AI Test yaratish imkoniyati\n✅ +1 ta AI Konvertatsiya imkoniyati\n🚀 Vaqt cheklovlari olib tashlandi!",
         },
         "EN": {
             "WELCOME": "Hello! Welcome to QuizBot.\n\nSend me a .docx file with tests, and I'll convert it into Telegram polls.",
@@ -268,6 +269,7 @@ class Messages:
             "SHARE_BOT_BTN": "📢 Share Bot",
             "INVITE_FRIENDS_BTN": "👥 Invite Friends",
             "BOT_PROMO_TEXT": "🚀 <b>QuizBot — Test Your Knowledge!</b>\n\nWith this bot, you can:\n✅ Convert Word/PDF tests to Telegram polls\n🤖 Generate tests on any topic using AI\n👥 Run interactive quizzes in groups.\n\nTry it now: @{username}",
+            "REFERRAL_SUCCESS": "🎉 <b>Congratulations!</b>\n\nA new user has joined via your link!\n\n🎁 <b>Reward:</b>\n✅ +1 AI Quiz Generation\n✅ +1 AI Test Conversion\n🚀 Cooldowns have been removed!",
         }
     }
 
