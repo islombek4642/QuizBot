@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     POLL_DURATION_SECONDS: int = 30
     POLL_MAPPING_TTL_SECONDS: int = 14400  # 4 hours
     
+    # AI Quiz Generation (Groq)
+    GROQ_API_KEY: str = Field("", description="Groq API key for AI quiz generation")
+    GROQ_MODEL: str = Field("llama-3.3-70b-versatile", description="Groq model to use")
+    AI_QUIZ_COUNT: int = Field(30, description="Number of questions to generate")
+    
     # Environment
     ENV: str = "production"  # development, staging, production
     DEBUG: bool = False

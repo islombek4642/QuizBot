@@ -13,10 +13,12 @@ class QuizStates(StatesGroup):
     WAITING_FOR_TITLE = State()
     WAITING_FOR_SHUFFLE = State()
     QUIZ_READY = State()
+    WAITING_FOR_AI_TOPIC = State()  # New state for AI quiz generation
 
 def get_main_keyboard(lang: str, user_id: int = None):
     builder = ReplyKeyboardBuilder()
-    builder.button(text=Messages.get("CREATE_QUIZ_BTN", lang))
+    builder.button(text=Messages.get("AI_GENERATE_BTN", lang))
+    builder.button(text=Messages.get("UPLOAD_WORD_BTN", lang))
     builder.button(text=Messages.get("MY_QUIZZES_BTN", lang))
     builder.button(text=Messages.get("ADD_TO_GROUP_BTN", lang))
     builder.button(text=Messages.get("SET_LANGUAGE_BTN", lang))

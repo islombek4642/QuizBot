@@ -11,6 +11,7 @@ from models.session import QuizSession
 from aiogram import Router, types, F, Bot
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import BufferedInputFile
 
 from utils.parser import parse_docx_to_json, ParserError
 from constants.messages import Messages
@@ -28,6 +29,7 @@ from handlers.common import (
 from services.user_service import UserService
 from services.quiz_service import QuizService
 from services.session_service import SessionService
+from services.ai_service import AIService, generate_docx_from_questions
 from core.config import settings
 from core.logger import logger
 
@@ -75,8 +77,123 @@ async def cmd_cancel(message: types.Message, state: FSMContext, lang: str):
         reply_markup=get_main_keyboard(lang, telegram_id)
     )
 
-@router.message(F.text.in_([Messages.get("CREATE_QUIZ_BTN", "UZ"), Messages.get("CREATE_QUIZ_BTN", "EN")]))
-async def cmd_create_quiz(message: types.Message, state: FSMContext, lang: str, user: Any):
+# ===================== AI QUIZ GENERATION =====================
+
+@router.message(F.text.in_([Messages.get("AI_GENERATE_BTN", "UZ"), Messages.get("AI_GENERATE_BTN", "EN")]))
+async def cmd_ai_generate(message: types.Message, state: FSMContext, lang: str, user: Any):
+    """Handle AI quiz generation button press"""
+    telegram_id = message.from_user.id
+    
+    if not user or not user.phone_number:
+        await message.answer(
+            Messages.get("SHARE_CONTACT_PROMPT", lang),
+            reply_markup=get_contact_keyboard(lang)
+        )
+        return
+    
+    # Check if API key is configured
+    if not settings.GROQ_API_KEY:
+        await message.answer(Messages.get("AI_NO_API_KEY", lang))
+        return
+    
+    await state.set_state(QuizStates.WAITING_FOR_AI_TOPIC)
+    await message.answer(
+        Messages.get("AI_ENTER_TOPIC", lang),
+        reply_markup=get_cancel_keyboard(lang)
+    )
+
+@router.message(QuizStates.WAITING_FOR_AI_TOPIC, F.text)
+async def handle_ai_topic(message: types.Message, state: FSMContext, lang: str, user: Any):
+    """Handle topic input for AI quiz generation"""
+    telegram_id = message.from_user.id
+    topic = message.text.strip()
+    
+    # Check if it's a cancel button
+    if topic in [Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN"), 
+                 Messages.get("BACK_BTN", "UZ"), Messages.get("BACK_BTN", "EN")]:
+        await state.clear()
+        await message.answer(
+            Messages.get("SELECT_BUTTON", lang),
+            reply_markup=get_main_keyboard(lang, telegram_id)
+        )
+        return
+    
+    # Validate topic length
+    word_count = len(topic.split())
+    if word_count < 2:
+        await message.answer(Messages.get("AI_TOPIC_TOO_SHORT", lang))
+        return
+    
+    # Send generating message
+    generating_msg = await message.answer(
+        Messages.get("AI_GENERATING", lang).format(topic=topic),
+        parse_mode="HTML"
+    )
+    
+    try:
+        # Generate quiz using AI
+        ai_service = AIService()
+        questions, error = await ai_service.generate_quiz(
+            topic=topic,
+            count=settings.AI_QUIZ_COUNT,
+            lang=lang
+        )
+        
+        if error:
+            await generating_msg.delete()
+            await message.answer(
+                Messages.get("AI_GENERATION_ERROR", lang).format(error=error)
+            )
+            return
+        
+        if not questions:
+            await generating_msg.delete()
+            await message.answer(
+                Messages.get("AI_GENERATION_ERROR", lang).format(error="No questions generated")
+            )
+            return
+        
+        # Generate Word file
+        temp_title = f"AI Quiz - {topic[:30]}"
+        docx_bytes = generate_docx_from_questions(questions, temp_title)
+        
+        # Send Word file to user
+        docx_file = BufferedInputFile(
+            docx_bytes,
+            filename=f"quiz_{topic[:20].replace(' ', '_')}.docx"
+        )
+        await message.answer_document(
+            docx_file,
+            caption=f"📄 {temp_title}"
+        )
+        
+        # Store questions in state and move to title input
+        await state.update_data(questions=questions, ai_topic=topic)
+        await state.set_state(QuizStates.WAITING_FOR_TITLE)
+        
+        await generating_msg.delete()
+        await message.answer(
+            Messages.get("AI_GENERATION_SUCCESS", lang).format(count=len(questions)),
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard(lang)
+        )
+        
+    except Exception as e:
+        logger.error("AI quiz generation failed", error=str(e), topic=topic, user_id=telegram_id)
+        try:
+            await generating_msg.delete()
+        except:
+            pass
+        await message.answer(
+            Messages.get("AI_GENERATION_ERROR", lang).format(error=str(e))
+        )
+
+# ===================== WORD UPLOAD =====================
+
+@router.message(F.text.in_([Messages.get("UPLOAD_WORD_BTN", "UZ"), Messages.get("UPLOAD_WORD_BTN", "EN"),
+                            Messages.get("CREATE_QUIZ_BTN", "UZ"), Messages.get("CREATE_QUIZ_BTN", "EN")]))
+async def cmd_upload_word(message: types.Message, state: FSMContext, lang: str, user: Any):
+    """Handle Word upload button press (renamed from create_quiz)"""
     telegram_id = message.from_user.id
     
     if not user or not user.phone_number:

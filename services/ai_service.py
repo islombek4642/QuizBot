@@ -1,0 +1,235 @@
+"""AI Service for generating quizzes using Groq API."""
+import json
+import httpx
+from typing import List, Dict, Optional, Tuple
+from core.config import settings
+from core.logger import logger
+
+
+class AIService:
+    """Service for AI-powered quiz generation using Groq API."""
+    
+    def __init__(self):
+        self.api_key = settings.GROQ_API_KEY
+        self.model = settings.GROQ_MODEL
+        self.base_url = "https://api.groq.com/openai/v1/chat/completions"
+        
+    async def generate_quiz(self, topic: str, count: int = 30, lang: str = "UZ") -> Tuple[List[Dict], Optional[str]]:
+        """
+        Generate quiz questions using Groq AI.
+        
+        Args:
+            topic: The topic for quiz generation
+            count: Number of questions to generate (default 30)
+            lang: Language code (UZ or EN)
+            
+        Returns:
+            Tuple of (questions list, error message or None)
+        """
+        if not self.api_key:
+            return [], "GROQ_API_KEY is not configured"
+        
+        # Build the prompt
+        if lang == "UZ":
+            system_prompt = """Siz test yaratuvchi sun'iy intellektsiz. Sizning vazifangiz berilgan mavzu bo'yicha test savollarini yaratish.
+
+MUHIM QOIDALAR:
+1. Har bir savol aniq va tushunarli bo'lsin
+2. Har bir savolda AYNAN 4 ta javob varianti bo'lsin (1 ta to'g'ri, 3 ta noto'g'ri)
+3. Savol matni maksimal 280 belgidan oshmasin
+4. Har bir javob varianti maksimal 95 belgidan oshmasin
+5. Savollar bir-biridan farq qilsin, takrorlanmasin
+6. Javoblar mantiqiy va ishonchli bo'lsin
+
+Javobni FAQAT quyidagi JSON formatida qaytaring, boshqa hech narsa yozmang:
+[
+  {
+    "question": "Savol matni",
+    "options": ["To'g'ri javob", "Noto'g'ri 1", "Noto'g'ri 2", "Noto'g'ri 3"],
+    "correct_option_id": 0
+  }
+]
+
+correct_option_id har doim 0 bo'lsin (birinchi variant to'g'ri javob)."""
+
+            user_prompt = f"Quyidagi mavzu bo'yicha {count} ta test savoli yarating: {topic}"
+        else:
+            system_prompt = """You are a quiz generator AI. Your task is to create quiz questions on the given topic.
+
+IMPORTANT RULES:
+1. Each question should be clear and understandable
+2. Each question must have EXACTLY 4 answer options (1 correct, 3 incorrect)
+3. Question text must not exceed 280 characters
+4. Each answer option must not exceed 95 characters
+5. Questions should be unique and not repeat
+6. Answers should be logical and believable
+
+Return ONLY the following JSON format, nothing else:
+[
+  {
+    "question": "Question text",
+    "options": ["Correct answer", "Wrong 1", "Wrong 2", "Wrong 3"],
+    "correct_option_id": 0
+  }
+]
+
+correct_option_id should always be 0 (first option is the correct answer)."""
+
+            user_prompt = f"Create {count} quiz questions on the following topic: {topic}"
+
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    self.base_url,
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": self.model,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt}
+                        ],
+                        "temperature": 0.7,
+                        "max_tokens": 8000
+                    }
+                )
+                
+                if response.status_code != 200:
+                    error_text = response.text
+                    logger.error("Groq API error", status=response.status_code, error=error_text)
+                    return [], f"API error: {response.status_code}"
+                
+                data = response.json()
+                content = data["choices"][0]["message"]["content"]
+                
+                # Parse JSON from response
+                questions = self._parse_response(content)
+                
+                if not questions:
+                    return [], "Failed to parse AI response"
+                
+                # Validate and fix questions
+                validated_questions = self._validate_questions(questions)
+                
+                logger.info("AI quiz generated", topic=topic, count=len(validated_questions))
+                return validated_questions, None
+                
+        except httpx.TimeoutException:
+            logger.error("Groq API timeout", topic=topic)
+            return [], "Request timeout - please try again"
+        except Exception as e:
+            logger.error("AI generation error", error=str(e), topic=topic)
+            return [], str(e)
+    
+    def _parse_response(self, content: str) -> List[Dict]:
+        """Parse JSON from AI response, handling potential formatting issues."""
+        try:
+            # Try direct JSON parse
+            return json.loads(content)
+        except json.JSONDecodeError:
+            pass
+        
+        # Try to extract JSON from markdown code block
+        if "```json" in content:
+            start = content.find("```json") + 7
+            end = content.find("```", start)
+            if end > start:
+                try:
+                    return json.loads(content[start:end].strip())
+                except json.JSONDecodeError:
+                    pass
+        
+        # Try to find JSON array
+        if "[" in content and "]" in content:
+            start = content.find("[")
+            end = content.rfind("]") + 1
+            try:
+                return json.loads(content[start:end])
+            except json.JSONDecodeError:
+                pass
+        
+        logger.error("Failed to parse AI response", content=content[:500])
+        return []
+    
+    def _validate_questions(self, questions: List[Dict]) -> List[Dict]:
+        """Validate and fix questions to meet requirements."""
+        validated = []
+        
+        for q in questions:
+            try:
+                # Check required fields
+                if "question" not in q or "options" not in q or "correct_option_id" not in q:
+                    continue
+                
+                # Ensure exactly 4 options
+                options = q["options"]
+                if len(options) < 4:
+                    continue
+                if len(options) > 4:
+                    options = options[:4]
+                
+                # Truncate if too long
+                question_text = q["question"][:280] if len(q["question"]) > 280 else q["question"]
+                options = [opt[:95] if len(opt) > 95 else opt for opt in options]
+                
+                # Ensure correct_option_id is valid
+                correct_id = q["correct_option_id"]
+                if not isinstance(correct_id, int) or correct_id < 0 or correct_id >= len(options):
+                    correct_id = 0
+                
+                validated.append({
+                    "question": question_text,
+                    "options": options,
+                    "correct_option_id": correct_id
+                })
+                
+            except Exception as e:
+                logger.warning("Question validation failed", error=str(e))
+                continue
+        
+        return validated
+
+
+def generate_docx_from_questions(questions: List[Dict], title: str) -> bytes:
+    """
+    Generate a .docx file from questions in our format.
+    
+    Args:
+        questions: List of question dicts with 'question', 'options', 'correct_option_id'
+        title: Quiz title for the document
+        
+    Returns:
+        bytes: The docx file content
+    """
+    from docx import Document
+    from docx.shared import Pt
+    from io import BytesIO
+    
+    doc = Document()
+    
+    # Add title
+    title_para = doc.add_heading(title, 0)
+    
+    # Add each question in our format
+    for i, q in enumerate(questions, 1):
+        # Add question
+        doc.add_paragraph(f"?{q['question']}")
+        
+        # Add options
+        correct_id = q['correct_option_id']
+        for j, opt in enumerate(q['options']):
+            if j == correct_id:
+                doc.add_paragraph(f"+{opt}")
+            else:
+                doc.add_paragraph(f"={opt}")
+        
+        # Add empty line between questions
+        doc.add_paragraph()
+    
+    # Save to bytes
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
