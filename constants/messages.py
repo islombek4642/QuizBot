@@ -100,6 +100,9 @@ class Messages:
             "PREV_BTN": "⬅️ Oldingi",
             "NEXT_BTN": "Keyingi ➡️",
             "FILE_DOWNLOAD_ERROR": "❌ Faylni yuklab bo'lmadi yoki u bo'sh. Qaytadan urinib ko'ring.",
+            "ADMIN_USERS_BTN": "👥 Users",
+            "ADMIN_GROUPS_BTN": "🏘 Groups",
+            "ADMIN_STATS_BTN": "📊 Statistics",
         },
         "EN": {
             "WELCOME": "Hello! Welcome to QuizBot.\n\nSend me a .docx file with tests, and I'll convert it into Telegram polls.",
@@ -201,6 +204,9 @@ class Messages:
             "PREV_BTN": "⬅️ Previous",
             "NEXT_BTN": "Next ➡️",
             "FILE_DOWNLOAD_ERROR": "❌ Failed to download file or it is empty. Please try again.",
+            "ADMIN_USERS_BTN": "👥 Users",
+            "ADMIN_GROUPS_BTN": "🏘 Groups",
+            "ADMIN_STATS_BTN": "📊 Statistics",
         }
     }
 
