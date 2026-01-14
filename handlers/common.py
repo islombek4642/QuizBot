@@ -14,6 +14,7 @@ class QuizStates(StatesGroup):
     WAITING_FOR_SHUFFLE = State()
     QUIZ_READY = State()
     WAITING_FOR_AI_TOPIC = State()  # New state for AI quiz generation
+    WAITING_FOR_AI_COUNT = State()  # New state for AI question count
     WAITING_FOR_CONVERT_FILE = State()  # New state for AI test conversion
 
 def get_main_keyboard(lang: str, user_id: int = None):

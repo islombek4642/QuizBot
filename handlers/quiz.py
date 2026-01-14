@@ -129,43 +129,82 @@ async def handle_ai_topic(message: types.Message, state: FSMContext, lang: str, 
         await message.answer(Messages.get("AI_TOPIC_TOO_SHORT", lang))
         return
     
+    await state.update_data(topic=topic)
+    await state.set_state(QuizStates.WAITING_FOR_AI_COUNT)
+    await message.answer(
+        Messages.get("AI_ENTER_COUNT", lang),
+        reply_markup=get_cancel_keyboard(lang)
+    )
+
+@router.message(QuizStates.WAITING_FOR_AI_COUNT, F.text)
+async def handle_ai_count(message: types.Message, state: FSMContext, lang: str, user: Any):
+    """Handle question count input for AI quiz generation"""
+    telegram_id = message.from_user.id
+    text = message.text.strip()
+    
+    # Check if it's a cancel button
+    if text in [Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN")]:
+        await state.clear()
+        await message.answer(
+            Messages.get("SELECT_BUTTON", lang),
+            reply_markup=get_main_keyboard(lang, telegram_id)
+        )
+        return
+
+    try:
+        count = int(text)
+        if not (1 <= count <= 300):
+            raise ValueError()
+    except ValueError:
+        await message.answer(Messages.get("AI_INVALID_COUNT", lang))
+        return
+
+    data = await state.get_data()
+    topic = data.get("topic")
+    
     # Send generating message
     generating_msg = await message.answer(
-        Messages.get("AI_GENERATING", lang).format(topic=topic),
-        parse_mode="HTML"
+        Messages.get("AI_GENERATING", lang).format(topic=topic, count=count),
+        parse_mode="HTML",
+        reply_markup=types.ReplyKeyboardRemove()
     )
     
     try:
-        # Generate quiz using AI
+        from services.ai_service import AIService
+        from bot import bot
+        
+        async def on_progress(current: int, total: int):
+            try:
+                await bot.edit_message_text(
+                    Messages.get("AI_GENERATING_PROGRESS", lang).format(current=current, total=total),
+                    chat_id=message.chat.id,
+                    message_id=generating_msg.message_id,
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+
         ai_service = AIService()
         questions, error = await ai_service.generate_quiz(
             topic=topic,
-            count=settings.AI_QUIZ_COUNT,
-            lang=lang
+            count=count,
+            lang=lang,
+            on_progress=on_progress
         )
         
-        if error:
+        if error and not questions:
             await generating_msg.delete()
             await message.answer(
-                Messages.get("AI_GENERATION_ERROR", lang).format(error=error)
+                Messages.get("AI_GENERATION_ERROR", lang).format(error=error),
+                reply_markup=get_main_keyboard(lang, telegram_id)
             )
             return
-        
-        if not questions:
-            await generating_msg.delete()
-            await message.answer(
-                Messages.get("AI_GENERATION_ERROR", lang).format(error="No questions generated")
-            )
-            return
-        
-        # Limit to exactly AI_QUIZ_COUNT questions
-        questions = questions[:settings.AI_QUIZ_COUNT]
         
         # Generate Word file
-        quiz_title = topic  # Use topic as title directly
+        quiz_title = topic
         docx_bytes = generate_docx_from_questions(questions, quiz_title)
         
-        # Send Word file to user
+        # Send Word file
         docx_file = BufferedInputFile(
             docx_bytes,
             filename=f"quiz_{topic[:20].replace(' ', '_')}.docx"
@@ -175,10 +214,6 @@ async def handle_ai_topic(message: types.Message, state: FSMContext, lang: str, 
             caption=f"📄 {quiz_title}"
         )
         
-        # Auto-save quiz with topic as title (skip title input step)
-        from services.quiz_service import QuizService
-        # Get quiz_service from middleware - we need to get it differently
-        # Since we don't have it injected, we'll store in state and let user confirm with shuffle
         await state.update_data(questions=questions, title=quiz_title)
         await state.set_state(QuizStates.WAITING_FOR_SHUFFLE)
         
@@ -199,7 +234,8 @@ async def handle_ai_topic(message: types.Message, state: FSMContext, lang: str, 
         except:
             pass
         await message.answer(
-            Messages.get("AI_GENERATION_ERROR", lang).format(error=str(e))
+            Messages.get("AI_GENERATION_ERROR", lang).format(error=str(e)),
+            reply_markup=get_main_keyboard(lang, telegram_id)
         )
 
 # ===================== TEST CONVERSION =====================

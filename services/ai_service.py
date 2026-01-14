@@ -29,117 +29,116 @@ class AIService:
                 reset_tok=headers.get("x-ratelimit-reset-tokens")
             )
         
-    async def generate_quiz(self, topic: str, count: int = 30, lang: str = "UZ") -> Tuple[List[Dict], Optional[str]]:
+    async def generate_quiz(self, topic: str, count: int = 30, lang: str = "UZ", 
+                           on_progress: Optional[Callable[[int, int], Awaitable[None]]] = None) -> Tuple[List[Dict], Optional[str]]:
         """
-        Generate quiz questions using Groq AI.
-        
-        Args:
-            topic: The topic for quiz generation
-            count: Number of questions to generate (default 30)
-            lang: Language code (UZ or EN)
-            
-        Returns:
-            Tuple of (questions list, error message or None)
+        Generate quiz questions using Groq AI with batching for large counts.
         """
         if not self.api_key:
             return [], "GROQ_API_KEY is not configured"
         
-        # Build the prompt
+        all_questions = []
+        batch_size = 15 # Generate 15 questions per batch for reliability
+        
+        # Build base system prompt
         if lang == "UZ":
-            system_prompt = """Siz test yaratuvchi sun'iy intellektsiz. Sizning vazifangiz berilgan mavzu bo'yicha test savollarini yaratish.
-
-MUHIM QOIDALAR:
-1. Har bir savol aniq va tushunarli bo'lsin
-2. Har bir savolda AYNAN 4 ta javob varianti bo'lsin (1 ta to'g'ri, 3 ta noto'g'ri)
-3. Savol matni maksimal 280 belgidan oshmasin
-4. Har bir javob varianti maksimal 95 belgidan oshmasin
-5. Savollar bir-biridan farq qilsin, takrorlanmasin
-6. Javoblar mantiqiy va ishonchli bo'lsin
-
+            system_prompt = """Siz test yaratuvchi sun'iy intellektsiz. Berilgan mavzu bo'yicha test savollarini yarating.
+            
 Javobni FAQAT quyidagi JSON formatida qaytaring, boshqa hech narsa yozmang:
-[
-  {
-    "question": "Savol matni",
-    "options": ["To'g'ri javob", "Noto'g'ri 1", "Noto'g'ri 2", "Noto'g'ri 3"],
-    "correct_option_id": 0
-  }
-]
+{
+  "questions": [
+    {
+      "question": "Savol matni",
+      "options": ["To'g'ri javob", "Noto'g'ri 1", "Noto'g'ri 2", "Noto'g'ri 3"],
+      "correct_option_id": 0
+    }
+  ]
+}
 
-correct_option_id har doim 0 bo'lsin (birinchi variant to'g'ri javob)."""
-
-            user_prompt = f"Quyidagi mavzu bo'yicha {count} ta test savoli yarating: {topic}"
+correct_option_id har doim 0 bo'lsin (birinchi variant to'g'ri javob). Savol matni max 280 belgi, variantlar max 95 belgi."""
         else:
-            system_prompt = """You are a quiz generator AI. Your task is to create quiz questions on the given topic.
-
-IMPORTANT RULES:
-1. Each question should be clear and understandable
-2. Each question must have EXACTLY 4 answer options (1 correct, 3 incorrect)
-3. Question text must not exceed 280 characters
-4. Each answer option must not exceed 95 characters
-5. Questions should be unique and not repeat
-6. Answers should be logical and believable
-
+            system_prompt = """You are a quiz generator AI. Create quiz questions on the given topic.
+            
 Return ONLY the following JSON format, nothing else:
-[
-  {
-    "question": "Question text",
-    "options": ["Correct answer", "Wrong 1", "Wrong 2", "Wrong 3"],
-    "correct_option_id": 0
-  }
-]
+{
+  "questions": [
+    {
+      "question": "Question text",
+      "options": ["Correct answer", "Wrong 1", "Wrong 2", "Wrong 3"],
+      "correct_option_id": 0
+    }
+  ]
+}
 
-correct_option_id should always be 0 (first option is the correct answer)."""
+correct_option_id should always be 0 (first option is the correct answer). Question text max 280 chars, options max 95 chars."""
 
-            user_prompt = f"Create {count} quiz questions on the following topic: {topic}"
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            current_count = 0
+            while current_count < count:
+                remaining = count - current_count
+                to_generate = min(batch_size, remaining)
+                
+                if lang == "UZ":
+                    user_prompt = f"Mavzu: {topic}\nSoni: {to_generate} ta yangi (takrorlanmagan) savol yarating."
+                else:
+                    user_prompt = f"Topic: {topic}\nGenerate {to_generate} new (unique) questions."
+                
+                try:
+                    response = await client.post(
+                        self.base_url,
+                        headers={
+                            "Authorization": f"Bearer {self.api_key}",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "model": self.model,
+                            "messages": [
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_prompt}
+                            ],
+                            "response_format": {"type": "json_object"},
+                            "temperature": 0.8,
+                            "max_completion_tokens": 4096
+                        }
+                    )
+                    
+                    self._log_rate_limits(response.headers)
+                    
+                    if response.status_code != 200:
+                        logger.error("Groq API error", status=response.status_code, error=response.text)
+                        if all_questions: break # Return what we have
+                        return [], f"API error: {response.status_code}"
+                    
+                    data = response.json()
+                    content = data["choices"][0]["message"]["content"]
+                    
+                    # Parse JSON
+                    batch_raw = json.loads(content)
+                    batch_questions = batch_raw.get("questions", [])
+                    
+                    # Validate and fix
+                    validated = self._validate_questions(batch_questions)
+                    all_questions.extend(validated)
+                    current_count = len(all_questions)
+                    
+                    # Report progress
+                    if on_progress:
+                        await on_progress(min(current_count, count), count)
+                        
+                    # Slow down slightly to avoid extreme rate limits
+                    if count > 50:
+                        await asyncio.sleep(1)
+                        
+                except Exception as e:
+                    logger.exception(f"Batch generation error: {e}")
+                    if all_questions: break
+                    return [], f"Generation error: {str(e)}"
 
-        try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(
-                    self.base_url,
-                    headers={
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "model": self.model,
-                        "messages": [
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": user_prompt}
-                        ],
-                        "response_format": {"type": "json_object"},
-                        "temperature": 0.7,
-                        "max_completion_tokens": 4096 # Safer limit for single generation
-                    }
-                )
-                
-                self._log_rate_limits(response.headers)
-                
-                if response.status_code != 200:
-                    error_text = response.text
-                    logger.error("Groq API error", status=response.status_code, error=error_text)
-                    return [], f"API error: {response.status_code}"
-                
-                data = response.json()
-                content = data["choices"][0]["message"]["content"]
-                
-                # Parse JSON from response
-                questions = self._parse_response(content)
-                
-                if not questions:
-                    return [], "Failed to parse AI response"
-                
-                # Validate and fix questions
-                validated_questions = self._validate_questions(questions)
-                
-                logger.info("AI quiz generated", topic=topic, count=len(validated_questions))
-                return validated_questions, None
-                
-        except httpx.TimeoutException:
-            logger.error("Groq API timeout", topic=topic)
-            return [], "Request timeout - please try again"
-        except Exception as e:
-            logger.error("AI generation error", error=str(e), topic=topic)
-            return [], str(e)
+        if not all_questions:
+            return [], "Failed to generate any questions"
+            
+        logger.info("AI quiz generated", topic=topic, total=len(all_questions))
+        return all_questions[:count], None
 
     async def convert_quiz(self, raw_text: str, lang: str = "UZ", on_progress: Optional[Callable[[int, int, int], Awaitable[None]]] = None) -> Tuple[List[Dict], Optional[str]]:
         """
