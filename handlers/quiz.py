@@ -253,6 +253,8 @@ async def process_start_quiz(message: types.Message, quiz_id: int, quiz_service:
         return
     questions = list(quiz.questions_json) # Copy to avoid mutating original if cached
     
+    # Clear any lingering stop signals from previous abandoned sessions
+    await session_service.clear_stop_signal(telegram_id)
     if quiz.shuffle_options:
         random.shuffle(questions)
         for q in questions:

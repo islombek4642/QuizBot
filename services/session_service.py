@@ -103,3 +103,7 @@ class SessionService:
     async def is_stopped(self, user_id: int) -> bool:
         key = f"quizbot:stop:{user_id}"
         return await self.redis.exists(key) > 0
+
+    async def clear_stop_signal(self, user_id: int):
+        key = f"quizbot:stop:{user_id}"
+        await self.redis.delete(key)
