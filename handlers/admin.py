@@ -125,6 +125,7 @@ async def admin_groups_pagination(callback: types.CallbackQuery, redis, lang: st
 
 @router.message(F.text.in_([Messages.get("ADMIN_STATS_BTN", "UZ"), Messages.get("ADMIN_STATS_BTN", "EN")]))
 async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang: str):
+    import time
     # Users count
     res_users = await db.execute(select(func.count(User.id)))
     total_users = res_users.scalar()
@@ -136,23 +137,31 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     res_quizzes = await db.execute(select(func.count(Quiz.id)))
     total_quizzes = res_quizzes.scalar()
     
-    # Active quizzes (Group)
-    # Get all keys starting with group_quiz:
-    # Note: keys() is slow on large redis, but fine here
+    # Active quizzes (Group) - Redis keys with 4h TTL
     keys = await redis.keys("group_quiz:*")
     active_group_quizzes = len(keys)
     
-    # Active sessions (Private)
-    res_active_sessions = await db.execute(select(func.count(QuizSession.id)).filter(QuizSession.is_active == True))
+    # Active sessions (Private) - Only count recent ones (last 2 hours) to avoid stale data
+    two_hours_ago = time.time() - 7200
+    res_active_sessions = await db.execute(
+        select(func.count(QuizSession.id))
+        .filter(QuizSession.is_active == True, QuizSession.start_time > two_hours_ago)
+    )
     active_private_quizzes = res_active_sessions.scalar()
     
     total_active = active_group_quizzes + active_private_quizzes
+
+    # AI Stats
+    ai_gen_total = await redis.get("stats:ai_gen_total") or 0
+    ai_conv_total = await redis.get("stats:ai_conv_total") or 0
     
     stats_msg = Messages.get("ADMIN_STATS_MSG", lang).format(
         total_users=total_users,
         total_groups=total_groups,
         total_quizzes=total_quizzes,
-        active_quizzes=total_active
+        active_quizzes=total_active,
+        ai_gen_total=int(ai_gen_total),
+        ai_conv_total=int(ai_conv_total)
     )
     
     await message.answer(stats_msg, parse_mode="HTML")

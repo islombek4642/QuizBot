@@ -278,6 +278,9 @@ async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, r
         # Set AI Limit after success
         await set_ai_limit(telegram_id, "gen", redis)
         
+        # Increment global stats
+        await redis.incr("stats:ai_gen_total")
+        
         await message.answer(
             Messages.get("ASK_SHUFFLE", lang),
             reply_markup=get_shuffle_keyboard(lang)
@@ -402,8 +405,11 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
             parse_mode="HTML"
         )
         
-        # Set AI Limit after success
+        # Set AI conversion limit after success
         await set_ai_limit(telegram_id, "conv", redis)
+
+        # Increment global stats
+        await redis.incr("stats:ai_conv_total")
         
     except Exception as e:
         logger.error("Test conversion failed", error=str(e), user_id=telegram_id)
