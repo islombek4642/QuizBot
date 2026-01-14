@@ -769,10 +769,28 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
         await message.answer(Messages.get("NO_PARTICIPANTS", lang))
         return
         
-    # Sort by correct then total
-    sorted_p = sorted(participants.items(), key=lambda x: (x[1]['correct'], x[1]['answered']), reverse=True)
+    # Sort by correct then total_time
+    sorted_p = sorted(
+        participants.items(), 
+        key=lambda x: (-x[1]['correct'], x[1].get('total_time', 999999))
+    )
     
     leaderboard = Messages.get("LEADERBOARD_TITLE", lang).format(title=quiz_state.get('title', 'Quiz')) + "\n\n"
+    
+    def format_duration(seconds: float, lang: str) -> str:
+        mins = int(seconds // 60)
+        secs = int(seconds % 60)
+        if lang == "UZ":
+            res = []
+            if mins > 0: res.append(f"{mins} daqiqa")
+            if secs > 0 or not res: res.append(f"{secs} soniya")
+            return " ".join(res)
+        else:
+            res = []
+            if mins > 0: res.append(f"{mins} minute{'s' if mins > 1 else ''}")
+            if secs > 0 or not res: res.append(f"{secs} second{'s' if secs > 1 else ''}")
+            return " ".join(res)
+
     for i, (uid, stats) in enumerate(sorted_p[:15], 1):
         try:
             member = await message.chat.get_member(int(uid))
@@ -782,16 +800,16 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
             
         medals = {1: "🥇", 2: "🥈", 3: "🥉"}
         rank_str = medals.get(i, f"{i}.")
-        leaderboard += f"{rank_str} <a href='tg://user?id={uid}'>{name}</a>: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
+        
+        total_time_str = format_duration(stats.get('total_time', 0), lang)
+        leaderboard += f"{rank_str} <a href='tg://user?id={uid}'>{name}</a> – <b>{stats['correct']}</b>/{stats['answered']} ({total_time_str})\n"
         
     # Summary footer
-    total_correct = sum(p.get("correct", 0) for p in participants.values())
-    total_answered = sum(p.get("answered", 0) for p in participants.values())
-    avg_score = (total_correct / total_answered * 100) if total_answered > 0 else 0
+    total_questions = len(quiz_state.get("questions", []))
     
     summary = Messages.get("GROUP_QUIZ_SUMMARY", lang).format(
         count=len(participants),
-        avg_score=f"{avg_score:.1f}"
+        total_questions=total_questions
     )
         
     await message.answer(leaderboard + summary, parse_mode="HTML", reply_markup=types.ReplyKeyboardRemove())
