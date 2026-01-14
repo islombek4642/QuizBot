@@ -37,6 +37,7 @@ async def main():
     dp.update.outer_middleware(DbSessionMiddleware())
     dp.update.outer_middleware(RedisMiddleware(redis))
     dp.message.middleware(AuthMiddleware())
+    dp.callback_query.middleware(AuthMiddleware())
 
     # Include routers
     dp.include_router(admin.router)

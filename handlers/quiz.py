@@ -67,9 +67,8 @@ class IsPrivatePoll(BaseFilter):
 
 
 @router.message(F.text.in_([Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN"), Messages.get("BACK_BTN", "UZ"), Messages.get("BACK_BTN", "EN")]))
-async def cmd_cancel(message: types.Message, state: FSMContext, user_service: UserService):
+async def cmd_cancel(message: types.Message, state: FSMContext, lang: str):
     telegram_id = message.from_user.id
-    lang = await user_service.get_language(telegram_id)
     await state.clear()
     await message.answer(
         Messages.get("SELECT_BUTTON", lang),
@@ -77,11 +76,9 @@ async def cmd_cancel(message: types.Message, state: FSMContext, user_service: Us
     )
 
 @router.message(F.text.in_([Messages.get("CREATE_QUIZ_BTN", "UZ"), Messages.get("CREATE_QUIZ_BTN", "EN")]))
-async def cmd_create_quiz(message: types.Message, state: FSMContext, user_service: UserService):
+async def cmd_create_quiz(message: types.Message, state: FSMContext, lang: str, user: Any):
     telegram_id = message.from_user.id
-    lang = await user_service.get_language(telegram_id)
     
-    user = await user_service.get_or_create_user(telegram_id)
     if not user or not user.phone_number:
         await message.answer(
             Messages.get("SHARE_CONTACT_PROMPT", lang),
@@ -94,11 +91,9 @@ async def cmd_create_quiz(message: types.Message, state: FSMContext, user_servic
     await message.answer(combined_msg, reply_markup=get_cancel_keyboard(lang))
 
 @router.message(F.text.in_([Messages.get("MY_QUIZZES_BTN", "UZ"), Messages.get("MY_QUIZZES_BTN", "EN")]))
-async def cmd_my_quizzes(message: types.Message, user_service: UserService, quiz_service: QuizService):
+async def cmd_my_quizzes(message: types.Message, quiz_service: QuizService, lang: str, user: Any):
     telegram_id = message.from_user.id
-    lang = await user_service.get_language(telegram_id)
     
-    user = await user_service.get_or_create_user(telegram_id)
     if not user or not user.phone_number:
         await message.answer(
             Messages.get("SHARE_CONTACT_PROMPT", lang),
@@ -119,9 +114,8 @@ async def cmd_my_quizzes(message: types.Message, user_service: UserService, quiz
     )
 
 @router.message(QuizStates.WAITING_FOR_DOCX, F.document)
-async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, user_service: UserService):
+async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, lang: str):
     telegram_id = message.from_user.id
-    lang = await user_service.get_language(telegram_id)
     
     document = message.document
     if not document or not document.file_name or not document.file_name.endswith('.docx'):
@@ -189,9 +183,8 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
             os.remove(local_path)
 
 @router.message(QuizStates.WAITING_FOR_TITLE, F.text)
-async def handle_quiz_title(message: types.Message, state: FSMContext, user_service: UserService, quiz_service: QuizService):
+async def handle_quiz_title(message: types.Message, state: FSMContext, quiz_service: QuizService, lang: str):
     telegram_id = message.from_user.id
-    lang = await user_service.get_language(telegram_id)
     
     title = message.text.strip()
     
@@ -209,9 +202,8 @@ async def handle_quiz_title(message: types.Message, state: FSMContext, user_serv
     )
 
 @router.message(QuizStates.WAITING_FOR_SHUFFLE, F.text.in_([Messages.get("SHUFFLE_YES", "UZ"), Messages.get("SHUFFLE_YES", "EN"), Messages.get("SHUFFLE_NO", "UZ"), Messages.get("SHUFFLE_NO", "EN")]))
-async def handle_quiz_shuffle(message: types.Message, state: FSMContext, user_service: UserService, quiz_service: QuizService):
+async def handle_quiz_shuffle(message: types.Message, state: FSMContext, quiz_service: QuizService, lang: str):
     telegram_id = message.from_user.id
-    lang = await user_service.get_language(telegram_id)
     
     shuffle = message.text in [Messages.get("SHUFFLE_YES", "UZ"), Messages.get("SHUFFLE_YES", "EN")]
     
@@ -242,21 +234,18 @@ async def handle_quiz_shuffle(message: types.Message, state: FSMContext, user_se
 
 @router.callback_query(F.data.startswith("start_quiz_"))
 async def start_quiz_callback_handler(callback: types.CallbackQuery, state: FSMContext, 
-                                     quiz_service: QuizService, session_service: SessionService, user_service: UserService):
+                                     quiz_service: QuizService, session_service: SessionService, user_service: UserService, lang: str):
     quiz_id = int(callback.data.split("_")[2])
-    await process_start_quiz(callback.message, quiz_id, quiz_service, session_service, user_service)
+    await process_start_quiz(callback.message, quiz_id, quiz_service, session_service, user_service, lang)
     await callback.answer()
 
 @router.message(QuizStates.QUIZ_READY, F.text.in_([Messages.get("START_QUIZ_BTN", "UZ"), Messages.get("START_QUIZ_BTN", "EN")]))
 async def start_quiz_message_handler(message: types.Message, state: FSMContext, 
-                                    quiz_service: QuizService, session_service: SessionService, user_service: UserService):
+                                    quiz_service: QuizService, session_service: SessionService, user_service: UserService, lang: str):
     data = await state.get_data()
     quiz_id = data.get("current_quiz_id")
     if not quiz_id:
-        # We need language here, but state context implies user interact. 
-        # Actually user_service is available.
         telegram_id = message.from_user.id
-        lang = await user_service.get_language(telegram_id)
         await message.answer(Messages.get("ERROR_QUIZ_NOT_FOUND", lang))
         await state.clear()
         return
@@ -265,9 +254,8 @@ async def start_quiz_message_handler(message: types.Message, state: FSMContext,
     await state.clear()
 
 async def process_start_quiz(message: types.Message, quiz_id: int, quiz_service: QuizService, 
-                            session_service: SessionService, user_service: UserService):
+                            session_service: SessionService, lang: str):
     telegram_id = message.chat.id
-    lang = await user_service.get_language(telegram_id)
 
     quiz = await quiz_service.get_quiz(quiz_id)
     if not quiz:
@@ -299,9 +287,9 @@ async def process_start_quiz(message: types.Message, quiz_id: int, quiz_service:
         parse_mode="HTML"
     )
     
-    await send_next_question(message.bot, telegram_id, session, session_service, lang, user_service)
+    await send_next_question(message.bot, telegram_id, session, session_service, lang)
 
-async def send_next_question(bot: Bot, chat_id: int, session: Any, session_service: SessionService, lang: str, user_service: UserService):
+async def send_next_question(bot: Bot, chat_id: int, session: Any, session_service: SessionService, lang: str):
     questions = session.session_data['questions']
     idx = session.current_index
     
@@ -332,10 +320,10 @@ async def send_next_question(bot: Bot, chat_id: int, session: Any, session_servi
     logger.info("Private poll sent and mapped", user_id=session.user_id, poll_id=poll_msg.poll.id, index=idx, redis_key=key, redis_success=success)
 
     # Set failsafe task to advance if no answer is received
-    asyncio.create_task(_failsafe_advance_private_quiz(bot, chat_id, session.id, idx, session_service, user_service))
+    asyncio.create_task(_failsafe_advance_private_quiz(bot, chat_id, session.id, idx, session_service, lang))
 
 async def _failsafe_advance_private_quiz(bot: Bot, chat_id: int, session_id: int, question_index: int, 
-                                        session_service: SessionService, user_service: UserService):
+                                        session_service: SessionService, lang: str):
     """Wait for poll duration + buffer, then force advance if not already done (Private Quiz)"""
     # Wait for duration + a small buffer
     await asyncio.sleep(settings.POLL_DURATION_SECONDS + 2)
@@ -359,8 +347,6 @@ async def _failsafe_advance_private_quiz(bot: Bot, chat_id: int, session_id: int
         updated_session = await session_service.advance_session(session_id, is_correct=False)
         if not updated_session:
             return
-            
-        lang = await user_service.get_language(chat_id)
         
         # Notify about timeout/no answer
         try:
@@ -389,7 +375,7 @@ async def _failsafe_advance_private_quiz(bot: Bot, chat_id: int, session_id: int
                 return
 
             logger.info("Failsafe: Sending next question", user_id=chat_id, index=current_session.current_index)
-            await send_next_question(bot, chat_id, current_session, session_service, lang, user_service)
+            await send_next_question(bot, chat_id, current_session, session_service, lang)
     except Exception as e:
         logger.exception(f"Exception in _failsafe_advance_private_quiz: {e}")
 
@@ -477,7 +463,7 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
                 return
 
             logger.info("Advancing private quiz after answer", user_id=session.user_id, next_index=current_session.current_index)
-            await send_next_question(bot, session.user_id, current_session, session_service, lang, user_service)
+            await send_next_question(bot, session.user_id, current_session, session_service, lang)
     except Exception as e:
         logger.exception(f"Exception in handle_poll_answer: {e}")
 
@@ -557,7 +543,7 @@ async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service
                 return
 
             logger.info("Advancing private quiz after timeout update", user_id=session.user_id, next_index=current_session.current_index)
-            await send_next_question(bot, session.user_id, current_session, session_service, lang, user_service)
+            await send_next_question(bot, session.user_id, current_session, session_service, lang)
     except Exception as e:
         logger.exception(f"Exception in handle_private_poll_update: {e}")
 
@@ -593,10 +579,9 @@ async def show_stats(bot: Bot, session: Any, lang: str):
     )
 
 @router.message(F.text.in_([Messages.get("STOP_QUIZ_BTN", "UZ"), Messages.get("STOP_QUIZ_BTN", "EN")]))
-async def cmd_stop_quiz(message: types.Message, session_service: SessionService, user_service: UserService):
+async def cmd_stop_quiz(message: types.Message, session_service: SessionService, lang: str):
     telegram_id = message.from_user.id
     session = await session_service.get_active_session(telegram_id)
-    lang = await user_service.get_language(telegram_id)
     
     if session:
         # Stop active poll if exists
@@ -623,10 +608,9 @@ async def cmd_stop_quiz(message: types.Message, session_service: SessionService,
         await message.answer(Messages.get("SELECT_BUTTON", lang), reply_markup=get_main_keyboard(lang, telegram_id))
 
 @router.callback_query(F.data.startswith("delete_quiz_"))
-async def delete_quiz_handler(callback: types.CallbackQuery, quiz_service: QuizService, user_service: UserService):
+async def delete_quiz_handler(callback: types.CallbackQuery, quiz_service: QuizService, lang: str):
     quiz_id = int(callback.data.split("_")[2])
     telegram_id = callback.from_user.id
-    lang = await user_service.get_language(telegram_id)
     
     success = await quiz_service.delete_quiz(quiz_id, telegram_id)
     if success:
@@ -696,10 +680,9 @@ async def clone_quiz_handler(callback: types.CallbackQuery, quiz_service: QuizSe
         await callback.answer(Messages.get("ERROR_QUIZ_NOT_FOUND", lang))
 
 @router.message(F.text, F.chat.type == "private")
-async def handle_quiz_selection(message: types.Message, quiz_service: QuizService, user_service: UserService):
-    """Handle quiz selection from 'My Quizzes' list - fallback handler"""
+async def handle_quiz_selection(message: types.Message, quiz_service: QuizService, lang: str):
+    """Refactored: Handle quiz selection from 'My Quizzes' list - fallback handler"""
     telegram_id = message.from_user.id
-    lang = await user_service.get_language(telegram_id)
     
     # Only process if this looks like a quiz title selection
     quizzes = await quiz_service.get_user_quizzes(telegram_id)

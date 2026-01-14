@@ -167,11 +167,10 @@ async def cmd_add_to_group(message: types.Message, user_service: UserService):
 
 @router.callback_query(F.data.startswith("start_group_quiz_"))
 async def start_group_quiz_callback(callback: types.CallbackQuery, user_service: UserService, 
-                                   quiz_service: QuizService, session_service: SessionService, redis):
-    """Handle 'Start in Group' button - show group selection"""
+                                   quiz_service: QuizService, session_service: SessionService, redis, lang: str):
+    """Refactored: Handle 'Start in Group' button - show group selection"""
     quiz_id = int(callback.data.split("_")[3])
     telegram_id = callback.from_user.id
-    lang = await user_service.get_language(telegram_id)
     
     # Get available groups
     if not redis:
@@ -234,7 +233,7 @@ async def start_group_quiz_callback(callback: types.CallbackQuery, user_service:
 
 
 @router.callback_query(F.data.startswith("confirm_group_quiz_"))
-async def confirm_group_quiz_callback(callback: types.CallbackQuery, user_service: UserService,
+async def confirm_group_quiz_callback(callback: types.CallbackQuery,
                                       quiz_service: QuizService, session_service: SessionService, redis, lang: str):
     """Confirm and start quiz in selected group"""
     parts = callback.data.split("_")
@@ -307,8 +306,8 @@ async def announce_group_quiz(bot: Bot, quiz, chat_id: int, owner_id: int, lang:
 
 
 @router.callback_query(F.data == "join_lobby")
-async def on_join_lobby(callback: types.CallbackQuery, user_service: UserService, redis, session_service: SessionService):
-    """Handle user joining the lobby"""
+async def on_join_lobby(callback: types.CallbackQuery, redis, session_service: SessionService, lang: str):
+    """Refactored: Handle user joining the lobby"""
     chat_id = callback.message.chat.id
     user_id = callback.from_user.id
     lobby_key = f"quiz_lobby:{chat_id}"
@@ -316,27 +315,25 @@ async def on_join_lobby(callback: types.CallbackQuery, user_service: UserService
     
     state_raw = await redis.get(lobby_key)
     if not state_raw:
-        await callback.answer(Messages.get("NO_ACTIVE_QUIZ", "UZ"), show_alert=True)
+        await callback.answer(Messages.get("NO_ACTIVE_QUIZ", lang), show_alert=True)
         return
         
     state = json.loads(state_raw)
     
     # Check status
     if state.get("status") != "waiting":
-        await callback.answer(Messages.get("GAME_ALREADY_STARTING", "UZ"), show_alert=True)
+        await callback.answer(Messages.get("GAME_ALREADY_STARTING", lang), show_alert=True)
         return
         
     # Atomic add to set
     is_new = await redis.sadd(users_key, str(user_id))
     if not is_new:
-        await callback.answer(Messages.get("ALREADY_READY", "UZ"), show_alert=True)
+        await callback.answer(Messages.get("ALREADY_READY", lang), show_alert=True)
         return
         
     # Get count
     join_count = await redis.scard(users_key)
     
-    # Get language
-    lang = await user_service.get_language(user_id)
     group_lang = await redis.get(f"group_lang:{chat_id}")
     display_lang = group_lang or lang
     
@@ -634,13 +631,11 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
 
 
 @router.message(Command("stop_quiz"), F.chat.type.in_({"group", "supergroup"}))
-async def cmd_stop_group_quiz(message: types.Message, user_service: UserService, redis):
-    """Stop active quiz in group (only owner or admin)"""
+async def cmd_stop_group_quiz(message: types.Message, redis, lang: str):
+    """Refactored: Stop active quiz in group (only owner or admin)"""
     try:
         chat_id = message.chat.id
-        lang = await user_service.get_language(message.from_user.id)
-        
-        # Use preference if stored
+        # Use group preference if stored for local lang context
         group_lang = await redis.get(f"group_lang:{chat_id}")
         if group_lang:
             lang = group_lang
@@ -705,11 +700,11 @@ async def cmd_group_set_language(message: types.Message, user_service: UserServi
 
 
 @router.callback_query(F.data.startswith("set_group_lang_"))
-async def cb_set_group_lang(callback: types.CallbackQuery, user_service: UserService, redis):
-    """Handle group language selection"""
+async def cb_set_group_lang(callback: types.CallbackQuery, redis, lang: str):
+    """Refactored: Handle group language selection"""
     member = await callback.message.chat.get_member(callback.from_user.id)
     if member.status not in ("administrator", "creator"):
-        await callback.answer(Messages.get("ERROR_GENERIC", "UZ"), show_alert=True)
+        await callback.answer(Messages.get("ERROR_GENERIC", lang), show_alert=True)
         return
         
     new_lang = callback.data.split("_")[-1]
@@ -721,10 +716,8 @@ async def cb_set_group_lang(callback: types.CallbackQuery, user_service: UserSer
 
 
 @router.message(Command("create_quiz"), F.chat.type.in_({"group", "supergroup"}))
-async def cmd_group_create_quiz(message: types.Message, user_service: UserService):
-    """Redirect to bot to create a quiz"""
-    lang = await user_service.get_language(message.from_user.id)
-    
+async def cmd_group_create_quiz(message: types.Message, lang: str):
+    """Refactored: Redirect to bot to create a quiz"""
     member = await message.chat.get_member(message.from_user.id)
     if member.status not in ("administrator", "creator"):
         await message.reply(Messages.get("ONLY_ADMINS", lang))
@@ -740,11 +733,10 @@ async def cmd_group_create_quiz(message: types.Message, user_service: UserServic
     )
 
 
-@router.message(Command("quiz_stats"), F.chat.type.in_({"group", "supergroup"}))
-async def cmd_group_quiz_stats(message: types.Message, user_service: UserService, redis):
-    """Show current quiz stats/leaderboard"""
+@router.message(Command("quiz_stats"))
+async def cmd_group_quiz_stats(message: types.Message, redis, lang: str):
+    """Show current group quiz statistics"""
     chat_id = message.chat.id
-    lang = await user_service.get_language(message.from_user.id)
     
     member = await message.chat.get_member(message.from_user.id)
     if member.status not in ("administrator", "creator"):
@@ -815,10 +807,8 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
 
 
 @router.message(Command("quiz_help"), F.chat.type.in_({"group", "supergroup"}))
-async def cmd_group_quiz_help(message: types.Message, user_service: UserService, redis):
-    """Show help for group quizzes (available to everyone)"""
-    lang = await user_service.get_language(message.from_user.id)
-    
+async def cmd_group_quiz_help(message: types.Message, redis, lang: str):
+    """Refactored: Show help for group quizzes (available to everyone)"""
     member = await message.chat.get_member(message.from_user.id)
     if member.status not in ("administrator", "creator"):
         await message.reply(Messages.get("ONLY_ADMINS", lang))
