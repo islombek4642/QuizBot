@@ -472,9 +472,10 @@ async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service
         
         # Notify about timeout/no answer
         try:
-            await bot.send_message(session.user_id, Messages.get("NO_ONE_ANSWERED", lang))
+            logger.info("Sending no-answer notification (Private)", user_id=session.user_id, index=session.current_index + 1)
+            await bot.send_message(session.user_id, Messages.get("NO_ONE_ANSWERED", lang).format(index=session.current_index + 1))
         except Exception as e:
-            logger.warning(f"Failed to send timeout message: {e}")
+            logger.warning(f"Failed to send timeout message (Private): {e}")
             
         if not updated_session.is_active:
             await bot.send_message(
