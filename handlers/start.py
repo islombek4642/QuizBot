@@ -7,7 +7,7 @@ from services.user_service import UserService
 
 router = Router()
 # Only handle private chats - no keyboard buttons in groups
-# router.message.filter(F.chat.type == "private") # Removed global filter
+router.message.filter(F.chat.type == "private")
 
 @router.message(CommandStart(), F.chat.type == "private")
 @router.message(F.text.in_([Messages.get("START_BTN", "UZ"), Messages.get("START_BTN", "EN")]))
@@ -99,7 +99,7 @@ async def process_contact(message: types.Message, user_service: UserService, sta
         return await cmd_start(new_message, user_service, state, **data)
 
 @router.message(Command("help"), F.chat.type == "private")
-@router.message(F.text.in_([Messages.get("HELP_BTN", "UZ"), Messages.get("HELP_BTN", "EN")]))
+@router.message(F.text.in_([Messages.get("HELP_BTN", "UZ"), Messages.get("HELP_BTN", "EN")]), F.chat.type == "private")
 async def cmd_help(message: types.Message, user_service: UserService):
     telegram_id = message.from_user.id
     lang = await user_service.get_language(telegram_id)
