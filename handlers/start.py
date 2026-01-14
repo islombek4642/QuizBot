@@ -194,6 +194,3 @@ async def cmd_start_group(message: types.Message, user_service: UserService, sta
         except Exception as e:
             logger.error("Error in cmd_start_group", error=str(e))
         
-    except Exception as e:
-        from core.logger import logger
-        logger.error("Error in cmd_start_group", error=str(e))
