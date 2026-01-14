@@ -139,6 +139,7 @@ correct_option_id should always be 0 (first option is the correct answer). Quest
                     if len(all_questions) > current_count:
                         current_count = len(all_questions)
                         attempts_without_progress = 0
+                        logger.info("Generation progress", topic=topic, current=current_count, total=count)
                         # Report progress
                         if on_progress:
                             await on_progress(min(current_count, count), count)
