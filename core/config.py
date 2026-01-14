@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = Field("", description="Groq API key for AI quiz generation")
     GROQ_MODEL: str = Field("llama-3.3-70b-versatile", description="Groq model to use")
     AI_QUIZ_COUNT: int = Field(30, description="Number of questions to generate")
+    AI_GENERATION_COOLDOWN_HOURS: int = 6
+    AI_CONVERSION_COOLDOWN_HOURS: int = 6
     
     # Environment
     ENV: str = "production"  # development, staging, production

@@ -82,10 +82,60 @@ async def cmd_cancel(message: types.Message, state: FSMContext, lang: str):
         reply_markup=get_main_keyboard(lang, telegram_id)
     )
 
+# ===================== AI LIMIT HELPERS =====================
+
+async def check_ai_limit(user_id: int, limit_type: str, redis, lang: str):
+    """
+    Check if user is on cooldown for AI services.
+    limit_type: 'gen' or 'conv'
+    Returns (allowed: bool, time_remaining: str)
+    """
+    if user_id == settings.ADMIN_ID:
+        return True, ""
+        
+    key = f"ai_limit:{limit_type}:{user_id}"
+    ttl = await redis.ttl(key)
+    
+    if ttl > 0:
+        hours = ttl // 3600
+        minutes = (ttl % 3600) // 60
+        seconds = ttl % 60
+        
+        time_str = ""
+        if hours > 0:
+            time_str += f"{hours}h "
+        if minutes > 0:
+            time_str += f"{minutes}m "
+        if not time_str or (hours == 0 and minutes < 5):
+            time_str += f"{seconds}s"
+            
+        return False, time_str.strip()
+        
+    return True, ""
+
+async def set_ai_limit(user_id: int, limit_type: str, redis):
+    """Set cooldown for user after successful AI use."""
+    if user_id == settings.ADMIN_ID:
+        return
+        
+    # Get limit from general settings or use default
+    setting_key = f"global_settings:ai_{limit_type}_limit"
+    limit_hours = await redis.get(setting_key)
+    
+    if limit_hours:
+        ttl_seconds = int(limit_hours) * 3600
+    else:
+        # Default from config
+        limit_hours = settings.AI_GENERATION_COOLDOWN_HOURS if limit_type == 'gen' else settings.AI_CONVERSION_COOLDOWN_HOURS
+        ttl_seconds = int(limit_hours) * 3600
+        
+    key = f"ai_limit:{limit_type}:{user_id}"
+    await redis.setex(key, ttl_seconds, "1")
+
 # ===================== AI QUIZ GENERATION =====================
 
 @router.message(F.text.in_([Messages.get("AI_GENERATE_BTN", "UZ"), Messages.get("AI_GENERATE_BTN", "EN")]))
-async def cmd_ai_generate(message: types.Message, state: FSMContext, lang: str, user: Any):
+async def cmd_ai_generate(message: types.Message, state: FSMContext, redis, lang: str, user: Any):
     """Handle AI quiz generation button press"""
     telegram_id = message.from_user.id
     
@@ -96,6 +146,12 @@ async def cmd_ai_generate(message: types.Message, state: FSMContext, lang: str, 
         )
         return
     
+    # Check AI Limit
+    allowed, time_rem = await check_ai_limit(telegram_id, "gen", redis, lang)
+    if not allowed:
+        await message.answer(Messages.get("AI_LIMIT_REACHED", lang).format(time=time_rem), parse_mode="HTML")
+        return
+
     # Check if API key is configured
     if not settings.GROQ_API_KEY:
         await message.answer(Messages.get("AI_NO_API_KEY", lang))
@@ -137,7 +193,7 @@ async def handle_ai_topic(message: types.Message, state: FSMContext, lang: str, 
     )
 
 @router.message(QuizStates.WAITING_FOR_AI_COUNT, F.text)
-async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, lang: str, user: Any):
+async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, redis, lang: str, user: Any):
     """Handle question count input for AI quiz generation"""
     telegram_id = message.from_user.id
     text = message.text.strip()
@@ -218,6 +274,10 @@ async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, l
             Messages.get("AI_GENERATION_SUCCESS", lang).format(count=len(questions)),
             parse_mode="HTML"
         )
+        
+        # Set AI Limit after success
+        await set_ai_limit(telegram_id, "gen", redis)
+        
         await message.answer(
             Messages.get("ASK_SHUFFLE", lang),
             reply_markup=get_shuffle_keyboard(lang)
@@ -260,10 +320,16 @@ async def cmd_convert_test(message: types.Message, state: FSMContext, lang: str,
     )
 
 @router.message(QuizStates.WAITING_FOR_CONVERT_FILE, F.document)
-async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bot, lang: str):
+async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bot, redis, lang: str):
     """Handle file upload for test conversion"""
     telegram_id = message.from_user.id
     doc = message.document
+    
+    # Check AI Limit
+    allowed, time_rem = await check_ai_limit(telegram_id, "conv", redis, lang)
+    if not allowed:
+        await message.answer(Messages.get("AI_LIMIT_REACHED", lang).format(time=time_rem), parse_mode="HTML")
+        return
     
     # Check file type
     file_ext = doc.file_name.split(".")[-1].lower() if doc.file_name else ""
@@ -335,6 +401,9 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
             Messages.get("CONVERT_SUCCESS", lang).format(count=len(questions)),
             parse_mode="HTML"
         )
+        
+        # Set AI Limit after success
+        await set_ai_limit(telegram_id, "conv", redis)
         
     except Exception as e:
         logger.error("Test conversion failed", error=str(e), user_id=telegram_id)

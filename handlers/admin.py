@@ -11,6 +11,8 @@ from models.quiz import Quiz
 from models.session import QuizSession
 from services.user_service import UserService
 from core.logger import logger
+from handlers.common import QuizStates, get_main_keyboard
+from aiogram.fsm.context import FSMContext
 
 router = Router()
 # Only allow admin to use these handlers
@@ -152,3 +154,60 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     )
     
     await message.answer(stats_msg, parse_mode="HTML")
+
+# ===================== AI SETTINGS =====================
+
+@router.message(F.text.in_([Messages.get("ADMIN_AI_SETTINGS_BTN", "UZ"), Messages.get("ADMIN_AI_SETTINGS_BTN", "EN")]))
+async def admin_ai_settings(message: types.Message, redis, lang: str):
+    # Get current limits from Redis or use defaults
+    gen_limit = await redis.get("global_settings:ai_gen_limit")
+    conv_limit = await redis.get("global_settings:ai_conv_limit")
+    
+    gen_limit = int(gen_limit) if gen_limit else settings.AI_GENERATION_COOLDOWN_HOURS
+    conv_limit = int(conv_limit) if conv_limit else settings.AI_CONVERSION_COOLDOWN_HOURS
+    
+    text = Messages.get("ADMIN_AI_SETTINGS_TITLE", lang).format(
+        gen_limit=gen_limit,
+        conv_limit=conv_limit
+    )
+    
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🤖 Set Gen Limit", callback_data="admin_set_gen_limit")
+    builder.button(text="📄 Set Conv Limit", callback_data="admin_set_conv_limit")
+    builder.adjust(1)
+    
+    await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+
+@router.callback_query(F.data == "admin_set_gen_limit")
+async def admin_prompt_gen_limit(callback: types.CallbackQuery, state: FSMContext, lang: str):
+    await state.set_state(QuizStates.ADMIN_SETTING_GENERATE_COOLDOWN)
+    await callback.message.answer(Messages.get("ADMIN_SET_GEN_LIMIT", lang))
+    await callback.answer()
+
+@router.callback_query(F.data == "admin_set_conv_limit")
+async def admin_prompt_conv_limit(callback: types.CallbackQuery, state: FSMContext, lang: str):
+    await state.set_state(QuizStates.ADMIN_SETTING_CONVERT_COOLDOWN)
+    await callback.message.answer(Messages.get("ADMIN_SET_CONV_LIMIT", lang))
+    await callback.answer()
+
+@router.message(QuizStates.ADMIN_SETTING_GENERATE_COOLDOWN)
+async def admin_save_gen_limit(message: types.Message, state: FSMContext, redis, lang: str):
+    if not message.text.isdigit():
+        await message.answer(Messages.get("ADMIN_INVALID_LIMIT", lang))
+        return
+    
+    val = int(message.text)
+    await redis.set("global_settings:ai_gen_limit", val)
+    await state.clear()
+    await message.answer(Messages.get("ADMIN_LIMIT_UPDATED", lang), reply_markup=get_main_keyboard(lang, settings.ADMIN_ID))
+
+@router.message(QuizStates.ADMIN_SETTING_CONVERT_COOLDOWN)
+async def admin_save_conv_limit(message: types.Message, state: FSMContext, redis, lang: str):
+    if not message.text.isdigit():
+        await message.answer(Messages.get("ADMIN_INVALID_LIMIT", lang))
+        return
+    
+    val = int(message.text)
+    await redis.set("global_settings:ai_conv_limit", val)
+    await state.clear()
+    await message.answer(Messages.get("ADMIN_LIMIT_UPDATED", lang), reply_markup=get_main_keyboard(lang, settings.ADMIN_ID))

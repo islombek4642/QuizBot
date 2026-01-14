@@ -16,6 +16,8 @@ class QuizStates(StatesGroup):
     WAITING_FOR_AI_TOPIC = State()  # New state for AI quiz generation
     WAITING_FOR_AI_COUNT = State()  # New state for AI question count
     WAITING_FOR_CONVERT_FILE = State()  # New state for AI test conversion
+    ADMIN_SETTING_GENERATE_COOLDOWN = State()
+    ADMIN_SETTING_CONVERT_COOLDOWN = State()
 
 def get_main_keyboard(lang: str, user_id: int = None):
     builder = ReplyKeyboardBuilder()
@@ -33,6 +35,7 @@ def get_main_keyboard(lang: str, user_id: int = None):
         builder.button(text=Messages.get("ADMIN_USERS_BTN", lang))
         builder.button(text=Messages.get("ADMIN_GROUPS_BTN", lang))
         builder.button(text=Messages.get("ADMIN_STATS_BTN", lang))
+        builder.button(text=Messages.get("ADMIN_AI_SETTINGS_BTN", lang))
     
     builder.adjust(2)
     return builder.as_markup(resize_keyboard=True)
