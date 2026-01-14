@@ -9,7 +9,7 @@ router = Router()
 # Only handle private chats - no keyboard buttons in groups
 router.message.filter(F.chat.type == "private")
 
-@router.message(CommandStart(), F.chat.type == "private")
+@router.message(CommandStart())
 @router.message(F.text.in_([Messages.get("START_BTN", "UZ"), Messages.get("START_BTN", "EN")]))
 async def cmd_start(message: types.Message, user_service: UserService, state: FSMContext, **kwargs):
     data = kwargs
@@ -65,7 +65,7 @@ async def cmd_start(message: types.Message, user_service: UserService, state: FS
     # Clear any pending start after handling
     await state.clear()
 
-@router.message(F.contact, F.chat.type == "private")
+@router.message(F.contact)
 async def process_contact(message: types.Message, user_service: UserService, state: FSMContext, **kwargs):
     data = kwargs
     telegram_id = message.from_user.id
@@ -98,8 +98,8 @@ async def process_contact(message: types.Message, user_service: UserService, sta
         await state.clear()
         return await cmd_start(new_message, user_service, state, **data)
 
-@router.message(Command("help"), F.chat.type == "private")
-@router.message(F.text.in_([Messages.get("HELP_BTN", "UZ"), Messages.get("HELP_BTN", "EN")]), F.chat.type == "private")
+@router.message(Command("help"))
+@router.message(F.text.in_([Messages.get("HELP_BTN", "UZ"), Messages.get("HELP_BTN", "EN")]))
 async def cmd_help(message: types.Message, user_service: UserService):
     telegram_id = message.from_user.id
     lang = await user_service.get_language(telegram_id)
