@@ -162,43 +162,23 @@ async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, l
     data = await state.get_data()
     topic = data.get("topic")
     
-    # Send generating message
+    # Send generating message - removed ReplyKeyboardRemove to match conversion pattern
     generating_msg = await message.answer(
         Messages.get("AI_GENERATING", lang).format(topic=topic, count=count),
-        parse_mode="HTML",
-        reply_markup=types.ReplyKeyboardRemove()
+        parse_mode="HTML"
     )
-    
-    progress_msg = generating_msg
     
     try:
         from services.ai_service import AIService
         
         async def on_progress(current: int, total: int):
-            nonlocal progress_msg
             try:
-                # Attempt to edit
-                await progress_msg.edit_text(
+                await generating_msg.edit_text(
                     Messages.get("AI_GENERATING_PROGRESS", lang).format(current=current, total=total),
                     parse_mode="HTML"
                 )
-            except Exception as e:
-                err_str = str(e).lower()
-                if "message is not modified" in err_str:
-                    return
-                    
-                # If edit fails, try to send a new message and update reference
-                logger.warning(f"Edit failed ({e}), re-sending progress message")
-                try:
-                    # Optional: delete old one to keep chat clean
-                    await progress_msg.delete()
-                except:
-                    pass
-                    
-                progress_msg = await message.answer(
-                    Messages.get("AI_GENERATING_PROGRESS", lang).format(current=current, total=total),
-                    parse_mode="HTML"
-                )
+            except Exception:
+                pass
 
         ai_service = AIService()
         questions, error = await ai_service.generate_quiz(
@@ -207,9 +187,6 @@ async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, l
             lang=lang,
             on_progress=on_progress
         )
-        
-        # Ensure we use the latest message reference for deletion/final success
-        generating_msg = progress_msg
         
         if error and not questions:
             await generating_msg.delete()
