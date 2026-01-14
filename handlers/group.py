@@ -333,16 +333,17 @@ async def on_join_lobby(callback: types.CallbackQuery, user_service: UserService
         await callback.answer(Messages.get("ALREADY_READY", "UZ"), show_alert=True)
         return
         
-    await callback.answer(Messages.get("LOBBY_JOINED", display_lang))
-    
     # Get count
     join_count = await redis.scard(users_key)
     
-    # Update message
+    # Get language
     lang = await user_service.get_language(user_id)
     group_lang = await redis.get(f"group_lang:{chat_id}")
     display_lang = group_lang or lang
     
+    await callback.answer(Messages.get("LOBBY_JOINED", display_lang))
+    
+    # Update message
     msg_text = Messages.get("QUIZ_LOBBY_MSG", display_lang).format(
         title=state["quiz_title"],
         count=state["questions_count"],

@@ -299,7 +299,7 @@ async def process_start_quiz(message: types.Message, quiz_id: int, quiz_service:
         parse_mode="HTML"
     )
     
-    await send_next_question(bot, telegram_id, session, session_service, lang)
+    await send_next_question(message.bot, telegram_id, session, session_service, lang)
 
 async def send_next_question(bot: Bot, chat_id: int, session: Any, session_service: SessionService, lang: str):
     questions = session.session_data['questions']
