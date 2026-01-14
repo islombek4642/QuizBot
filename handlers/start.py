@@ -170,6 +170,10 @@ async def handle_referral(referrer_id: int, bot: Bot, redis, user_service: UserS
     try:
         # Avoid self-referral (checked in caller too, but safety first)
         if referrer_id <= 0: return
+        
+        # Don't try to send message to self (bot)
+        me = await bot.get_me()
+        if referrer_id == me.id: return
 
         referrer_lang = await user_service.get_language(referrer_id)
 
