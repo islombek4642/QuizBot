@@ -1100,7 +1100,7 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
                 id="share_bot",
                 title=Messages.get("SHARE_BOT_BTN", lang),
                 description=f"@{me.username}",
-                thumb_url=f"https://ui-avatars.com/api/?name={me.first_name}&background=0D8ABC&color=fff", # Placeholder thumb
+                # thumb_url removed to prevent WEBDOCUMENT_URL_INVALID error
                 input_message_content=types.InputTextMessageContent(
                     message_text=promo_text,
                     parse_mode="HTML"
@@ -1127,6 +1127,7 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
                 id="share_bot_top",
                 title=Messages.get("SHARE_BOT_BTN", lang),
                 description=f"Invite friends to @{bot_info.username}",
+                # thumb_url removed to prevent WEBDOCUMENT_URL_INVALID error
                 input_message_content=types.InputTextMessageContent(
                     message_text=promo_text,
                     parse_mode="HTML"
