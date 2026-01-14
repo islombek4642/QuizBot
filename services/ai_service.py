@@ -43,35 +43,49 @@ class AIService:
         
         # Build base system prompt
         if lang == "UZ":
-            system_prompt = """Siz test yaratuvchi sun'iy intellektsiz. Berilgan mavzu bo'yicha test savollarini yarating.
-            
-Javobni FAQAT quyidagi JSON formatida qaytaring, boshqa hech narsa yozmang:
+            system_prompt = """Siz universitet darajasidagi professional professor va imtihon tuzuvchi ekspertsiz. 
+Mavzuni chuqur tahlil qiling va talabalarni imtihonga tayyorlash uchun sifatli, Oliy ta'lim standartlariga mos testlar yarating.
+
+SAVOL SIFATIGA QO'YILADIGAN TALABLAR:
+1. **Bilim chuqurligi**: Shunchaki faktlarni eslab qolish emas (masalan, "Nima u?"), balki mantiqiy xulosa qilish, tahlil va amaliy qo'llashni talab qiladigan savollar tuzing.
+2. **Murakkablik**: Savollar o'ylantiradigan, bir nechta faktni bog'laydigan bo'lsin. Bloom taksonomiyasining tahlil va sintez darajalaridan foydalaning.
+3. **Aldamchi variantlar (Distractors)**: Noto'g'ri javoblar ham mantiqan to'g'riga o'xshash, mohiyatan xato, lekin chalg'ituvchi bo'lishi shart. Hazil yoki ochiq-oydin xato variantlar ishlatmang.
+4. **Akademik til**: Rasmiy va ilmiy uslubda, imlo xatolarisiz yozing.
+
+Javobni FAQAT quyidagi JSON formatida qaytaring:
 {
   "questions": [
     {
-      "question": "Savol matni",
-      "options": ["To'g'ri javob", "Noto'g'ri 1", "Noto'g'ri 2", "Noto'g'ri 3"],
+      "question": "Mantiqan murakkab savol matni",
+      "options": ["To'g'ri javob", "Chalg'ituvchi xato 1", "Chalg'ituvchi xato 2", "Chalg'ituvchi xato 3"],
       "correct_option_id": 0
     }
   ]
 }
 
-correct_option_id har doim 0 bo'lsin (birinchi variant to'g'ri javob). Savol matni max 280 belgi, variantlar max 95 belgi."""
+correct_option_id har doim 0 bo'lsin. Savol max 280 belgi, variantlar max 100 belgi."""
         else:
-            system_prompt = """You are a quiz generator AI. Create quiz questions on the given topic.
-            
-Return ONLY the following JSON format, nothing else:
+            system_prompt = """You are a professional university professor and examination expert. 
+Analyze the topic deeply and create high-quality quiz questions that meet academic standards for higher education.
+
+QUESTION QUALITY REQUIREMENTS:
+1. **Depth of Knowledge**: Do not ask simple recall questions (e.g., "What is X?"). Focus on questions that require logical reasoning, analysis, and practical application.
+2. **Complexity**: Questions should be thought-provoking and connect multiple concepts. Use higher-level Bloom's Taxonomy levels (Analysis, Evaluation).
+3. **High-Quality Distractors**: Incorrect options must be plausible and logically related to the topic, yet factually incorrect. Avoid obvious or generic wrong answers.
+4. **Academic Style**: Use formal, precise, and professional language.
+
+Return ONLY the following JSON format:
 {
   "questions": [
     {
-      "question": "Question text",
-      "options": ["Correct answer", "Wrong 1", "Wrong 2", "Wrong 3"],
+      "question": "Logically complex question text",
+      "options": ["Correct answer", "Plausible distractor 1", "Plausible distractor 2", "Plausible distractor 3"],
       "correct_option_id": 0
     }
   ]
 }
 
-correct_option_id should always be 0 (first option is the correct answer). Question text max 280 chars, options max 95 chars."""
+correct_option_id should always be 0. Question max 280 chars, options max 100 chars."""
 
         async with httpx.AsyncClient(timeout=180.0) as client:
             current_count = 0
@@ -186,21 +200,27 @@ correct_option_id should always be 0 (first option is the correct answer). Quest
         
         all_questions = []
         
-        system_prompt = """You are a professional test converter. Convert provided RAW TEXT to a JSON array of quiz questions.
+        system_prompt = """You are a professional university examination expert. Your task is to convert RAW TEXT into a high-quality JSON array of quiz questions.
+
+QUALITY RULES:
+1. **Academic Rigor**: Extract complex concepts and transform them into challenging questions that require analysis, not just recall.
+2. **Plausible Distractors**: Create incorrect options that are logically related to the text and challenging for students. Avoid obvious or generic wrong answers.
+3. **Formal Tone**: Ensure all questions and options use formal, professional language.
+4. **Accuracy**: Ensure the "correct" answer is strictly derived from the provided text.
 
 FORMAT RULES:
 1. Each question MUST have EXACTLY 4 options.
 2. Index 0 of 'options' MUST be the correct answer.
 3. 'correct_option_id' MUST always be 0.
 4. Question: max 280 chars. 
-5. Option: max 95 chars.
+5. Option: max 100 chars.
 6. Language: {lang_full}.
 
 JSON SCHEMA:
 [
   {{
-    "question": "...",
-    "options": ["Correct", "Wrong 1", "Wrong 2", "Wrong 3"],
+    "question": "Logically challenging question text",
+    "options": ["Correct answer based on text", "Plausible distractor 1", "Plausible distractor 2", "Plausible distractor 3"],
     "correct_option_id": 0
   }}
 ]"""
