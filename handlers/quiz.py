@@ -51,11 +51,10 @@ class IsPrivatePoll(BaseFilter):
         else:
             return False
             
-        mapping = await redis.get(f"quizbot:poll:{poll_id}")
-        if mapping:
-            # logger.debug("IsPrivatePoll filter matched", poll_id=poll_id)
-            return True
-        return False
+        key = f"quizbot:poll:{poll_id}"
+        mapping = await redis.get(key)
+        logger.info(f"IsPrivatePoll filter check: {poll_id} exists={mapping is not None}", poll_id=poll_id)
+        return mapping is not None
 
 @router.message(F.text.in_([Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN"), Messages.get("BACK_BTN", "UZ"), Messages.get("BACK_BTN", "EN")]))
 async def cmd_cancel(message: types.Message, state: FSMContext, user_service: UserService):
@@ -413,6 +412,7 @@ async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service
             
         mapping_raw = await redis.get(f"quizbot:poll:{poll.id}")
         if not mapping_raw:
+            logger.warning("Private poll update ignored: mapping disappeared", poll_id=poll.id)
             return
             
         try:
