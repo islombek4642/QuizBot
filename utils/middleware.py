@@ -35,6 +35,14 @@ class RedisMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: Dict[str, Any],
     ) -> Any:
+        # High-level log to see if updates even arrive at the middleware
+        event_type = type(event).__name__
+        # In aiogram, event can be Update or the actual Telegram object
+        if hasattr(event, "event"):
+            logger.info("UPDATE RECEIVED", type=type(event.event).__name__)
+        else:
+            logger.info("UPDATE RECEIVED", type=event_type)
+
         data["redis"] = self.redis
         
         # Now that we have both, we can inject SessionService

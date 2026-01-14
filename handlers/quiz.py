@@ -44,22 +44,24 @@ class IsPrivatePoll(BaseFilter):
         if not redis:
             return False
             
+        poll_id = None
         if isinstance(event, types.PollAnswer):
             poll_id = event.poll_id
         elif isinstance(event, types.Poll):
             poll_id = event.id
-        else:
+            
+        if poll_id is None:
             return False
             
         key = f"quizbot:poll:{poll_id}"
         mapping = await redis.get(key)
         
-        # Explicitly log every check to see if it even reaches here
         if mapping:
             logger.info(f"IsPrivatePoll filter MATCHED: {poll_id}", poll_id=poll_id, key=key)
             return True
         else:
-            # logger.debug(f"IsPrivatePoll filter MISSED: {poll_id}", poll_id=poll_id, key=key)
+            if isinstance(event, (types.PollAnswer, types.Poll)):
+                logger.info(f"IsPrivatePoll filter MISSED: {poll_id}", poll_id=poll_id, key=key)
             return False
 
 @router.message(F.text.in_([Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN"), Messages.get("BACK_BTN", "UZ"), Messages.get("BACK_BTN", "EN")]))
