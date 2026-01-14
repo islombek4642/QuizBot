@@ -303,7 +303,7 @@ async def send_next_question(message: types.Message, session: Any, session_servi
     mapping = json.dumps({"session_id": session.id, "index": idx})
     await session_service.redis.set(f"quizbot:poll:{poll_msg.poll.id}", mapping, ex=settings.POLL_MAPPING_TTL_SECONDS)
     await session_service.save_last_poll_id(session.id, poll_msg.message_id)
-    logger.info("Private poll sent", user_id=telegram_id, poll_id=poll_msg.poll.id, index=idx)
+    logger.info("Private poll sent", user_id=session.user_id, poll_id=poll_msg.poll.id, index=idx)
 
 @router.poll_answer(is_private_poll)
 async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_service: SessionService, user_service: UserService, redis):
