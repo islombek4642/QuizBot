@@ -1,9 +1,10 @@
-"""AI Service for generating quizzes using Groq API."""
 import json
 import httpx
 from typing import List, Dict, Optional, Tuple
 from core.config import settings
 from core.logger import logger
+import fitz  # PyMuPDF
+from docx import Document as DocxDocument
 
 
 class AIService:
@@ -122,6 +123,88 @@ correct_option_id should always be 0 (first option is the correct answer)."""
         except Exception as e:
             logger.error("AI generation error", error=str(e), topic=topic)
             return [], str(e)
+
+    async def convert_quiz(self, raw_text: str, lang: str = "UZ") -> Tuple[List[Dict], Optional[str]]:
+        """
+        Convert raw text from PDF/Word to our quiz format using AI.
+        Processes in batches of approx 50 questions worth of text.
+        """
+        if not self.api_key:
+            return [], "GROQ_API_KEY is not configured"
+
+        # Split text into chunks to avoid token limits
+        # Approx 10,000 chars per chunk is safe for ~50 questions
+        chunk_size = 15000 
+        chunks = [raw_text[i:i + chunk_size] for i in range(0, len(raw_text), chunk_size)]
+        
+        all_questions = []
+        
+        system_prompt = """You are a professional test converter. Your task is to extract quiz questions from RAW TEXT and convert them to JSON format.
+
+RULES:
+1. Identify each question and its options.
+2. If the correct answer is marked (e.g., bold, italic, *, or with a specific prefix), use it.
+3. If NO correct answer is marked, YOU MUST DETERMINE the correct answer based on your knowledge.
+4. Each question MUST have EXACTLY 4 options (1 correct, 3 incorrect).
+5. Question text max 280 chars.
+6. Option text max 95 chars.
+7. Language: {lang_full}
+
+Return ONLY a JSON array, nothing else:
+[
+  {{
+    "question": "Question text",
+    "options": ["Correct answer", "Wrong 1", "Wrong 2", "Wrong 3"],
+    "correct_option_id": 0
+  }}
+]
+(correct_option_id should always be 0, with the first option being the correct answer)."""
+
+        lang_full = "Uzbek" if lang == "UZ" else "English"
+        system_prompt = system_prompt.format(lang_full=lang_full)
+
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            for i, chunk in enumerate(chunks):
+                logger.info(f"Processing chunk {i+1}/{len(chunks)} for conversion")
+                
+                try:
+                    response = await client.post(
+                        self.base_url,
+                        headers={
+                            "Authorization": f"Bearer {self.api_key}",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "model": self.model,
+                            "messages": [
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": f"Convert the following text to test questions:\n\n{chunk}"}
+                            ],
+                            "temperature": 0.3, # Lower temperature for better formatting consistency
+                            "max_tokens": 4000
+                        }
+                    )
+                    
+                    if response.status_code != 200:
+                        logger.error(f"Batch {i+1} failed", status=response.status_code)
+                        continue
+                        
+                    data = response.json()
+                    content = data["choices"][0]["message"]["content"]
+                    
+                    chunk_questions = self._parse_response(content)
+                    if chunk_questions:
+                        validated = self._validate_questions(chunk_questions)
+                        all_questions.extend(validated)
+                        
+                except Exception as e:
+                    logger.error(f"Error in batch {i+1}", error=str(e))
+                    continue
+
+        if not all_questions:
+            return [], "Could not extract any questions from the file."
+            
+        return all_questions, None
     
     def _parse_response(self, content: str) -> List[Dict]:
         """Parse JSON from AI response, handling potential formatting issues."""
@@ -233,3 +316,28 @@ def generate_docx_from_questions(questions: List[Dict], title: str) -> bytes:
     doc.save(buffer)
     buffer.seek(0)
     return buffer.getvalue()
+
+
+def extract_text_from_pdf(pdf_bytes: bytes) -> str:
+    """Extract text from PDF using PyMuPDF."""
+    text = ""
+    try:
+        with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+            for page in doc:
+                text += page.get_text()
+    except Exception as e:
+        logger.error("PDF extraction failed", error=str(e))
+    return text
+
+
+def extract_text_from_docx(docx_bytes: bytes) -> str:
+    """Extract text from Word document using python-docx."""
+    text = ""
+    try:
+        from io import BytesIO
+        doc = DocxDocument(BytesIO(docx_bytes))
+        for para in doc.paragraphs:
+            text += para.text + "\n"
+    except Exception as e:
+        logger.error("DOCX extraction failed", error=str(e))
+    return text

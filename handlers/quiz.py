@@ -29,7 +29,12 @@ from handlers.common import (
 from services.user_service import UserService
 from services.quiz_service import QuizService
 from services.session_service import SessionService
-from services.ai_service import AIService, generate_docx_from_questions
+from services.ai_service import (
+    AIService, 
+    generate_docx_from_questions, 
+    extract_text_from_pdf, 
+    extract_text_from_docx
+)
 from core.config import settings
 from core.logger import logger
 
@@ -196,6 +201,103 @@ async def handle_ai_topic(message: types.Message, state: FSMContext, lang: str, 
         await message.answer(
             Messages.get("AI_GENERATION_ERROR", lang).format(error=str(e))
         )
+
+# ===================== TEST CONVERSION =====================
+
+@router.message(F.text.in_([Messages.get("CONVERT_BTN", "UZ"), Messages.get("CONVERT_BTN", "EN")]))
+async def cmd_convert_test(message: types.Message, state: FSMContext, lang: str, user: Any):
+    """Handle Test Conversion button press"""
+    telegram_id = message.from_user.id
+    
+    if not user or not user.phone_number:
+        await message.answer(
+            Messages.get("SHARE_CONTACT_PROMPT", lang),
+            reply_markup=get_contact_keyboard(lang)
+        )
+        return
+    
+    # Check if API key is configured
+    if not settings.GROQ_API_KEY:
+        await message.answer(Messages.get("AI_NO_API_KEY", lang))
+        return
+    
+    await state.set_state(QuizStates.WAITING_FOR_CONVERT_FILE)
+    await message.answer(
+        Messages.get("CONVERT_ENTER_FILE", lang),
+        reply_markup=get_cancel_keyboard(lang)
+    )
+
+@router.message(QuizStates.WAITING_FOR_CONVERT_FILE, F.document)
+async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bot, lang: str):
+    """Handle file upload for test conversion"""
+    telegram_id = message.from_user.id
+    doc = message.document
+    
+    # Check file type
+    file_ext = doc.file_name.split(".")[-1].lower() if doc.file_name else ""
+    if file_ext not in ["docx", "pdf"]:
+        await message.answer(Messages.get("ONLY_DOCX", lang) + " (or .pdf)")
+        return
+    
+    processing_msg = await message.answer(Messages.get("CONVERT_PROCESSING", lang), parse_mode="HTML")
+    
+    try:
+        # Download file
+        file_io = await bot.download(doc.file_id)
+        file_bytes = file_io.read()
+        
+        # Extract text
+        raw_text = ""
+        if file_ext == "pdf":
+            raw_text = extract_text_from_pdf(file_bytes)
+        else:
+            raw_text = extract_text_from_docx(file_bytes)
+            
+        if not raw_text.strip():
+            await processing_msg.delete()
+            await message.answer(Messages.get("CONVERT_ERROR", lang).format(error="Could not extract text from file"))
+            return
+            
+        # AI Conversion (Batch processing is handled inside AIService)
+        ai_service = AIService()
+        questions, error = await ai_service.convert_quiz(raw_text, lang)
+        
+        if error:
+            await processing_msg.delete()
+            await message.answer(Messages.get("CONVERT_ERROR", lang).format(error=error))
+            return
+            
+        # Generate result Word file
+        quiz_title = doc.file_name.rsplit(".", 1)[0]
+        docx_bytes = generate_docx_from_questions(questions, quiz_title)
+        
+        # Send result Word file
+        result_file = BufferedInputFile(
+            docx_bytes,
+            filename=f"converted_{doc.file_name.replace('.pdf', '.docx')}"
+        )
+        await message.answer_document(
+            result_file,
+            caption=f"📄 {quiz_title}"
+        )
+        
+        # Move to title state to allow saving
+        await state.update_data(questions=questions, original_filename=doc.file_name)
+        await state.set_state(QuizStates.WAITING_FOR_TITLE)
+        
+        await processing_msg.delete()
+        await message.answer(
+            Messages.get("CONVERT_SUCCESS", lang).format(count=len(questions)),
+            parse_mode="HTML"
+        )
+        
+    except Exception as e:
+        logger.error("Test conversion failed", error=str(e), user_id=telegram_id)
+        try:
+            await processing_msg.delete()
+        except:
+            pass
+        await message.answer(Messages.get("CONVERT_ERROR", lang).format(error=str(e)))
 
 # ===================== WORD UPLOAD =====================
 
