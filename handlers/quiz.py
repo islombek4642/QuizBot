@@ -61,8 +61,8 @@ class IsPrivatePoll(BaseFilter):
             return True
         else:
             if isinstance(event, (types.PollAnswer, types.Poll)):
-                # This log is crucial to see if we are missing mappings
-                logger.info("IsPrivatePoll filter MISSED", poll_id=poll_id, key=key, event_type=type(event).__name__)
+                # Debug level to avoid noise in production from other polls
+                logger.debug("IsPrivatePoll filter MISSED", poll_id=poll_id, key=key)
             return False
 
 
@@ -335,10 +335,10 @@ async def send_next_question(bot: Bot, chat_id: int, session: Any, session_servi
 async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_service: SessionService, user_service: UserService, redis):
     try:
         # Get mapping
-        logger.info("PRIVATE POLL ANSWER HANDLER START", poll_id=poll_answer.poll_id, user_id=poll_answer.user.id if poll_answer.user else "N/A")
+        logger.info("Private poll answer processing started", poll_id=poll_answer.poll_id)
         mapping_raw = await redis.get(f"quizbot:poll:{poll_answer.poll_id}")
         if not mapping_raw:
-            logger.warning("PRIVATE POLL ANSWER FAILED: Mapping not found in Redis (Race condition?)", poll_id=poll_answer.poll_id)
+            logger.warning("Private poll answer processing FAILED: Mapping not found in Redis", poll_id=poll_answer.poll_id)
             return
             
         try:
