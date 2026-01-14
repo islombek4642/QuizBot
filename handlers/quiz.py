@@ -174,14 +174,15 @@ async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, l
         
         async def on_progress(current: int, total: int):
             try:
-                await bot.edit_message_text(
+                # Use generating_msg directly to edit
+                await generating_msg.edit_text(
                     Messages.get("AI_GENERATING_PROGRESS", lang).format(current=current, total=total),
-                    chat_id=message.chat.id,
-                    message_id=generating_msg.message_id,
                     parse_mode="HTML"
                 )
             except Exception as e:
-                logger.warning(f"Failed to update progress message: {e}")
+                # If it's just "message is not modified", we don't care
+                if "message is not modified" not in str(e).lower():
+                    logger.warning(f"Failed to update progress message: {e}")
 
         ai_service = AIService()
         questions, error = await ai_service.generate_quiz(
