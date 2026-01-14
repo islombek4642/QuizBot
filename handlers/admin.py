@@ -197,6 +197,10 @@ async def admin_save_gen_limit(message: types.Message, state: FSMContext, redis,
         return
     
     val = int(message.text)
+    if not (0 <= val <= 24):
+        await message.answer(Messages.get("ADMIN_INVALID_LIMIT", lang))
+        return
+
     await redis.set("global_settings:ai_gen_limit", val)
     await state.clear()
     await message.answer(Messages.get("ADMIN_LIMIT_UPDATED", lang), reply_markup=get_main_keyboard(lang, settings.ADMIN_ID))
@@ -208,6 +212,10 @@ async def admin_save_conv_limit(message: types.Message, state: FSMContext, redis
         return
     
     val = int(message.text)
+    if not (0 <= val <= 24):
+        await message.answer(Messages.get("ADMIN_INVALID_LIMIT", lang))
+        return
+
     await redis.set("global_settings:ai_conv_limit", val)
     await state.clear()
     await message.answer(Messages.get("ADMIN_LIMIT_UPDATED", lang), reply_markup=get_main_keyboard(lang, settings.ADMIN_ID))
