@@ -1,5 +1,5 @@
-from typing import Any
-from aiogram import Router, types, F
+from aiogram import Router, types, F, Bot
+import json
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import CommandStart, Command
 from constants.messages import Messages
@@ -19,6 +19,7 @@ async def cmd_start(
     user_service: UserService, 
     quiz_service: QuizService,
     state: FSMContext,
+    redis,
     lang: str,
     user: Any
 ):
@@ -45,6 +46,10 @@ async def cmd_start(
 
     welcome_text = Messages.get("WELCOME", lang) + "\n\n" + Messages.get("FORMAT_INFO", lang)
     await message.answer(welcome_text, reply_markup=get_main_keyboard(lang, telegram_id))
+    
+    # Deliver last broadcast to new/returning users
+    await check_and_deliver_broadcast(message.bot, telegram_id, redis)
+    
     # Clear any pending start after handling
     await state.clear()
 
@@ -78,6 +83,7 @@ async def process_contact(
     user_service: UserService, 
     quiz_service: QuizService,
     state: FSMContext,
+    redis,
     lang: str,
     user: Any
 ):
@@ -100,6 +106,9 @@ async def process_contact(
         reply_markup=get_main_keyboard(lang, telegram_id)
     )
     
+    # Deliver last broadcast to newly registered users
+    await check_and_deliver_broadcast(message.bot, telegram_id, redis)
+    
     # Check for pending deep link
     state_data = await state.get_data()
     pending_payload = state_data.get("pending_start")
@@ -110,6 +119,20 @@ async def process_contact(
     
     # Clear state if no pending payload
     await state.clear()
+
+async def check_and_deliver_broadcast(bot: Bot, user_id: int, redis):
+    """Deliver last broadcast if available in Redis"""
+    try:
+        data = await redis.get("global_settings:last_broadcast")
+        if data:
+            broadcast = json.loads(data)
+            await bot.copy_message(
+                chat_id=user_id,
+                from_chat_id=broadcast["from_chat_id"],
+                message_id=broadcast["message_id"]
+            )
+    except Exception as e:
+        logger.error(f"Error delivering last broadcast to {user_id}: {e}")
 
 @router.message(Command("help"))
 @router.message(F.text.in_([Messages.get("HELP_BTN", "UZ"), Messages.get("HELP_BTN", "EN")]))

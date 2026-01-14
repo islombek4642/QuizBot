@@ -257,7 +257,7 @@ async def admin_broadcast_init(message: types.Message, state: FSMContext, lang: 
     )
 
 @router.message(QuizStates.ADMIN_BROADCAST_MSG)
-async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot: Bot, db: AsyncSession, lang: str):
+async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot: Bot, db: AsyncSession, redis, lang: str):
     # Check if it's a cancel button
     if message.text in [Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN")]:
         await state.clear()
@@ -276,8 +276,12 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
     
     for i, user_id in enumerate(user_ids, 1):
         try:
-            # Copy the original message to everyone (supports text, photos, etc.)
-            await message.send_copy(chat_id=user_id)
+            # Use copy_message for much better reliability with media
+            await bot.copy_message(
+                chat_id=user_id,
+                from_chat_id=message.chat.id,
+                message_id=message.message_id
+            )
             count += 1
         except Exception as e:
             logger.warning(f"Failed to send broadcast to {user_id}: {e}")
@@ -288,6 +292,12 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
                 await progress_msg.edit_text(f"🚀 Broadcasting... {i}/{len(user_ids)}")
             except:
                 pass
+    
+    # Save as last broadcast for new users
+    await redis.set("global_settings:last_broadcast", json.dumps({
+        "from_chat_id": message.chat.id,
+        "message_id": message.message_id
+    }))
     
     await state.clear()
     await message.answer(
