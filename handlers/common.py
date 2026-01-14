@@ -111,7 +111,7 @@ async def enable_user_menu(bot: Bot, user_id: int):
 def get_admin_ai_keyboard(lang: str):
     builder = ReplyKeyboardBuilder()
     builder.button(text=Messages.get("ADMIN_SET_GEN_LIMIT_BTN", lang))
-    builder.button(text=Messages.get("ADMIN_SET_CON_LIMIT_BTN", lang))
+    builder.button(text=Messages.get("ADMIN_SET_CONV_LIMIT_BTN", lang))
     builder.button(text=Messages.get("BACK_BTN", lang))
     builder.adjust(2)
     return builder.as_markup(resize_keyboard=True)
