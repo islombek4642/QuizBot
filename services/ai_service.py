@@ -127,14 +127,14 @@ correct_option_id should always be 0 (first option is the correct answer)."""
     async def convert_quiz(self, raw_text: str, lang: str = "UZ") -> Tuple[List[Dict], Optional[str]]:
         """
         Convert raw text from PDF/Word to our quiz format using AI.
-        Processes in batches of approx 50 questions worth of text.
+        Processes in batches to avoid token limits.
         """
         if not self.api_key:
             return [], "GROQ_API_KEY is not configured"
 
-        # Split text into chunks to avoid token limits
-        # Approx 10,000 chars per chunk is safe for ~50 questions
-        chunk_size = 15000 
+        # Smaller chunk size ensures we don't exceed output token limits for complex text
+        # Approx 10,000 chars per chunk
+        chunk_size = 10000 
         chunks = [raw_text[i:i + chunk_size] for i in range(0, len(raw_text), chunk_size)]
         
         all_questions = []
@@ -143,22 +143,20 @@ correct_option_id should always be 0 (first option is the correct answer)."""
 
 RULES:
 1. Identify each question and its options.
-2. If the correct answer is marked (e.g., bold, italic, *, or with a specific prefix), use it.
-3. If NO correct answer is marked, YOU MUST DETERMINE the correct answer based on your knowledge.
-4. Each question MUST have EXACTLY 4 options (1 correct, 3 incorrect).
-5. Question text max 280 chars.
-6. Option text max 95 chars.
-7. Language: {lang_full}
+2. Each question MUST have EXACTLY 4 options (1 correct, 3 incorrect).
+3. Question text max 280 chars.
+4. Option text max 95 chars.
+5. If the correct answer is marked, use it. If not, determine it.
+6. Language: {lang_full}
 
-Return ONLY a JSON array, nothing else:
+Return ONLY a valid JSON array of objects. No additional text, no explanations.
 [
   {{
-    "question": "Question text",
-    "options": ["Correct answer", "Wrong 1", "Wrong 2", "Wrong 3"],
+    "question": "Question text...",
+    "options": ["Correct", "Wrong 1", "Wrong 2", "Wrong 3"],
     "correct_option_id": 0
   }}
-]
-(correct_option_id should always be 0, with the first option being the correct answer)."""
+]"""
 
         lang_full = "Uzbek" if lang == "UZ" else "English"
         system_prompt = system_prompt.format(lang_full=lang_full)
@@ -178,10 +176,10 @@ Return ONLY a JSON array, nothing else:
                             "model": self.model,
                             "messages": [
                                 {"role": "system", "content": system_prompt},
-                                {"role": "user", "content": f"Convert the following text to test questions:\n\n{chunk}"}
+                                {"role": "user", "content": f"Convert this text to quiz questions JSON:\n\n{chunk}"}
                             ],
-                            "temperature": 0.3, # Lower temperature for better formatting consistency
-                            "max_tokens": 4000
+                            "temperature": 0.1, # Even lower for stricter format
+                            "max_tokens": 8000 # Increased limit
                         }
                     )
                     
@@ -207,31 +205,53 @@ Return ONLY a JSON array, nothing else:
         return all_questions, None
     
     def _parse_response(self, content: str) -> List[Dict]:
-        """Parse JSON from AI response, handling potential formatting issues."""
-        try:
-            # Try direct JSON parse
-            return json.loads(content)
-        except json.JSONDecodeError:
-            pass
+        """Parse JSON from AI response, handling potential formatting issues and truncation."""
+        content = content.strip()
         
-        # Try to extract JSON from markdown code block
+        # Helper to try parsing a string as JSON
+        def try_parse(s):
+            try:
+                return json.loads(s)
+            except json.JSONDecodeError:
+                # If it's a truncated array, try to close it
+                if s.startswith('[') and not s.endswith(']'):
+                    try:
+                        # Try to find the last complete object
+                        last_obj_end = s.rfind('}')
+                        if last_obj_end != -1:
+                            fixed = s[:last_obj_end + 1] + ']'
+                            return json.loads(fixed)
+                    except:
+                        pass
+                return None
+
+        # 1. Try direct parse
+        parsed = try_parse(content)
+        if parsed is not None: return parsed
+        
+        # 2. Try to extract JSON from markdown code block
         if "```json" in content:
             start = content.find("```json") + 7
             end = content.find("```", start)
             if end > start:
-                try:
-                    return json.loads(content[start:end].strip())
-                except json.JSONDecodeError:
-                    pass
-        
-        # Try to find JSON array
-        if "[" in content and "]" in content:
+                parsed = try_parse(content[start:end].strip())
+                if parsed is not None: return parsed
+            else:
+                # Truncated code block
+                parsed = try_parse(content[start:].strip())
+                if parsed is not None: return parsed
+
+        # 3. Try to find JSON array
+        if "[" in content:
             start = content.find("[")
             end = content.rfind("]") + 1
-            try:
-                return json.loads(content[start:end])
-            except json.JSONDecodeError:
-                pass
+            if end > start:
+                parsed = try_parse(content[start:end])
+                if parsed is not None: return parsed
+            else:
+                # Truncated but has start
+                parsed = try_parse(content[start:])
+                if parsed is not None: return parsed
         
         logger.error("Failed to parse AI response", content=content[:500])
         return []
