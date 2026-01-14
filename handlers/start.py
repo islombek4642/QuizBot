@@ -68,15 +68,25 @@ async def handle_payload(payload: str, message: types.Message, user_service: Use
             telegram_id = message.from_user.id
             user_full_name = message.from_user.full_name
             
-            if referrer_id != telegram_id and redis:
+            logger.info("Processing referral", telegram_id=telegram_id, referrer_id=referrer_id)
+
+            if referrer_id == telegram_id:
+                logger.info("Self-referral detected", telegram_id=telegram_id)
+                await message.answer(Messages.get("REFERRAL_SELF_ERROR", lang), parse_mode="HTML")
+            
+            elif referrer_id > 0 and redis:
                 if user:
                     # User ALREADY exists in DB
+                    logger.info("Existing user referral check", telegram_id=telegram_id)
                     ref_check_key = f"referral_notify:{telegram_id}:{referrer_id}" # Prevent spamming referrer
                     if not await redis.exists(ref_check_key):
-                        await redis.setex(ref_check_key, 60, "1") # 1 minute debounce (FIXED from 1h)
+                        await redis.setex(ref_check_key, 60, "1") # 1 minute debounce
                         await handle_referral(referrer_id, message.bot, redis, user_service, user_full_name, is_new=False)
+                    else:
+                        logger.info("Referral debounce hit", telegram_id=telegram_id)
                 else:
                     # User is NEW (not in DB)
+                    logger.info("New user referral check", telegram_id=telegram_id)
                     ref_check_key = f"referral_processed:{telegram_id}"
                     if not await redis.exists(ref_check_key):
                         await redis.set(ref_check_key, "1")
