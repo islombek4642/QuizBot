@@ -209,6 +209,13 @@ async def admin_save_gen_limit(message: types.Message, state: FSMContext, redis,
         return
 
     await redis.set("global_settings:ai_gen_limit", val)
+    
+    # Clear all existing generation limits for users
+    keys = await redis.keys("ai_limit:gen:*")
+    if keys:
+        await redis.delete(*keys)
+        logger.info(f"Cleared {len(keys)} AI generation limits after setting change.")
+    
     # Go back to AI settings menu with success message
     await admin_ai_settings(message, state, redis, lang, success_msg=Messages.get("ADMIN_LIMIT_UPDATED", lang))
 
@@ -229,5 +236,12 @@ async def admin_save_conv_limit(message: types.Message, state: FSMContext, redis
         return
 
     await redis.set("global_settings:ai_conv_limit", val)
+    
+    # Clear all existing conversion limits for users
+    keys = await redis.keys("ai_limit:conv:*")
+    if keys:
+        await redis.delete(*keys)
+        logger.info(f"Cleared {len(keys)} AI conversion limits after setting change.")
+    
     # Go back to AI settings menu with success message
     await admin_ai_settings(message, state, redis, lang, success_msg=Messages.get("ADMIN_LIMIT_UPDATED", lang))
