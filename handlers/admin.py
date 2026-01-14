@@ -42,10 +42,11 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
         # Determine display name: prefer full_name, fallback to username, then ID
         display_name = user.full_name or user.username or f"ID: {user.telegram_id}"
         
+        phone = f" — <code>{user.phone_number}</code>" if user.phone_number else ""
         if user.username:
-            text += f"{i}. <a href='https://t.me/{user.username}'>{display_name}</a>\n"
+            text += f"{i}. <a href='https://t.me/{user.username}'>{display_name}</a>{phone}\n"
         else:
-            text += f"{i}. <a href='tg://user?id={user.telegram_id}'>{display_name}</a>\n"
+            text += f"{i}. <a href='tg://user?id={user.telegram_id}'>{display_name}</a>{phone}\n"
         
     text += "\n" + Messages.get("ADMIN_PAGE", lang).format(page=page+1, total=(total_users + limit - 1) // limit)
     
