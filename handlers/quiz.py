@@ -56,13 +56,13 @@ class IsPrivatePoll(BaseFilter):
         key = f"quizbot:poll:{poll_id}"
         mapping = await redis.get(key)
         
-        # Log to track filter matching
         if mapping:
             logger.info("IsPrivatePoll filter MATCHED", poll_id=poll_id, key=key)
             return True
         else:
-            # We don't want to spam for group polls, but it's okay for now
-            # logger.debug("IsPrivatePoll filter MISSED", poll_id=poll_id, key=key)
+            if isinstance(event, (types.PollAnswer, types.Poll)):
+                # This log is crucial to see if we are missing mappings
+                logger.info("IsPrivatePoll filter MISSED", poll_id=poll_id, key=key, event_type=type(event).__name__)
             return False
 
 
@@ -327,18 +327,18 @@ async def send_next_question(bot: Bot, chat_id: int, session: Any, session_servi
     # Store mapping as JSON to include index for safe advancement
     mapping = json.dumps({"session_id": session.id, "index": idx})
     key = f"quizbot:poll:{poll_msg.poll.id}"
-    await session_service.redis.set(key, mapping, ex=settings.POLL_MAPPING_TTL_SECONDS)
+    success = await session_service.redis.set(key, mapping, ex=settings.POLL_MAPPING_TTL_SECONDS)
     await session_service.save_last_poll_id(session.id, poll_msg.message_id)
-    logger.info("Private poll sent", user_id=session.user_id, poll_id=poll_msg.poll.id, index=idx, redis_key=key)
+    logger.info("Private poll sent and mapped", user_id=session.user_id, poll_id=poll_msg.poll.id, index=idx, redis_key=key, redis_success=success)
 
 @router.poll_answer(IsPrivatePoll())
 async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_service: SessionService, user_service: UserService, redis):
     try:
         # Get mapping
-        logger.info("PRIVATE POLL ANSWER RECEIVED", poll_id=poll_answer.poll_id, user_id=poll_answer.user.id if poll_answer.user else "N/A")
+        logger.info("PRIVATE POLL ANSWER HANDLER START", poll_id=poll_answer.poll_id, user_id=poll_answer.user.id if poll_answer.user else "N/A")
         mapping_raw = await redis.get(f"quizbot:poll:{poll_answer.poll_id}")
         if not mapping_raw:
-            logger.warning("Handler Error: Mapping not found in Redis", poll_id=poll_answer.poll_id)
+            logger.warning("PRIVATE POLL ANSWER FAILED: Mapping not found in Redis (Race condition?)", poll_id=poll_answer.poll_id)
             return
             
         try:
