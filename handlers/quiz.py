@@ -169,20 +169,36 @@ async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, l
         reply_markup=types.ReplyKeyboardRemove()
     )
     
+    progress_msg = generating_msg
+    
     try:
         from services.ai_service import AIService
         
         async def on_progress(current: int, total: int):
+            nonlocal progress_msg
             try:
-                # Use generating_msg directly to edit
-                await generating_msg.edit_text(
+                # Attempt to edit
+                await progress_msg.edit_text(
                     Messages.get("AI_GENERATING_PROGRESS", lang).format(current=current, total=total),
                     parse_mode="HTML"
                 )
             except Exception as e:
-                # If it's just "message is not modified", we don't care
-                if "message is not modified" not in str(e).lower():
-                    logger.warning(f"Failed to update progress message: {e}")
+                err_str = str(e).lower()
+                if "message is not modified" in err_str:
+                    return
+                    
+                # If edit fails, try to send a new message and update reference
+                logger.warning(f"Edit failed ({e}), re-sending progress message")
+                try:
+                    # Optional: delete old one to keep chat clean
+                    await progress_msg.delete()
+                except:
+                    pass
+                    
+                progress_msg = await message.answer(
+                    Messages.get("AI_GENERATING_PROGRESS", lang).format(current=current, total=total),
+                    parse_mode="HTML"
+                )
 
         ai_service = AIService()
         questions, error = await ai_service.generate_quiz(
@@ -191,6 +207,9 @@ async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, l
             lang=lang,
             on_progress=on_progress
         )
+        
+        # Ensure we use the latest message reference for deletion/final success
+        generating_msg = progress_msg
         
         if error and not questions:
             await generating_msg.delete()
