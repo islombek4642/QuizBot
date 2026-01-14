@@ -32,8 +32,8 @@ from core.config import settings
 from core.logger import logger
 
 router = Router()
-# Only handle private chats - no keyboard buttons in groups
-router.message.filter(F.chat.type == "private")
+# Global filter removed - causes conflicts with other routers
+# Individual handlers will check chat type as needed
 
 
 from aiogram.filters import BaseFilter
