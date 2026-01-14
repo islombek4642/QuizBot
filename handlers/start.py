@@ -54,7 +54,7 @@ async def cmd_start(
     # Clear any pending start after handling
     await state.clear()
 
-async def handle_payload(payload: str, message: types.Message, user_service: UserService, quiz_service: QuizService, state: FSMContext, lang: str):
+async def handle_payload(payload: str, message: types.Message, user_service: UserService, quiz_service: QuizService, state: FSMContext, lang: str, redis=None):
     """Refactored helper to handle start payloads consistently"""
     telegram_id = message.from_user.id
 
