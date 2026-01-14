@@ -331,13 +331,28 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
 
 
 def extract_text_from_docx(docx_bytes: bytes) -> str:
-    """Extract text from Word document using python-docx."""
+    """Extract text from Word document including tables using python-docx."""
     text = ""
     try:
         from io import BytesIO
         doc = DocxDocument(BytesIO(docx_bytes))
+        
+        # 1. Extract from paragraphs
         for para in doc.paragraphs:
-            text += para.text + "\n"
+            if para.text.strip():
+                text += para.text + "\n"
+        
+        # 2. Extract from tables
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = []
+                for cell in row.cells:
+                    cell_text = cell.text.strip()
+                    if cell_text:
+                        row_text.append(cell_text)
+                if row_text:
+                    text += " | ".join(row_text) + "\n"
+                    
     except Exception as e:
         logger.error("DOCX extraction failed", error=str(e))
     return text
