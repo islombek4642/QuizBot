@@ -108,9 +108,6 @@ class Messages:
             "PREV_BTN": "⬅️ Oldingi",
             "NEXT_BTN": "Keyingi ➡️",
             "FILE_DOWNLOAD_ERROR": "❌ Faylni yuklab bo'lmadi yoki u bo'sh. Qaytadan urinib ko'ring.",
-            "ADMIN_USERS_BTN": "👥 Users",
-            "ADMIN_GROUPS_BTN": "🏘 Groups",
-            "ADMIN_STATS_BTN": "📊 Statistics",
             "CREATE_QUIZ_BTN": "➕ Test yaratish",
         },
         "EN": {
