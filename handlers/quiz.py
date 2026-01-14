@@ -56,13 +56,13 @@ class IsPrivatePoll(BaseFilter):
         key = f"quizbot:poll:{poll_id}"
         mapping = await redis.get(key)
         
+        # Log to track filter matching
         if mapping:
-            logger.info(f"IsPrivatePoll filter MATCHED: {poll_id}", poll_id=poll_id, key=key)
+            logger.info("IsPrivatePoll filter MATCHED", poll_id=poll_id, key=key)
             return True
         else:
-            if isinstance(event, (types.PollAnswer, types.Poll)):
-                # logger.debug(f"IsPrivatePoll filter MISSED: {poll_id}", poll_id=poll_id, key=key)
-                pass
+            # We don't want to spam for group polls, but it's okay for now
+            # logger.debug("IsPrivatePoll filter MISSED", poll_id=poll_id, key=key)
             return False
 
 
@@ -335,10 +335,10 @@ async def send_next_question(bot: Bot, chat_id: int, session: Any, session_servi
 async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_service: SessionService, user_service: UserService, redis):
     try:
         # Get mapping
-        logger.info("Processing private poll answer START", poll_id=poll_answer.poll_id, user_id=poll_answer.user.id if poll_answer.user else "N/A")
+        logger.info("PRIVATE POLL ANSWER RECEIVED", poll_id=poll_answer.poll_id, user_id=poll_answer.user.id if poll_answer.user else "N/A")
         mapping_raw = await redis.get(f"quizbot:poll:{poll_answer.poll_id}")
         if not mapping_raw:
-            logger.warning("Private poll answer ignored: mapping disappeared in handler", poll_id=poll_answer.poll_id)
+            logger.warning("Handler Error: Mapping not found in Redis", poll_id=poll_answer.poll_id)
             return
             
         try:
