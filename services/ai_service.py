@@ -15,6 +15,20 @@ class AIService:
         self.model = settings.GROQ_MODEL
         self.base_url = "https://api.groq.com/openai/v1/chat/completions"
         
+    def _log_rate_limits(self, headers: httpx.Headers):
+        """Extract and log Groq rate limit information."""
+        remaining_requests = headers.get("x-ratelimit-remaining-requests")
+        remaining_tokens = headers.get("x-ratelimit-remaining-tokens")
+        
+        if remaining_requests or remaining_tokens:
+            logger.info(
+                "Groq rate limits",
+                rem_req=remaining_requests,
+                rem_tok=remaining_tokens,
+                reset_req=headers.get("x-ratelimit-reset-requests"),
+                reset_tok=headers.get("x-ratelimit-reset-tokens")
+            )
+        
     async def generate_quiz(self, topic: str, count: int = 30, lang: str = "UZ") -> Tuple[List[Dict], Optional[str]]:
         """
         Generate quiz questions using Groq AI.
@@ -92,10 +106,13 @@ correct_option_id should always be 0 (first option is the correct answer)."""
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": user_prompt}
                         ],
+                        "response_format": {"type": "json_object"},
                         "temperature": 0.7,
-                        "max_tokens": 8000
+                        "max_completion_tokens": 4096 # Safer limit for single generation
                     }
                 )
+                
+                self._log_rate_limits(response.headers)
                 
                 if response.status_code != 200:
                     error_text = response.text
@@ -183,10 +200,13 @@ JSON SCHEMA:
                                 {"role": "system", "content": system_prompt},
                                 {"role": "user", "content": f"Convert to JSON:\n\n{chunk}"}
                             ],
+                            "response_format": {"type": "json_object"},
                             "temperature": 0.1,
-                            "max_tokens": 4096 # Higher values might be ignored by server, 4096 is safer
+                            "max_completion_tokens": 4096
                         }
                     )
+                    
+                    self._log_rate_limits(response.headers)
                     
                     if response.status_code != 200:
                         logger.error(f"Batch {i+1} failed", status=response.status_code)
