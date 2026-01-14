@@ -260,7 +260,20 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
             
         # AI Conversion (Batch processing is handled inside AIService)
         ai_service = AIService()
-        questions, error = await ai_service.convert_quiz(raw_text, lang)
+        
+        async def on_progress(current_batch, total_batches, found_questions):
+            # Update processing message with progress
+            progress_text = Messages.get("CONVERT_PROCESSING", lang)
+            progress_text += f"\n\n⏳ <b>Jarayon:</b> {current_batch}/{total_batches} qism tahlil qilindi\n"
+            progress_text += f"📊 <b>Topilgan savollar:</b> {found_questions}"
+            
+            try:
+                await processing_msg.edit_text(progress_text, parse_mode="HTML")
+            except Exception:
+                # Ignore errors like "message is not modified"
+                pass
+
+        questions, error = await ai_service.convert_quiz(raw_text, lang, on_progress=on_progress)
         
         if error:
             await processing_msg.delete()

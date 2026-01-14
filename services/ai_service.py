@@ -1,6 +1,6 @@
 import json
 import httpx
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Callable, Awaitable
 from core.config import settings
 from core.logger import logger
 import fitz  # PyMuPDF
@@ -124,10 +124,15 @@ correct_option_id should always be 0 (first option is the correct answer)."""
             logger.error("AI generation error", error=str(e), topic=topic)
             return [], str(e)
 
-    async def convert_quiz(self, raw_text: str, lang: str = "UZ") -> Tuple[List[Dict], Optional[str]]:
+    async def convert_quiz(self, raw_text: str, lang: str = "UZ", on_progress: Optional[Callable[[int, int, int], Awaitable[None]]] = None) -> Tuple[List[Dict], Optional[str]]:
         """
         Convert raw text from PDF/Word to our quiz format using AI.
         Processes in batches to avoid token limits.
+        
+        Args:
+            raw_text: The text to convert
+            lang: Language code
+            on_progress: Async callback(current_batch, total_batches, found_questions)
         """
         if not self.api_key:
             return [], "GROQ_API_KEY is not configured"
@@ -194,6 +199,10 @@ Return ONLY a valid JSON array of objects. No additional text, no explanations.
                     if chunk_questions:
                         validated = self._validate_questions(chunk_questions)
                         all_questions.extend(validated)
+                        
+                    # Trigger progress callback
+                    if on_progress:
+                        await on_progress(i + 1, len(chunks), len(all_questions))
                         
                 except Exception as e:
                     logger.error(f"Error in batch {i+1}", error=str(e))
