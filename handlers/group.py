@@ -453,8 +453,9 @@ async def send_group_question(bot: Bot, chat_id: int, quiz_state: dict, redis, l
         await finish_group_quiz(bot, chat_id, quiz_state, redis, lang)
         return
 
-    # Reset vote count for current question
+    # Reset vote count for current question and record start time
     quiz_state["current_question_votes"] = 0
+    quiz_state["question_start_time"] = time.time()
     
     q = questions[current_index]
     question_text = f"{current_index+1}/{len(questions)}. {q['question']}"
@@ -580,12 +581,30 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
     if not participants:
         await bot.send_message(chat_id, Messages.get("QUIZ_FINISHED", lang))
     else:
-        # Sort by correct then total
-        sorted_p = sorted(participants.items(), key=lambda x: (x[1]['correct'], x[1]['answered']), reverse=True)
+        # Sort by correct then total_time (less is better)
+        # We use -stats['correct'] for descending and stats.get('total_time', 0) for ascending
+        sorted_p = sorted(
+            participants.items(), 
+            key=lambda x: (-x[1]['correct'], x[1].get('total_time', 999999))
+        )
         
         leaderboard = f"🏁 <b>{quiz_title}</b>\n\n"
         leaderboard += Messages.get("FINAL_LEADERBOARD", lang) + "\n"
         
+        def format_duration(seconds: float, lang: str) -> str:
+            mins = int(seconds // 60)
+            secs = int(seconds % 60)
+            if lang == "UZ":
+                res = []
+                if mins > 0: res.append(f"{mins} daqiqa")
+                if secs > 0 or not res: res.append(f"{secs} soniya")
+                return " ".join(res)
+            else:
+                res = []
+                if mins > 0: res.append(f"{mins} minute{'s' if mins > 1 else ''}")
+                if secs > 0 or not res: res.append(f"{secs} second{'s' if secs > 1 else ''}")
+                return " ".join(res)
+
         for i, (uid, stats) in enumerate(sorted_p[:15], 1):
             try:
                 member = await bot.get_chat_member(chat_id, int(uid))
@@ -595,16 +614,16 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
             
             medals = {1: "🥇", 2: "🥈", 3: "🥉"}
             rank_str = medals.get(i, f"{i}.")
-            leaderboard += f"{rank_str} <a href='tg://user?id={uid}'>{name}</a>: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
+            
+            total_time_str = format_duration(stats.get('total_time', 0), lang)
+            leaderboard += f"{rank_str} <a href='tg://user?id={uid}'>{name}</a> – <b>{stats['correct']}</b>/{stats['answered']} ({total_time_str})\n"
         
         # Summary footer
-        total_correct = sum(p['correct'] for p in participants.values())
-        total_answered = sum(p['answered'] for p in participants.values())
-        avg_score = (total_correct / total_answered * 100) if total_answered > 0 else 0
+        total_questions = len(quiz_state.get("questions", []))
         
         summary = Messages.get("GROUP_QUIZ_SUMMARY", lang).format(
             count=len(participants),
-            avg_score=f"{avg_score:.1f}"
+            total_questions=total_questions
         )
         await bot.send_message(chat_id, leaderboard + summary, parse_mode="HTML")
     
@@ -850,9 +869,16 @@ async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot,
         participants = quiz_state.get("participants", {})
         user_key = str(user_id)
         if user_key not in participants:
-            participants[user_key] = {"correct": 0, "answered": 0}
+            participants[user_key] = {"correct": 0, "answered": 0, "total_time": 0.0}
+        
+        # Calculate time taken for this answer
+        question_start_time = quiz_state.get("question_start_time", time.time())
+        time_taken = time.time() - question_start_time
+        # Cap time taken at poll duration plus a small buffer
+        time_taken = min(time_taken, settings.POLL_DURATION_SECONDS + 2)
         
         participants[user_key]["answered"] += 1
+        participants[user_key]["total_time"] += time_taken
         if is_correct:
             participants[user_key]["correct"] += 1
         
