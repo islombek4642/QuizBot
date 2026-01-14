@@ -194,6 +194,11 @@ async def admin_ai_settings_back(message: types.Message, state: FSMContext, lang
 
 @router.message(QuizStates.ADMIN_SETTING_GENERATE_COOLDOWN)
 async def admin_save_gen_limit(message: types.Message, state: FSMContext, redis, lang: str):
+    # Check if it's a cancel button
+    if message.text in [Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN")]:
+        await admin_ai_settings(message, state, redis, lang)
+        return
+
     if not message.text.isdigit():
         await message.answer(Messages.get("ADMIN_INVALID_LIMIT", lang))
         return
@@ -209,6 +214,11 @@ async def admin_save_gen_limit(message: types.Message, state: FSMContext, redis,
 
 @router.message(QuizStates.ADMIN_SETTING_CONVERT_COOLDOWN)
 async def admin_save_conv_limit(message: types.Message, state: FSMContext, redis, lang: str):
+    # Check if it's a cancel button
+    if message.text in [Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN")]:
+        await admin_ai_settings(message, state, redis, lang)
+        return
+
     if not message.text.isdigit():
         await message.answer(Messages.get("ADMIN_INVALID_LIMIT", lang))
         return
