@@ -11,7 +11,7 @@ from models.quiz import Quiz
 from models.session import QuizSession
 from services.user_service import UserService
 from core.logger import logger
-from handlers.common import QuizStates, get_main_keyboard
+from handlers.common import QuizStates, get_main_keyboard, get_admin_ai_keyboard, get_cancel_keyboard
 from aiogram.fsm.context import FSMContext
 
 router = Router()
@@ -158,7 +158,7 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
 # ===================== AI SETTINGS =====================
 
 @router.message(F.text.in_([Messages.get("ADMIN_AI_SETTINGS_BTN", "UZ"), Messages.get("ADMIN_AI_SETTINGS_BTN", "EN")]))
-async def admin_ai_settings(message: types.Message, redis, lang: str):
+async def admin_ai_settings(message: types.Message, state: FSMContext, redis, lang: str, success_msg: str = None):
     # Get current limits from Redis or use defaults
     gen_limit = await redis.get("global_settings:ai_gen_limit")
     conv_limit = await redis.get("global_settings:ai_conv_limit")
@@ -171,24 +171,26 @@ async def admin_ai_settings(message: types.Message, redis, lang: str):
         conv_limit=conv_limit
     )
     
-    builder = InlineKeyboardBuilder()
-    builder.button(text="🤖 Set Gen Limit", callback_data="admin_set_gen_limit")
-    builder.button(text="📄 Set Conv Limit", callback_data="admin_set_conv_limit")
-    builder.adjust(1)
+    if success_msg:
+        text = f"{success_msg}\n\n{text}"
     
-    await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    await state.set_state(QuizStates.ADMIN_AI_SETTINGS)
+    await message.answer(text, reply_markup=get_admin_ai_keyboard(lang), parse_mode="HTML")
 
-@router.callback_query(F.data == "admin_set_gen_limit")
-async def admin_prompt_gen_limit(callback: types.CallbackQuery, state: FSMContext, lang: str):
+@router.message(QuizStates.ADMIN_AI_SETTINGS, F.text.in_([Messages.get("ADMIN_SET_GEN_LIMIT_BTN", "UZ"), Messages.get("ADMIN_SET_GEN_LIMIT_BTN", "EN")]))
+async def admin_prompt_gen_limit(message: types.Message, state: FSMContext, lang: str):
     await state.set_state(QuizStates.ADMIN_SETTING_GENERATE_COOLDOWN)
-    await callback.message.answer(Messages.get("ADMIN_SET_GEN_LIMIT", lang))
-    await callback.answer()
+    await message.answer(Messages.get("ADMIN_SET_GEN_LIMIT", lang), reply_markup=get_cancel_keyboard(lang))
 
-@router.callback_query(F.data == "admin_set_conv_limit")
-async def admin_prompt_conv_limit(callback: types.CallbackQuery, state: FSMContext, lang: str):
+@router.message(QuizStates.ADMIN_AI_SETTINGS, F.text.in_([Messages.get("ADMIN_SET_CONV_LIMIT_BTN", "UZ"), Messages.get("ADMIN_SET_CONV_LIMIT_BTN", "EN")]))
+async def admin_prompt_conv_limit(message: types.Message, state: FSMContext, lang: str):
     await state.set_state(QuizStates.ADMIN_SETTING_CONVERT_COOLDOWN)
-    await callback.message.answer(Messages.get("ADMIN_SET_CONV_LIMIT", lang))
-    await callback.answer()
+    await message.answer(Messages.get("ADMIN_SET_CONV_LIMIT", lang), reply_markup=get_cancel_keyboard(lang))
+
+@router.message(QuizStates.ADMIN_AI_SETTINGS, F.text.in_([Messages.get("BACK_BTN", "UZ"), Messages.get("BACK_BTN", "EN")]))
+async def admin_ai_settings_back(message: types.Message, state: FSMContext, lang: str):
+    await state.clear()
+    await message.answer(Messages.get("SELECT_BUTTON", lang), reply_markup=get_main_keyboard(lang, settings.ADMIN_ID))
 
 @router.message(QuizStates.ADMIN_SETTING_GENERATE_COOLDOWN)
 async def admin_save_gen_limit(message: types.Message, state: FSMContext, redis, lang: str):
@@ -202,8 +204,8 @@ async def admin_save_gen_limit(message: types.Message, state: FSMContext, redis,
         return
 
     await redis.set("global_settings:ai_gen_limit", val)
-    await state.clear()
-    await message.answer(Messages.get("ADMIN_LIMIT_UPDATED", lang), reply_markup=get_main_keyboard(lang, settings.ADMIN_ID))
+    # Go back to AI settings menu with success message
+    await admin_ai_settings(message, state, redis, lang, success_msg=Messages.get("ADMIN_LIMIT_UPDATED", lang))
 
 @router.message(QuizStates.ADMIN_SETTING_CONVERT_COOLDOWN)
 async def admin_save_conv_limit(message: types.Message, state: FSMContext, redis, lang: str):
@@ -217,5 +219,5 @@ async def admin_save_conv_limit(message: types.Message, state: FSMContext, redis
         return
 
     await redis.set("global_settings:ai_conv_limit", val)
-    await state.clear()
-    await message.answer(Messages.get("ADMIN_LIMIT_UPDATED", lang), reply_markup=get_main_keyboard(lang, settings.ADMIN_ID))
+    # Go back to AI settings menu with success message
+    await admin_ai_settings(message, state, redis, lang, success_msg=Messages.get("ADMIN_LIMIT_UPDATED", lang))

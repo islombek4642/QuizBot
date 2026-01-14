@@ -16,6 +16,7 @@ class QuizStates(StatesGroup):
     WAITING_FOR_AI_TOPIC = State()  # New state for AI quiz generation
     WAITING_FOR_AI_COUNT = State()  # New state for AI question count
     WAITING_FOR_CONVERT_FILE = State()  # New state for AI test conversion
+    ADMIN_AI_SETTINGS = State()
     ADMIN_SETTING_GENERATE_COOLDOWN = State()
     ADMIN_SETTING_CONVERT_COOLDOWN = State()
 
@@ -106,3 +107,11 @@ async def enable_user_menu(bot: Bot, user_id: int):
         await bot.set_my_commands(commands, scope=types.BotCommandScopeChat(chat_id=user_id))
     except Exception as e:
         logger.error(f"Failed to set user menu for {user_id}: {e}")
+
+def get_admin_ai_keyboard(lang: str):
+    builder = ReplyKeyboardBuilder()
+    builder.button(text=Messages.get("ADMIN_SET_GEN_LIMIT_BTN", lang))
+    builder.button(text=Messages.get("ADMIN_SET_CON_LIMIT_BTN", lang))
+    builder.button(text=Messages.get("BACK_BTN", lang))
+    builder.adjust(2)
+    return builder.as_markup(resize_keyboard=True)
