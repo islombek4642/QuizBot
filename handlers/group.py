@@ -9,6 +9,7 @@ Handles:
 
 import asyncio
 import time
+import json
 from typing import Optional, Dict, Any
 
 from aiogram import Router, types, F, Bot
@@ -49,12 +50,9 @@ class IsGroupPoll(BaseFilter):
             
         exists = await redis.exists(f"group_poll:{poll_id}")
         if not exists:
-            # Only log if it's NOT a generic public poll (noise reduction)
-            # But for debugging we want to see it.
-            # logger.info(f"IsGroupPoll fail: poll_id={poll_id}") 
             pass
             
-        logger.info(f"IsGroupPoll check: poll_id={poll_id}, exists={exists}, event_type={type(event).__name__}")
+        logger.info("IsGroupPoll check", poll_id=poll_id, exists=exists, event_type=type(event).__name__)
         return bool(exists)
 
 
@@ -306,7 +304,7 @@ async def announce_group_quiz(bot: Bot, quiz, chat_id: int, owner_id: int, lang:
     msg = await bot.send_message(chat_id, msg_text, parse_mode="HTML", reply_markup=builder.as_markup())
     
     lobby_state["message_id"] = msg.message_id
-    await redis.set(lobby_key, __import__('json').dumps(lobby_state), ex=3600)
+    await redis.set(lobby_key, json.dumps(lobby_state), ex=3600)
 
 
 @router.callback_query(F.data == "join_lobby")
@@ -322,7 +320,7 @@ async def on_join_lobby(callback: types.CallbackQuery, user_service: UserService
         await callback.answer(Messages.get("NO_ACTIVE_QUIZ", "UZ"), show_alert=True)
         return
         
-    state = __import__('json').loads(state_raw)
+    state = json.loads(state_raw)
     
     # Check status
     if state.get("status") != "waiting":
@@ -335,7 +333,7 @@ async def on_join_lobby(callback: types.CallbackQuery, user_service: UserService
         await callback.answer(Messages.get("ALREADY_READY", "UZ"), show_alert=True)
         return
         
-    await callback.answer(Messages.get("LOBBY_JOINED", "UZ"))
+    await callback.answer(Messages.get("LOBBY_JOINED", display_lang))
     
     # Get count
     join_count = await redis.scard(users_key)
@@ -357,7 +355,7 @@ async def on_join_lobby(callback: types.CallbackQuery, user_service: UserService
         # Start countdown
         # Update status first to prevent double start
         state["status"] = "starting"
-        await redis.set(lobby_key, __import__('json').dumps(state), ex=3600)
+        await redis.set(lobby_key, json.dumps(state), ex=3600)
         
         await run_countdown_and_start(callback.bot, chat_id, state, redis, session_service, display_lang)
     else:
@@ -379,9 +377,9 @@ async def run_countdown_and_start(bot: Bot, chat_id: int, lobby_state: dict, red
         text = Messages.get("STARTING_IN", lang).format(seconds=i)
         try:
             await bot.edit_message_text(text=text, chat_id=chat_id, message_id=msg_id)
-            logger.info(f"Countdown: {i}", chat_id=chat_id)
+            logger.info("Countdown", i=i, chat_id=chat_id)
         except Exception as e:
-            logger.warning(f"Countdown edit failed: {e}", chat_id=chat_id)
+            logger.warning("Countdown edit failed", error=str(e), chat_id=chat_id)
         await asyncio.sleep(1)
         
     # Start quiz
@@ -429,7 +427,7 @@ async def start_group_quiz(bot: Bot, quiz, chat_id: int, owner_id: int, lang: st
     
     await redis.set(
         GROUP_QUIZ_KEY.format(chat_id=chat_id),
-        __import__('json').dumps(quiz_state),
+        json.dumps(quiz_state),
         ex=14400  # 4 hours TTL
     )
     
@@ -471,7 +469,7 @@ async def send_group_question(bot: Bot, chat_id: int, quiz_state: dict, redis, l
     quiz_state["active_poll_message_id"] = poll_message.message_id
     await redis.set(
         GROUP_QUIZ_KEY.format(chat_id=chat_id),
-        __import__('json').dumps(quiz_state),
+        json.dumps(quiz_state),
         ex=14400
     )
     
@@ -483,7 +481,7 @@ async def send_group_question(bot: Bot, chat_id: int, quiz_state: dict, redis, l
     }
     await redis.set(
         f"group_poll:{poll_message.poll.id}",
-        __import__('json').dumps(poll_mapping),
+        json.dumps(poll_mapping),
         ex=settings.POLL_MAPPING_TTL_SECONDS
     )
     
@@ -506,7 +504,7 @@ async def _advance_group_quiz(bot: Bot, chat_id: int, quiz_id: int, question_ind
         if not quiz_state_raw:
             return
         
-        quiz_state = __import__('json').loads(quiz_state_raw)
+        quiz_state = json.loads(quiz_state_raw)
         if not quiz_state.get("is_active"):
             return
             
@@ -532,7 +530,7 @@ async def _advance_group_quiz(bot: Bot, chat_id: int, quiz_id: int, question_ind
             # Save state
             await redis.set(
                 GROUP_QUIZ_KEY.format(chat_id=chat_id),
-                __import__('json').dumps(quiz_state),
+                json.dumps(quiz_state),
                 ex=14400
             )
             
@@ -542,7 +540,7 @@ async def _advance_group_quiz(bot: Bot, chat_id: int, quiz_id: int, question_ind
             # Re-fetch state to check if still active
             quiz_state_raw = await redis.get(GROUP_QUIZ_KEY.format(chat_id=chat_id))
             if quiz_state_raw:
-                quiz_state = __import__('json').loads(quiz_state_raw)
+                quiz_state = json.loads(quiz_state_raw)
                 if quiz_state.get("is_active"):
                     # Use group language if set
                     group_lang = await redis.get(f"group_lang:{chat_id}")
@@ -582,11 +580,10 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
             leaderboard += f"{rank_str} <a href='tg://user?id={uid}'>{name}</a>: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
         
         # Summary footer
-        total_correct = sum(p.get("correct", 0) for p in participants.values())
-        total_answered = sum(p.get("answered", 0) for p in participants.values())
-        avg_score = (total_correct / total_answered * 100) if total_answered > 0 else 0
-        
-        summary = f"\n👥 Qatnashchilar: {len(participants)}\n📊 O'rtacha natija: {avg_score:.1f}%"
+        summary = Messages.get("GROUP_QUIZ_SUMMARY", lang).format(
+            count=len(participants),
+            avg_score=f"{avg_score:.1f}"
+        )
         await bot.send_message(chat_id, leaderboard + summary, parse_mode="HTML")
     
     # Clean up
@@ -613,7 +610,7 @@ async def cmd_stop_group_quiz(message: types.Message, user_service: UserService,
             await message.reply(Messages.get("NO_ACTIVE_QUIZ", lang))
             return
             
-        quiz_state = __import__('json').loads(quiz_state_raw)
+        quiz_state = json.loads(quiz_state_raw)
         
         # Check permission
         is_owner = message.from_user.id == quiz_state.get("owner_id")
@@ -626,7 +623,7 @@ async def cmd_stop_group_quiz(message: types.Message, user_service: UserService,
             return
             
         quiz_state["is_active"] = False
-        await redis.set(GROUP_QUIZ_KEY.format(chat_id=chat_id), __import__('json').dumps(quiz_state), ex=3600)
+        await redis.set(GROUP_QUIZ_KEY.format(chat_id=chat_id), json.dumps(quiz_state), ex=3600)
         
         # Stop the active poll timer
         poll_message_id = quiz_state.get("active_poll_message_id")
@@ -724,7 +721,7 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
         await message.answer(Messages.get("NO_ACTIVE_QUIZ", lang))
         return
         
-    quiz_state = __import__('json').loads(quiz_state_raw)
+    quiz_state = json.loads(quiz_state_raw)
     participants = quiz_state.get("participants", {})
     
     if not participants:
@@ -746,7 +743,17 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
         rank_str = medals.get(i, f"{i}.")
         leaderboard += f"{rank_str} <a href='tg://user?id={uid}'>{name}</a>: <b>{stats['correct']}</b>/{stats['answered']} ✅\n"
         
-    await message.answer(leaderboard, parse_mode="HTML", reply_markup=types.ReplyKeyboardRemove())
+    # Summary footer
+    total_correct = sum(p.get("correct", 0) for p in participants.values())
+    total_answered = sum(p.get("answered", 0) for p in participants.values())
+    avg_score = (total_correct / total_answered * 100) if total_answered > 0 else 0
+    
+    summary = Messages.get("GROUP_QUIZ_SUMMARY", lang).format(
+        count=len(participants),
+        avg_score=f"{avg_score:.1f}"
+    )
+        
+    await message.answer(leaderboard + summary, parse_mode="HTML", reply_markup=types.ReplyKeyboardRemove())
 
 
 @router.message(Command("quiz_help"), F.chat.type.in_({"group", "supergroup"}))
@@ -785,7 +792,7 @@ async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot,
             logger.warning("Group answer ignored: mapping not found", poll_id=poll_answer.poll_id)
             return
 
-        poll_mapping = __import__('json').loads(poll_mapping_raw)
+        poll_mapping = json.loads(poll_mapping_raw)
         chat_id = poll_mapping["chat_id"]
         question_index = poll_mapping["question_index"]
         
@@ -795,7 +802,7 @@ async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot,
             logger.warning("Group answer ignored: state not found", chat_id=chat_id)
             return
         
-        quiz_state = __import__('json').loads(quiz_state_raw)
+        quiz_state = json.loads(quiz_state_raw)
         if not quiz_state.get("is_active"):
             logger.warning("Group answer ignored: quiz inactive", chat_id=chat_id)
             return
@@ -833,7 +840,7 @@ async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot,
         logger.info("Group poll answer recorded", chat_id=chat_id, user_id=user_id, question_index=question_index)
         await redis.set(
             GROUP_QUIZ_KEY.format(chat_id=chat_id),
-            __import__('json').dumps(quiz_state),
+            json.dumps(quiz_state),
             ex=14400
         )
     except Exception as e:
@@ -844,7 +851,7 @@ async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot,
 async def handle_group_poll_update(poll: types.Poll, bot: Bot, redis):
     """Handle poll updates, specifically closing, to advance the quiz"""
     try:
-        logger.info(f"Group poll update received: {poll.id}, closed={poll.is_closed}")
+        logger.info("Group poll update received", poll_id=poll.id, closed=poll.is_closed)
         if not poll.is_closed:
             return
             
@@ -855,7 +862,7 @@ async def handle_group_poll_update(poll: types.Poll, bot: Bot, redis):
             logger.warning("Group poll update ignored: mapping not found", poll_id=poll.id)
             return
             
-        poll_mapping = __import__('json').loads(poll_mapping_raw)
+        poll_mapping = json.loads(poll_mapping_raw)
         chat_id = poll_mapping["chat_id"]
         question_index = poll_mapping["question_index"]
         logger.info("Processing closed group poll", chat_id=chat_id, question_index=question_index)
@@ -866,7 +873,7 @@ async def handle_group_poll_update(poll: types.Poll, bot: Bot, redis):
             logger.warning("Group poll update ignored: quiz state not found", chat_id=chat_id)
             return
         
-        quiz_state = __import__('json').loads(quiz_state_raw)
+        quiz_state = json.loads(quiz_state_raw)
         if not quiz_state.get("is_active"):
             logger.warning("Group poll update ignored: quiz not active", chat_id=chat_id)
             return

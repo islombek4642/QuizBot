@@ -1,1 +1,1 @@
-from . import start, quiz, settings
+from . import start, quiz, settings, group, admin

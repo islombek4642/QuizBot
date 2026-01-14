@@ -1,13 +1,11 @@
 import docx
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from core.logger import logger
 from constants.messages import Messages
 
 class ParserError(Exception):
     """Custom exception for parser errors."""
     pass
-
-from typing import List, Dict, Optional, Tuple
 
 def parse_docx_to_json(file_path: str, lang: str = "UZ") -> Tuple[List[Dict], List[str]]:
     """

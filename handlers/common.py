@@ -13,7 +13,6 @@ class QuizStates(StatesGroup):
     WAITING_FOR_TITLE = State()
     WAITING_FOR_SHUFFLE = State()
     QUIZ_READY = State()
-    SESSION_RUNNING = State()
 
 def get_main_keyboard(lang: str, user_id: int = None):
     builder = ReplyKeyboardBuilder()
