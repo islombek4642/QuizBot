@@ -137,7 +137,7 @@ async def handle_ai_topic(message: types.Message, state: FSMContext, lang: str, 
     )
 
 @router.message(QuizStates.WAITING_FOR_AI_COUNT, F.text)
-async def handle_ai_count(message: types.Message, state: FSMContext, lang: str, user: Any):
+async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, lang: str, user: Any):
     """Handle question count input for AI quiz generation"""
     telegram_id = message.from_user.id
     text = message.text.strip()
@@ -171,7 +171,6 @@ async def handle_ai_count(message: types.Message, state: FSMContext, lang: str, 
     
     try:
         from services.ai_service import AIService
-        from bot import bot
         
         async def on_progress(current: int, total: int):
             try:
