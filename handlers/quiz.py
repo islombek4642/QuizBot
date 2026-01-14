@@ -289,9 +289,9 @@ async def process_start_quiz(message: types.Message, quiz_id: int, quiz_service:
         parse_mode="HTML"
     )
     
-    await send_next_question(message, session, session_service, lang)
+    await send_next_question(bot, telegram_id, session, session_service, lang)
 
-async def send_next_question(message: types.Message, session: Any, session_service: SessionService, lang: str):
+async def send_next_question(bot: Bot, chat_id: int, session: Any, session_service: SessionService, lang: str):
     questions = session.session_data['questions']
     idx = session.current_index
     
@@ -304,7 +304,8 @@ async def send_next_question(message: types.Message, session: Any, session_servi
     if len(question_text) > 300:
         question_text = question_text[:297] + "..."
 
-    poll_msg = await message.answer_poll(
+    poll_msg = await bot.send_poll(
+        chat_id=chat_id,
         question=question_text,
         options=q['options'],
         is_anonymous=False,
@@ -315,9 +316,10 @@ async def send_next_question(message: types.Message, session: Any, session_servi
     
     # Store mapping as JSON to include index for safe advancement
     mapping = json.dumps({"session_id": session.id, "index": idx})
-    await session_service.redis.set(f"quizbot:poll:{poll_msg.poll.id}", mapping, ex=settings.POLL_MAPPING_TTL_SECONDS)
+    key = f"quizbot:poll:{poll_msg.poll.id}"
+    await session_service.redis.set(key, mapping, ex=settings.POLL_MAPPING_TTL_SECONDS)
     await session_service.save_last_poll_id(session.id, poll_msg.message_id)
-    logger.info("Private poll sent", user_id=session.user_id, poll_id=poll_msg.poll.id, index=idx)
+    logger.info("Private poll sent", user_id=session.user_id, poll_id=poll_msg.poll.id, index=idx, redis_key=key)
 
 @router.poll_answer(IsPrivatePoll())
 async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_service: SessionService, user_service: UserService, redis):
@@ -394,12 +396,8 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
                 logger.info("Private session stopped or changed during delay, aborting", user_id=session.user_id)
                 return
 
-            # Using a dummy message object to reuse send_next_question
-            dummy_message = types.Message(chat=types.Chat(id=session.user_id, type='private'), 
-                                         message_id=0, date=int(time.time()))
-            dummy_message._bot = bot
             logger.info("Advancing private quiz to next question", user_id=session.user_id, next_index=current_session.current_index)
-            await send_next_question(dummy_message, current_session, session_service, lang)
+            await send_next_question(bot, session.user_id, current_session, session_service, lang)
     except Exception as e:
         logger.exception(f"Exception in handle_poll_answer: {e}")
 
@@ -476,12 +474,8 @@ async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service
             if not current_session or current_session.id != updated_session.id:
                 return
 
-            # Using a dummy message object to reuse send_next_question
-            dummy_message = types.Message(chat=types.Chat(id=session.user_id, type='private'), 
-                                         message_id=0, date=int(time.time()))
-            dummy_message._bot = bot
             logger.info("Advancing private quiz after timeout", user_id=session.user_id, next_index=current_session.current_index)
-            await send_next_question(dummy_message, current_session, session_service, lang)
+            await send_next_question(bot, session.user_id, current_session, session_service, lang)
     except Exception as e:
         logger.exception(f"Exception in handle_private_poll_update: {e}")
 
