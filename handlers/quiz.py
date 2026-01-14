@@ -79,6 +79,7 @@ async def cmd_cancel(message: types.Message, state: FSMContext, user_service: Us
 @router.message(F.text.in_([Messages.get("CREATE_QUIZ_BTN", "UZ"), Messages.get("CREATE_QUIZ_BTN", "EN")]))
 async def cmd_create_quiz(message: types.Message, state: FSMContext, user_service: UserService):
     telegram_id = message.from_user.id
+    logger.info("CREATE_QUIZ_BTN handler triggered", user_id=telegram_id, text=message.text)
     lang = await user_service.get_language(telegram_id)
     
     user = await user_service.get_or_create_user(telegram_id)
@@ -673,6 +674,7 @@ async def show_quiz_info(bot: Bot, chat_id: int, quiz_id: int, lang: str, quiz_s
 async def handle_quiz_selection(message: types.Message, quiz_service: QuizService, user_service: UserService):
     """Handle quiz selection from 'My Quizzes' list - non-blocking"""
     telegram_id = message.from_user.id
+    logger.info("CATCH-ALL handler triggered in quiz.py", user_id=telegram_id, text=message.text, chat_type=message.chat.type)
     lang = await user_service.get_language(telegram_id)
     
     # Only process if this looks like a quiz title selection

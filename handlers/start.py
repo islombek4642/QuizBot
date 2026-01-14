@@ -4,6 +4,7 @@ from aiogram.filters import CommandStart, Command
 from constants.messages import Messages
 from handlers.common import get_main_keyboard, enable_user_menu, get_contact_keyboard
 from services.user_service import UserService
+from core.logger import logger
 
 router = Router()
 # Only handle private chats - no keyboard buttons in groups
@@ -14,6 +15,7 @@ router.message.filter(F.chat.type == "private")
 async def cmd_start(message: types.Message, user_service: UserService, state: FSMContext, **kwargs):
     data = kwargs
     telegram_id = message.from_user.id
+    logger.info("START handler triggered", user_id=telegram_id, text=message.text)
     lang = await user_service.get_language(telegram_id)
     
     user = await user_service.get_or_create_user(telegram_id)
@@ -102,6 +104,7 @@ async def process_contact(message: types.Message, user_service: UserService, sta
 @router.message(F.text.in_([Messages.get("HELP_BTN", "UZ"), Messages.get("HELP_BTN", "EN")]))
 async def cmd_help(message: types.Message, user_service: UserService):
     telegram_id = message.from_user.id
+    logger.info("HELP handler triggered", user_id=telegram_id, text=message.text)
     lang = await user_service.get_language(telegram_id)
     
     from aiogram.utils.keyboard import InlineKeyboardBuilder
