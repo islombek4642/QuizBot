@@ -180,8 +180,8 @@ async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, l
                     message_id=generating_msg.message_id,
                     parse_mode="HTML"
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to update progress message: {e}")
 
         ai_service = AIService()
         questions, error = await ai_service.generate_quiz(
