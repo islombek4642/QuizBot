@@ -245,3 +245,52 @@ async def admin_save_conv_limit(message: types.Message, state: FSMContext, redis
     
     # Go back to AI settings menu with success message
     await admin_ai_settings(message, state, redis, lang, success_msg=Messages.get("ADMIN_LIMIT_UPDATED", lang))
+
+# ===================== BROADCAST =====================
+
+@router.message(F.text.in_([Messages.get("ADMIN_BROADCAST_BTN", "UZ"), Messages.get("ADMIN_BROADCAST_BTN", "EN")]))
+async def admin_broadcast_init(message: types.Message, state: FSMContext, lang: str):
+    await state.set_state(QuizStates.ADMIN_BROADCAST_MSG)
+    await message.answer(
+        Messages.get("ADMIN_BROADCAST_PROMPT", lang),
+        reply_markup=get_cancel_keyboard(lang)
+    )
+
+@router.message(QuizStates.ADMIN_BROADCAST_MSG)
+async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot: Bot, db: AsyncSession, lang: str):
+    # Check if it's a cancel button
+    if message.text in [Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN")]:
+        await state.clear()
+        await message.answer(
+            Messages.get("SELECT_BUTTON", lang),
+            reply_markup=get_main_keyboard(lang, settings.ADMIN_ID)
+        )
+        return
+
+    # Get all users (telegram_id only)
+    result = await db.execute(select(User.telegram_id))
+    user_ids = result.scalars().all()
+    
+    count = 0
+    progress_msg = await message.answer(f"🚀 Broadcasting... 0/{len(user_ids)}")
+    
+    for i, user_id in enumerate(user_ids, 1):
+        try:
+            # Copy the original message to everyone (supports text, photos, etc.)
+            await message.send_copy(chat_id=user_id)
+            count += 1
+        except Exception as e:
+            logger.warning(f"Failed to send broadcast to {user_id}: {e}")
+        
+        # Update progress every 20 users
+        if i % 20 == 0:
+            try:
+                await progress_msg.edit_text(f"🚀 Broadcasting... {i}/{len(user_ids)}")
+            except:
+                pass
+    
+    await state.clear()
+    await message.answer(
+        Messages.get("ADMIN_BROADCAST_SUCCESS", lang).format(count=count),
+        reply_markup=get_main_keyboard(lang, settings.ADMIN_ID)
+    )
