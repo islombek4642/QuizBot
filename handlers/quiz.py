@@ -37,7 +37,9 @@ async def is_private_poll(poll_answer: types.PollAnswer, redis) -> bool:
     """Filter to check if the poll belongs to a private quiz"""
     if not redis:
         return False
-    return await redis.exists(f"quizbot:poll:{poll_answer.poll_id}")
+    # Support both plain session_id and JSON mapping
+    mapping = await redis.get(f"quizbot:poll:{poll_answer.poll_id}")
+    return mapping is not None
 
 @router.message(F.text.in_([Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN"), Messages.get("BACK_BTN", "UZ"), Messages.get("BACK_BTN", "EN")]))
 async def cmd_cancel(message: types.Message, state: FSMContext, user_service: UserService):
@@ -294,17 +296,41 @@ async def send_next_question(message: types.Message, session: Any, session_servi
         open_period=settings.POLL_DURATION_SECONDS
     )
     
-    await session_service.map_poll_to_session(poll_msg.poll.id, session.id)
+    # Store mapping as JSON to include index for safe advancement
+    mapping = json.dumps({"session_id": session.id, "index": idx})
+    await session_service.redis.set(f"quizbot:poll:{poll_msg.poll.id}", mapping, ex=settings.POLL_MAPPING_TTL_SECONDS)
     await session_service.save_last_poll_id(session.id, poll_msg.message_id)
+    logger.info("Private poll sent", user_id=telegram_id, poll_id=poll_msg.poll.id, index=idx)
 
 @router.poll_answer(is_private_poll)
 async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_service: SessionService, user_service: UserService, redis):
-    # Filter already checked via is_private_poll
-    session = await session_service.get_session_by_poll(poll_answer.poll_id)
+    # Get mapping
+    logger.info("Processing poll answer", poll_id=poll_answer.poll_id)
+    mapping_raw = await redis.get(f"quizbot:poll:{poll_answer.poll_id}")
+    if not mapping_raw:
+        return
+        
+    try:
+        mapping = json.loads(mapping_raw)
+        session_id = mapping if isinstance(mapping, int) else mapping["session_id"]
+        mapped_index = None if isinstance(mapping, int) else mapping["index"]
+    except:
+        session_id = int(mapping_raw)
+        mapped_index = None
+
+    # Get session
+    result = await session_service.db.execute(select(QuizSession).filter(QuizSession.id == session_id))
+    session = result.scalar_one_or_none()
+    
     if not session or not session.is_active:
         return
 
-    logger.info("Private poll answer recorded", user_id=session.user_id, session_id=session.id)
+    # Check if this answer matches the current session index
+    if mapped_index is not None and session.current_index != mapped_index:
+        logger.warning("Private poll answer ignored: index mismatch", user_id=session.user_id, current=session.current_index, mapped=mapped_index)
+        return
+
+    logger.info("Private poll answer recorded", user_id=session.user_id, session_id=session.id, index=session.current_index)
 
     # Get user language
     lang = await user_service.get_language(session.user_id)
@@ -342,6 +368,7 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
         dummy_message = types.Message(chat=types.Chat(id=session.user_id, type='private'), 
                                      message_id=0, date=int(time.time()))
         dummy_message._bot = bot
+        logger.info("Advancing private quiz to next question", user_id=session.user_id, next_index=current_session.current_index)
         await send_next_question(dummy_message, current_session, session_service, lang)
 
 from aiogram.filters import BaseFilter
@@ -353,23 +380,54 @@ class IsPrivatePoll(BaseFilter):
         return bool(session_id)
 
 @router.poll(IsPrivatePoll())
-async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service: SessionService, user_service: UserService):
+async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service: SessionService, user_service: UserService, redis):
     """Handle poll updates for private quizzes, advancing when a poll closes (timeout)"""
     if not poll.is_closed:
         return
         
-    session = await session_service.get_session_by_poll(poll.id)
-    if not session or not session.is_active:
+    mapping_raw = await redis.get(f"quizbot:poll:{poll.id}")
+    if not mapping_raw:
         return
         
-    # Check if the user already answered this (handled by poll_answer)
-    # If index has already advanced, advance_session will return None or we can check index
-    # But advance_session is already atomic and idempotent-safe for this purpose
+    try:
+        mapping = json.loads(mapping_raw)
+        if isinstance(mapping, dict):
+            session_id = mapping["session_id"]
+            mapped_index = mapping["index"]
+        else:
+            session_id = int(mapping)
+            mapped_index = None
+    except:
+        session_id = int(mapping_raw)
+        mapped_index = None
+
+    # Get session via direct DB query to ensure we have the latest state
+    result = await session_service.db.execute(select(QuizSession).filter(QuizSession.id == session_id))
+    session = result.scalar_one_or_none()
     
+    if not session or not session.is_active:
+        return
+
+    # If the user already answered, current_index will have moved past mapped_index
+    if mapped_index is not None and session.current_index != mapped_index:
+        logger.info("Private poll close ignored: already advanced", user_id=session.user_id, poll_id=poll.id)
+        return
+
+    # If we are here, it means the poll closed without an answer being processed
+    logger.info("Private poll closed without answer (timeout)", user_id=session.user_id, poll_id=poll.id)
+
     # Advance without adding to correct count
     updated_session = await session_service.advance_session(session.id, is_correct=False)
     if not updated_session:
         return
+        
+    lang = await user_service.get_language(session.user_id)
+    
+    # Notify about timeout/no answer
+    try:
+        await bot.send_message(session.user_id, Messages.get("NO_ONE_ANSWERED", lang))
+    except:
+        pass
         
     lang = await user_service.get_language(session.user_id)
     
