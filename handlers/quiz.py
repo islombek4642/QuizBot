@@ -670,23 +670,8 @@ async def show_quiz_info(bot: Bot, chat_id: int, quiz_id: int, lang: str, quiz_s
         parse_mode="HTML"
     )
 
-@router.message(F.text, F.chat.type == "private")
-async def handle_quiz_selection(message: types.Message, quiz_service: QuizService, user_service: UserService):
-    """Handle quiz selection from 'My Quizzes' list - non-blocking"""
-    telegram_id = message.from_user.id
-    logger.info("CATCH-ALL handler triggered in quiz.py", user_id=telegram_id, text=message.text, chat_type=message.chat.type)
-    lang = await user_service.get_language(telegram_id)
-    
-    # Only process if this looks like a quiz title selection
-    # Check if message matches any of user's quiz titles
-    quizzes = await quiz_service.get_user_quizzes(telegram_id)
-    selected_quiz = next((q for q in quizzes if q.title == message.text), None)
-    
-    if selected_quiz:
-        await show_quiz_info(message.bot, message.chat.id, selected_quiz.id, lang, quiz_service)
-        # Message handled, stop propagation
-    # If no quiz matched, DON'T block - let other handlers process this message
-    # This allows buttons like "Help", "Settings" etc to work
+# Catch-all handler removed - it was blocking button messages from reaching other routers
+# Quiz selection is now handled via inline buttons in cmd_my_quizzes, which provides better UX
 
 
 @router.inline_query()
