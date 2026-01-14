@@ -451,6 +451,9 @@ async def send_group_question(bot: Bot, chat_id: int, quiz_state: dict, redis, l
         # Quiz finished
         await finish_group_quiz(bot, chat_id, quiz_state, redis, lang)
         return
+
+    # Reset vote count for current question
+    quiz_state["current_question_votes"] = 0
     
     q = questions[current_index]
     question_text = f"{current_index+1}/{len(questions)}. {q['question']}"
@@ -528,7 +531,17 @@ async def _advance_group_quiz(bot: Bot, chat_id: int, quiz_id: int, question_ind
                 except:
                     pass
 
+            # Notify if no one answered
+            group_lang = await redis.get(f"group_lang:{chat_id}")
+            lang = group_lang or "UZ"
+            if quiz_state.get("current_question_votes", 0) == 0:
+                try:
+                    await bot.send_message(chat_id, Messages.get("NO_ONE_ANSWERED", lang))
+                except:
+                    pass
+
             quiz_state["current_index"] += 1
+            logger.info("Advancing group quiz to next index", chat_id=chat_id, next_index=quiz_state["current_index"])
             
             # Save state
             await redis.set(
@@ -584,7 +597,8 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
         
         # Summary footer
         total_correct = sum(p['correct'] for p in participants.values())
-        avg_score = total_correct / len(participants)
+        total_answered = sum(p['answered'] for p in participants.values())
+        avg_score = (total_correct / total_answered * 100) if total_answered > 0 else 0
         
         summary = Messages.get("GROUP_QUIZ_SUMMARY", lang).format(
             count=len(participants),
@@ -841,6 +855,9 @@ async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot,
             participants[user_key]["correct"] += 1
         
         quiz_state["participants"] = participants
+        
+        # Increment vote count for current question
+        quiz_state["current_question_votes"] = quiz_state.get("current_question_votes", 0) + 1
         
         # Just save the updated stats. Advancement now happens when poll closes.
         logger.info("Group poll answer recorded", chat_id=chat_id, user_id=user_id, question_index=question_index)
