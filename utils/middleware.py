@@ -58,37 +58,50 @@ class AuthMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: Dict[str, Any],
     ) -> Any:
-        if not isinstance(event, types.Message):
+        # We only care about Messages and CallbackQueries for auth/lang
+        if not isinstance(event, (types.Message, types.CallbackQuery)):
             return await handler(event, data)
 
-        # Skip auth checks for group chats - no keyboards should appear there
-        if event.chat.type in ("group", "supergroup"):
+        # Basic data
+        user_service: UserService = data.get("user_service")
+        telegram_id = event.from_user.id
+        
+        # Always fetch/create user to get language and check phone
+        user = await user_service.get_or_create_user(telegram_id)
+        data["user"] = user
+        data["lang"] = user.language if user else "UZ"
+
+        # Skip auth checks for group chats
+        if isinstance(event, types.Message) and event.chat.type in ("group", "supergroup"):
             return await handler(event, data)
 
-        # Allow /start (and its variations) and contact sharing
+        # Allow /start (and its variations) and contact sharing without phone check
         is_start_command = False
-        if event.text:
+        if isinstance(event, types.Message) and event.text:
             command_part = event.text.split()[0]
             if command_part == "/start" or command_part.startswith("/start@"):
                 is_start_command = True
         
-        if is_start_command or event.contact:
+        if is_start_command or (isinstance(event, types.Message) and event.contact):
             return await handler(event, data)
 
-        user_service: UserService = data.get("user_service")
-        if not user_service:
-            return await handler(event, data)
-
-        telegram_id = event.from_user.id
-        user = await user_service.get_or_create_user(telegram_id)
-        
+        # Check phone number for all other private interactions
         if not user or not user.phone_number:
-            lang = user.language if user else "UZ"
+            lang = data["lang"]
             logger.info("Access denied - contact sharing required", telegram_id=telegram_id)
-            await event.answer(
-                Messages.get("SHARE_CONTACT_PROMPT", lang),
-                reply_markup=get_contact_keyboard(lang)
-            )
+            
+            # Handle both Message and CallbackQuery contexts
+            if isinstance(event, types.Message):
+                await event.answer(
+                    Messages.get("SHARE_CONTACT_PROMPT", lang),
+                    reply_markup=get_contact_keyboard(lang)
+                )
+            else:
+                await event.message.answer(
+                    Messages.get("SHARE_CONTACT_PROMPT", lang),
+                    reply_markup=get_contact_keyboard(lang)
+                )
+                await event.answer()
             return
 
         return await handler(event, data)

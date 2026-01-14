@@ -12,12 +12,16 @@ router.message.filter(F.chat.type == "private")
 
 @router.message(CommandStart())
 @router.message(F.text.in_([Messages.get("START_BTN", "UZ"), Messages.get("START_BTN", "EN")]))
-async def cmd_start(message: types.Message, user_service: UserService, state: FSMContext, **kwargs):
-    data = kwargs
+async def cmd_start(
+    message: types.Message, 
+    user_service: UserService, 
+    quiz_service: QuizService,
+    state: FSMContext,
+    lang: str,
+    user: Any
+):
     telegram_id = message.from_user.id
-    lang = await user_service.get_language(telegram_id)
     
-    user = await user_service.get_or_create_user(telegram_id)
     if not user or not user.phone_number:
         # Store deep link in state to resume after contact
         args = message.text.split()
@@ -35,43 +39,48 @@ async def cmd_start(message: types.Message, user_service: UserService, state: FS
     # Handle deep links
     args = message.text.split()
     if len(args) > 1:
-        payload = args[1]
-        if payload == "create":
-            from handlers.quiz import cmd_create_quiz
-            # Correctly passing state
-            return await cmd_create_quiz(message, state, user_service)
-        elif payload.startswith("quiz_"):
-            # Trigger quiz info view
-            quiz_id = int(payload.split("_")[1])
-            from handlers.quiz import show_quiz_info
-            
-            # Use injected quiz_service
-            quiz_service = data.get("quiz_service")
-            if not quiz_service:
-                # Fallback if middleware missed it (shouldn't happen)
-                from db.session import AsyncSessionLocal
-                from services.quiz_service import QuizService
-                async with AsyncSessionLocal() as session:
-                    quiz_service = QuizService(session)
-            
-            # Feature: Add to user's list if not already there
-            cloned_quiz = await quiz_service.clone_quiz(quiz_id, telegram_id)
-            if cloned_quiz:
-                await message.answer(Messages.get("QUIZ_ADDED_TO_LIST", lang).format(title=cloned_quiz.title), parse_mode="HTML")
-            
-            return await show_quiz_info(message.bot, message.chat.id, quiz_id, lang, quiz_service)
+        return await handle_payload(args[1], message, user_service, quiz_service, state, lang)
 
     welcome_text = Messages.get("WELCOME", lang) + "\n\n" + Messages.get("FORMAT_INFO", lang)
     await message.answer(welcome_text, reply_markup=get_main_keyboard(lang, telegram_id))
     # Clear any pending start after handling
     await state.clear()
 
+async def handle_payload(payload: str, message: types.Message, user_service: UserService, quiz_service: QuizService, state: FSMContext, lang: str):
+    """Refactored helper to handle start payloads consistently"""
+    telegram_id = message.from_user.id
+
+    if payload == "create":
+        from handlers.quiz import cmd_create_quiz
+        return await cmd_create_quiz(message, state, user_service, lang, None) # user object will be picked up from data if needed
+    elif payload.startswith("quiz_"):
+        try:
+            quiz_id = int(payload.split("_")[1])
+            from handlers.quiz import show_quiz_info
+            
+            # REMOVED AUTO-CLONE for performance/database sanity
+            # The Save button will be added in show_quiz_info instead
+            
+            return await show_quiz_info(message.bot, message.chat.id, quiz_id, lang, quiz_service)
+        except (ValueError, IndexError):
+            logger.warning(f"Invalid quiz payload: {payload}")
+    
+    # Fallback to normal welcome
+    welcome_text = Messages.get("WELCOME", lang) + "\n\n" + Messages.get("FORMAT_INFO", lang)
+    await message.answer(welcome_text, reply_markup=get_main_keyboard(lang, telegram_id))
+    await state.clear()
+
 @router.message(F.contact)
-async def process_contact(message: types.Message, user_service: UserService, state: FSMContext, **kwargs):
-    data = kwargs
+async def process_contact(
+    message: types.Message, 
+    user_service: UserService, 
+    quiz_service: QuizService,
+    state: FSMContext,
+    lang: str,
+    user: Any
+):
     telegram_id = message.from_user.id
     contact = message.contact
-    lang = await user_service.get_language(telegram_id)
 
     if contact.user_id != telegram_id:
         return
@@ -92,12 +101,13 @@ async def process_contact(message: types.Message, user_service: UserService, sta
     # Check for pending deep link
     state_data = await state.get_data()
     pending_payload = state_data.get("pending_start")
+    
+    # Process pending payload if exists
     if pending_payload:
-        # Resume cmd_start with the payload
-        new_text = f"/start {pending_payload}"
-        new_message = message.model_copy(update={"text": new_text})
-        await state.clear()
-        return await cmd_start(new_message, user_service, state, **data)
+        return await handle_payload(pending_payload, message, user_service, quiz_service, state, lang)
+    
+    # Clear state if no pending payload
+    await state.clear()
 
 @router.message(Command("help"))
 @router.message(F.text.in_([Messages.get("HELP_BTN", "UZ"), Messages.get("HELP_BTN", "EN")]))

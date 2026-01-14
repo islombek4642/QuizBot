@@ -235,13 +235,12 @@ async def start_group_quiz_callback(callback: types.CallbackQuery, user_service:
 
 @router.callback_query(F.data.startswith("confirm_group_quiz_"))
 async def confirm_group_quiz_callback(callback: types.CallbackQuery, user_service: UserService,
-                                      quiz_service: QuizService, session_service: SessionService, redis):
+                                      quiz_service: QuizService, session_service: SessionService, redis, lang: str):
     """Confirm and start quiz in selected group"""
     parts = callback.data.split("_")
     quiz_id = int(parts[3])
     chat_id = int(parts[4])
     telegram_id = callback.from_user.id
-    lang = await user_service.get_language(telegram_id)
     
     # Check if bot is admin in the group
     try:

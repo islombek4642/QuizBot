@@ -18,8 +18,7 @@ router.message.filter(F.from_user.id == settings.ADMIN_ID)
 router.callback_query.filter(F.from_user.id == settings.ADMIN_ID)
 
 @router.message(F.text.in_([Messages.get("ADMIN_USERS_BTN", "UZ"), Messages.get("ADMIN_USERS_BTN", "EN")]))
-async def admin_list_users(message: types.Message, db: AsyncSession, user_service: UserService):
-    lang = await user_service.get_language(message.from_user.id)
+async def admin_list_users(message: types.Message, db: AsyncSession, lang: str):
     await show_users_page(message, db, lang, page=0)
 
 async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: int):
@@ -61,15 +60,13 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
         await message_or_query.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML", link_preview_options=types.LinkPreviewOptions(is_disabled=True))
 
 @router.callback_query(F.data.startswith("admin_users_page_"))
-async def admin_users_pagination(callback: types.CallbackQuery, db: AsyncSession, user_service: UserService):
+async def admin_users_pagination(callback: types.CallbackQuery, db: AsyncSession, lang: str):
     page = int(callback.data.split("_")[-1])
-    lang = await user_service.get_language(callback.from_user.id)
     await show_users_page(callback, db, lang, page)
     await callback.answer()
 
 @router.message(F.text.in_([Messages.get("ADMIN_GROUPS_BTN", "UZ"), Messages.get("ADMIN_GROUPS_BTN", "EN")]))
-async def admin_list_groups(message: types.Message, redis, user_service: UserService):
-    lang = await user_service.get_language(message.from_user.id)
+async def admin_list_groups(message: types.Message, redis, lang: str):
     await show_groups_page(message, redis, lang, page=0)
 
 async def show_groups_page(message_or_query, redis, lang: str, page: int):
@@ -114,16 +111,13 @@ async def show_groups_page(message_or_query, redis, lang: str, page: int):
         await message_or_query.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML", link_preview_options=types.LinkPreviewOptions(is_disabled=True))
 
 @router.callback_query(F.data.startswith("admin_groups_page_"))
-async def admin_groups_pagination(callback: types.CallbackQuery, redis, user_service: UserService):
+async def admin_groups_pagination(callback: types.CallbackQuery, redis, lang: str):
     page = int(callback.data.split("_")[-1])
-    lang = await user_service.get_language(callback.from_user.id)
     await show_groups_page(callback, redis, lang, page)
     await callback.answer()
 
 @router.message(F.text.in_([Messages.get("ADMIN_STATS_BTN", "UZ"), Messages.get("ADMIN_STATS_BTN", "EN")]))
-async def admin_statistics(message: types.Message, db: AsyncSession, redis, user_service: UserService):
-    lang = await user_service.get_language(message.from_user.id)
-    
+async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang: str):
     # Users count
     res_users = await db.execute(select(func.count(User.id)))
     total_users = res_users.scalar()

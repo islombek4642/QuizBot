@@ -642,7 +642,7 @@ async def delete_quiz_handler(callback: types.CallbackQuery, quiz_service: QuizS
         await callback.answer(Messages.get("ERROR_GENERIC", lang), show_alert=True)
 
 async def show_quiz_info(bot: Bot, chat_id: int, quiz_id: int, lang: str, quiz_service: QuizService):
-    """Show detailed info and buttons for a specific quiz"""
+    """Refactored: Show detailed info and buttons for a specific quiz"""
     quiz = await quiz_service.get_quiz(quiz_id)
     if not quiz:
         return
@@ -651,7 +651,15 @@ async def show_quiz_info(bot: Bot, chat_id: int, quiz_id: int, lang: str, quiz_s
     builder.button(text=Messages.get("START_QUIZ_BTN", lang), callback_data=f"start_quiz_{quiz.id}")
     builder.button(text=Messages.get("START_IN_GROUP_BTN", lang), callback_data=f"start_group_quiz_{quiz.id}")
     builder.button(text="📤 Ulashish / Share", switch_inline_query=f"quiz_{quiz.id}")
-    builder.button(text=Messages.get("QUIZ_DELETE_BTN", lang), callback_data=f"delete_quiz_{quiz.id}")
+    
+    # Only show delete button to owner
+    # chat_id is used for both private (user_id) and groups
+    if quiz.user_id == chat_id:
+        builder.button(text=Messages.get("QUIZ_DELETE_BTN", lang), callback_data=f"delete_quiz_{quiz.id}")
+    else:
+        # Show save/clone button if NOT owner (e.g. via deep link)
+        builder.button(text=Messages.get("SAVE_QUIZ_BTN", lang), callback_data=f"clone_quiz_{quiz.id}")
+        
     builder.adjust(1)
     
     shuffle_status = Messages.get("SHUFFLE_TRUE", lang) if quiz.shuffle_options else Messages.get("SHUFFLE_FALSE", lang)
@@ -668,6 +676,24 @@ async def show_quiz_info(bot: Bot, chat_id: int, quiz_id: int, lang: str, quiz_s
         reply_markup=builder.as_markup(),
         parse_mode="HTML"
     )
+
+@router.callback_query(F.data.startswith("clone_quiz_"))
+async def clone_quiz_handler(callback: types.CallbackQuery, quiz_service: QuizService, lang: str):
+    """Handle explicit quiz cloning (Save button)"""
+    try:
+        quiz_id = int(callback.data.split("_")[2])
+        telegram_id = callback.from_user.id
+        
+        cloned_quiz = await quiz_service.clone_quiz(quiz_id, telegram_id)
+        if cloned_quiz:
+            await callback.answer(Messages.get("QUIZ_ADDED_TO_LIST", lang).format(title=cloned_quiz.title), show_alert=True)
+            # Potentially refresh info view to show owner buttons (Start, Delete)
+            await show_quiz_info(callback.bot, callback.message.chat.id, cloned_quiz.id, lang, quiz_service)
+            await callback.message.delete()
+        else:
+            await callback.answer(Messages.get("ERROR_GENERIC", lang))
+    except (ValueError, IndexError):
+        await callback.answer(Messages.get("ERROR_QUIZ_NOT_FOUND", lang))
 
 @router.message(F.text, F.chat.type == "private")
 async def handle_quiz_selection(message: types.Message, quiz_service: QuizService, user_service: UserService):
