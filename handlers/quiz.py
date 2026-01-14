@@ -36,16 +36,26 @@ router = Router()
 router.message.filter(F.chat.type == "private")
 
 
-async def is_private_poll(poll_answer: types.PollAnswer, redis) -> bool:
-    """Filter to check if the poll belongs to a private quiz"""
-    if not redis:
-        logger.warning("is_private_poll filter: redis not available")
+from aiogram.filters import BaseFilter
+
+class IsPrivatePoll(BaseFilter):
+    async def __call__(self, event: types.TelegramObject, redis) -> bool:
+        """Filter to check if the poll belongs to a private quiz"""
+        if not redis:
+            return False
+            
+        if isinstance(event, types.PollAnswer):
+            poll_id = event.poll_id
+        elif isinstance(event, types.Poll):
+            poll_id = event.id
+        else:
+            return False
+            
+        mapping = await redis.get(f"quizbot:poll:{poll_id}")
+        if mapping:
+            # logger.debug("IsPrivatePoll filter matched", poll_id=poll_id)
+            return True
         return False
-    # Support both plain session_id and JSON mapping
-    key = f"quizbot:poll:{poll_answer.poll_id}"
-    mapping = await redis.get(key)
-    # logger.debug("is_private_poll filter check", poll_id=poll_answer.poll_id, exists=mapping is not None)
-    return mapping is not None
 
 @router.message(F.text.in_([Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN"), Messages.get("BACK_BTN", "UZ"), Messages.get("BACK_BTN", "EN")]))
 async def cmd_cancel(message: types.Message, state: FSMContext, user_service: UserService):
@@ -310,14 +320,14 @@ async def send_next_question(message: types.Message, session: Any, session_servi
     await session_service.save_last_poll_id(session.id, poll_msg.message_id)
     logger.info("Private poll sent", user_id=session.user_id, poll_id=poll_msg.poll.id, index=idx)
 
-@router.poll_answer(is_private_poll)
+@router.poll_answer(IsPrivatePoll())
 async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_service: SessionService, user_service: UserService, redis):
     try:
         # Get mapping
-        logger.info("Processing poll answer", poll_id=poll_answer.poll_id, user_id=poll_answer.user.id if poll_answer.user else "N/A")
+        logger.info("Processing private poll answer", poll_id=poll_answer.poll_id, user_id=poll_answer.user.id if poll_answer.user else "N/A")
         mapping_raw = await redis.get(f"quizbot:poll:{poll_answer.poll_id}")
         if not mapping_raw:
-            logger.warning("Poll answer ignored: mapping disappeared", poll_id=poll_answer.poll_id)
+            logger.warning("Private poll answer ignored: mapping disappeared", poll_id=poll_answer.poll_id)
             return
             
         try:
@@ -341,7 +351,7 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
         session = result.scalar_one_or_none()
         
         if not session or not session.is_active:
-            logger.info("Poll answer ignored: session not active", session_id=session_id)
+            logger.info("Private poll answer ignored: session not active", session_id=session_id)
             return
 
         # Check if this answer matches the current session index
@@ -362,6 +372,7 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
         
         updated_session = await session_service.advance_session(session.id, is_correct)
         if not updated_session:
+            logger.warning("Failed to advance private session (likely duplicate answer)", session_id=session.id)
             return
 
         # Check if finished
@@ -376,12 +387,12 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
             await asyncio.sleep(3)
             # Re-verify session is still active and NOT hard-stopped after the delay
             if await session_service.is_stopped(session.user_id):
-                logger.info("Session hard-stopped during delay, aborting next question", user_id=session.user_id)
+                logger.info("Private session hard-stopped during delay, aborting next question", user_id=session.user_id)
                 return
 
             current_session = await session_service.get_active_session(session.user_id)
             if not current_session or current_session.id != updated_session.id:
-                logger.info("Session stopped or changed during delay, aborting", user_id=session.user_id)
+                logger.info("Private session stopped or changed during delay, aborting", user_id=session.user_id)
                 return
 
             # Using a dummy message object to reuse send_next_question
@@ -393,27 +404,15 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
     except Exception as e:
         logger.exception(f"Exception in handle_poll_answer: {e}")
 
-from aiogram.filters import BaseFilter
-
-class IsPrivatePoll(BaseFilter):
-    async def __call__(self, poll: types.Poll, session_service: SessionService) -> bool:
-        # Check if we have a session mapped to this poll
-        key = f"quizbot:poll:{poll.id}"
-        mapping = await session_service.redis.get(key)
-        # logger.debug("IsPrivatePoll filter check", poll_id=poll.id, exists=mapping is not None)
-        return mapping is not None
-
 @router.poll(IsPrivatePoll())
 async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service: SessionService, user_service: UserService, redis):
     try:
         """Handle poll updates for private quizzes, advancing when a poll closes (timeout)"""
         if not poll.is_closed:
-            logger.debug("Poll update ignored: poll not closed", poll_id=poll.id)
             return
             
         mapping_raw = await redis.get(f"quizbot:poll:{poll.id}")
         if not mapping_raw:
-            logger.warning("Poll update ignored: mapping disappeared", poll_id=poll.id)
             return
             
         try:
@@ -430,7 +429,6 @@ async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service
             mapped_index = None
 
         if session_id is None:
-            logger.warning("Poll update ignored: session_id could not be determined", poll_id=poll.id, mapping_raw=mapping_raw)
             return
 
         # Get session via direct DB query to ensure we have the latest state
@@ -438,13 +436,11 @@ async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service
         session = result.scalar_one_or_none()
         
         if not session or not session.is_active:
-            logger.info("Poll update ignored: session not active or not found", session_id=session_id, poll_id=poll.id)
             return
 
         # If the user already answered, current_index will have moved past mapped_index
         if mapped_index is not None and session.current_index != mapped_index:
-            logger.info("Private poll close ignored: already advanced", user_id=session.user_id, poll_id=poll.id, 
-                        current_index=session.current_index, mapped_index=mapped_index)
+            logger.info("Private poll close ignored: already advanced", user_id=session.user_id, poll_id=poll.id)
             return
 
         # If we are here, it means the poll closed without an answer being processed
@@ -453,7 +449,6 @@ async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service
         # Advance without adding to correct count
         updated_session = await session_service.advance_session(session.id, is_correct=False)
         if not updated_session:
-            logger.error("Failed to advance session after poll timeout", session_id=session.id)
             return
             
         lang = await user_service.get_language(session.user_id)
@@ -462,7 +457,7 @@ async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service
         try:
             await bot.send_message(session.user_id, Messages.get("NO_ONE_ANSWERED", lang))
         except Exception as e:
-            logger.warning(f"Failed to send timeout message to user {session.user_id}: {e}")
+            logger.warning(f"Failed to send timeout message: {e}")
             
         if not updated_session.is_active:
             await bot.send_message(
@@ -475,12 +470,10 @@ async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service
             await asyncio.sleep(3)
             # Re-verify session is still active and NOT hard-stopped after the delay
             if await session_service.is_stopped(session.user_id):
-                logger.info("Session hard-stopped during delay after timeout, aborting next question", user_id=session.user_id)
                 return
 
             current_session = await session_service.get_active_session(session.user_id)
             if not current_session or current_session.id != updated_session.id:
-                logger.info("Session stopped or changed during delay after timeout, aborting", user_id=session.user_id)
                 return
 
             # Using a dummy message object to reuse send_next_question
