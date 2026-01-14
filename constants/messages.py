@@ -132,7 +132,11 @@ class Messages:
             "SHARE_BOT_BTN": "📢 Botni ulashish",
             "INVITE_FRIENDS_BTN": "👥 Do'stlarni taklif qilish",
             "BOT_PROMO_TEXT": "🚀 <b>QuizBot — Bilimingizni sinab ko'ring!</b>\n\nBu bot orqali:\n✅ Tayyor Word/PDF testlarni Telegramga o'tkazish\n🤖 AI yordamida har qanday mavzuda test yaratish\n👥 Guruhlarda testlar o'tkazish mumkin.\n\nHoziroq sinab ko'ring: @{username}",
-            "REFERRAL_SUCCESS": "🎉 <b>Tabriklaymiz!</b>\n\nSizning havolangiz orqali yangi foydalanuvchi qo'shildi!\n\n🎁 <b>Mukofot:</b>\n✅ +1 ta AI Test yaratish imkoniyati\n✅ +1 ta AI Konvertatsiya imkoniyati\n🚀 Vaqt cheklovlari olib tashlandi!",
+            "REFERRAL_SUCCESS": "🎉 <b>Tabriklaymiz!</b>\n\nSizning havolangiz orqali <b>{name}</b> qo'shildi!\n\n🎁 <b>Mukofot:</b>\n✅ +1 ta AI Test yaratish imkoniyati\n✅ +1 ta AI Konvertatsiya imkoniyati\n🚀 Vaqt cheklovlari olib tashlandi!",
+            "REFERRAL_EXISTING": "ℹ️ <b>Ma'lumot:</b>\n\n<b>{name}</b> havolangiz orqali kirdi, lekin u allaqachon ro'yxatdan o'tgan.",
+            "AI_LIMIT_REACHED": "⚠️ <b>Limitga yetdingiz!</b>\n\nSiz juda tez-tez foydalanyapsiz. Keyingi urinish: {time}\n\n💡 <b>Bonus:</b> Do'stingizni taklif qiling va darhol limitni o'chiring!\n\n👇 \"Botni ulashish\" tugmasini bosing:",
+            "AI_CREDITS_INFO": "💳 <b>AI Kreditlar:</b> {count} ta",
+            "AI_ENTER_TOPIC": "📝 <b>Test yaratish</b>\n\n{credits}\n\nMavzuni kiriting (masalan: 'Python asoslari'):",
         },
         "EN": {
             "WELCOME": "Hello! Welcome to QuizBot.\n\nSend me a .docx file with tests, and I'll convert it into Telegram polls.",
@@ -269,7 +273,11 @@ class Messages:
             "SHARE_BOT_BTN": "📢 Share Bot",
             "INVITE_FRIENDS_BTN": "👥 Invite Friends",
             "BOT_PROMO_TEXT": "🚀 <b>QuizBot — Test Your Knowledge!</b>\n\nWith this bot, you can:\n✅ Convert Word/PDF tests to Telegram polls\n🤖 Generate tests on any topic using AI\n👥 Run interactive quizzes in groups.\n\nTry it now: @{username}",
-            "REFERRAL_SUCCESS": "🎉 <b>Congratulations!</b>\n\nA new user has joined via your link!\n\n🎁 <b>Reward:</b>\n✅ +1 AI Quiz Generation\n✅ +1 AI Test Conversion\n🚀 Cooldowns have been removed!",
+            "REFERRAL_SUCCESS": "🎉 <b>Congratulations!</b>\n\n<b>{name}</b> joined via your link!\n\n🎁 <b>Reward:</b>\n✅ +1 AI Quiz Generation\n✅ +1 AI Test Conversion\n🚀 Cooldowns have been removed!",
+            "REFERRAL_EXISTING": "ℹ️ <b>Info:</b>\n\n<b>{name}</b> clicked your link, but they are already registered.",
+            "AI_LIMIT_REACHED": "⚠️ <b>Limit Reached!</b>\n\nYou are using AI too frequently. Next attempt in: {time}\n\n💡 <b>Bonus:</b> Invite a friend to remove limits immediately!\n\n👇 Click \"Share Bot\" below:",
+            "AI_CREDITS_INFO": "💳 <b>AI Credits:</b> {count}",
+             "AI_ENTER_TOPIC": "📝 <b>Create Quiz</b>\n\n{credits}\n\nEnter a topic (e.g., 'Python Basics'):",
         }
     }
 

@@ -149,10 +149,16 @@ async def cmd_ai_generate(message: types.Message, state: FSMContext, redis, lang
         await message.answer(Messages.get("AI_NO_API_KEY", lang))
         return
     
+    # Get credit info
+    credits_count = await redis.get(f"ai_credits:gen:{telegram_id}")
+    credits_count = int(credits_count) if credits_count else 0
+    credits_text = Messages.get("AI_CREDITS_INFO", lang).format(count=credits_count)
+
     await state.set_state(QuizStates.WAITING_FOR_AI_TOPIC)
     await message.answer(
-        Messages.get("AI_ENTER_TOPIC", lang),
-        reply_markup=get_cancel_keyboard(lang)
+        Messages.get("AI_ENTER_TOPIC", lang).format(credits=credits_text),
+        reply_markup=get_cancel_keyboard(lang),
+        parse_mode="HTML"
     )
 
 @router.message(QuizStates.WAITING_FOR_AI_TOPIC, F.text)
@@ -314,10 +320,16 @@ async def cmd_convert_test(message: types.Message, state: FSMContext, redis, lan
         await message.answer(Messages.get("AI_NO_API_KEY", lang))
         return
     
-    await state.set_state(QuizStates.WAITING_FOR_CONVERT_FILE)
+    # Get credit info
+    credits_count = await redis.get(f"ai_credits:conv:{telegram_id}")
+    credits_count = int(credits_count) if credits_count else 0
+    credits_text = Messages.get("AI_CREDITS_INFO", lang).format(count=credits_count)
+    
+    await state.set_state(QuizStates.WAITING_FOR_FILE)
     await message.answer(
-        Messages.get("CONVERT_ENTER_FILE", lang),
-        reply_markup=get_cancel_keyboard(lang)
+        f"{credits_text}\n\n{Messages.get('CONVERT_INFO', lang)}",
+        reply_markup=get_cancel_keyboard(lang),
+        parse_mode="HTML"
     )
 
 @router.message(QuizStates.WAITING_FOR_CONVERT_FILE, F.document)
