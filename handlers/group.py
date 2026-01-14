@@ -453,10 +453,13 @@ async def send_group_question(bot: Bot, chat_id: int, quiz_state: dict, redis, l
         return
     
     q = questions[current_index]
-    
+    question_text = f"{current_index+1}/{len(questions)}. {q['question']}"
+    if len(question_text) > 300:
+        question_text = question_text[:297] + "..."
+
     poll_message = await bot.send_poll(
         chat_id=chat_id,
-        question=q['question'][:300],
+        question=question_text,
         options=q['options'][:10],
         type='quiz',
         correct_option_id=q['correct_option_id'],

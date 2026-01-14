@@ -93,9 +93,10 @@ async def process_contact(message: types.Message, user_service: UserService, sta
     pending_payload = state_data.get("pending_start")
     if pending_payload:
         # Resume cmd_start with the payload
-        message.text = f"/start {pending_payload}"
+        new_text = f"/start {pending_payload}"
+        new_message = message.model_copy(update={"text": new_text})
         await state.clear()
-        return await cmd_start(message, user_service, state, **data)
+        return await cmd_start(new_message, user_service, state, **data)
 
 @router.message(Command("help"), F.chat.type == "private")
 @router.message(F.text.in_([Messages.get("HELP_BTN", "UZ"), Messages.get("HELP_BTN", "EN")]))

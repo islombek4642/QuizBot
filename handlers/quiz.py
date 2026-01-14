@@ -281,8 +281,12 @@ async def send_next_question(message: types.Message, session: Any, session_servi
         return
 
     q = questions[idx]
+    question_text = f"{idx+1}/{session.total_questions}. {q['question']}"
+    if len(question_text) > 300:
+        question_text = question_text[:297] + "..."
+
     poll_msg = await message.answer_poll(
-        question=f"{idx+1}/{session.total_questions}. {q['question']}",
+        question=question_text,
         options=q['options'],
         is_anonymous=False,
         type='quiz',
