@@ -1,9 +1,11 @@
+from typing import Any
 from aiogram import Router, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import CommandStart, Command
 from constants.messages import Messages
 from handlers.common import get_main_keyboard, enable_user_menu, get_contact_keyboard
 from services.user_service import UserService
+from services.quiz_service import QuizService
 from core.logger import logger
 
 router = Router()
