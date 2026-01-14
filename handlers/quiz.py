@@ -153,9 +153,12 @@ async def handle_ai_topic(message: types.Message, state: FSMContext, lang: str, 
             )
             return
         
+        # Limit to exactly AI_QUIZ_COUNT questions
+        questions = questions[:settings.AI_QUIZ_COUNT]
+        
         # Generate Word file
-        temp_title = f"AI Quiz - {topic[:30]}"
-        docx_bytes = generate_docx_from_questions(questions, temp_title)
+        quiz_title = topic  # Use topic as title directly
+        docx_bytes = generate_docx_from_questions(questions, quiz_title)
         
         # Send Word file to user
         docx_file = BufferedInputFile(
@@ -164,18 +167,24 @@ async def handle_ai_topic(message: types.Message, state: FSMContext, lang: str, 
         )
         await message.answer_document(
             docx_file,
-            caption=f"📄 {temp_title}"
+            caption=f"📄 {quiz_title}"
         )
         
-        # Store questions in state and move to title input
-        await state.update_data(questions=questions, ai_topic=topic)
-        await state.set_state(QuizStates.WAITING_FOR_TITLE)
+        # Auto-save quiz with topic as title (skip title input step)
+        from services.quiz_service import QuizService
+        # Get quiz_service from middleware - we need to get it differently
+        # Since we don't have it injected, we'll store in state and let user confirm with shuffle
+        await state.update_data(questions=questions, title=quiz_title)
+        await state.set_state(QuizStates.WAITING_FOR_SHUFFLE)
         
         await generating_msg.delete()
         await message.answer(
             Messages.get("AI_GENERATION_SUCCESS", lang).format(count=len(questions)),
-            parse_mode="HTML",
-            reply_markup=get_cancel_keyboard(lang)
+            parse_mode="HTML"
+        )
+        await message.answer(
+            Messages.get("ASK_SHUFFLE", lang),
+            reply_markup=get_shuffle_keyboard(lang)
         )
         
     except Exception as e:
