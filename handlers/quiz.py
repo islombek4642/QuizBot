@@ -65,16 +65,6 @@ class IsPrivatePoll(BaseFilter):
                 pass
             return False
 
-# DEBUG HANDLER: Log ALL poll answers that reach this router
-@router.poll_answer()
-async def debug_poll_answer_logger(poll_answer: types.PollAnswer, redis):
-    key = f"quizbot:poll:{poll_answer.poll_id}"
-    exists = await redis.exists(key)
-    logger.info("DEBUG: GLOBAL POLL ANSWER RECEIVED IN QUIZ ROUTER", 
-                poll_id=poll_answer.poll_id, 
-                mapping_exists=exists,
-                user_id=poll_answer.user.id if poll_answer.user else "N/A")
-    # We DON'T return anything here so other handlers can process it
 
 @router.message(F.text.in_([Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN"), Messages.get("BACK_BTN", "UZ"), Messages.get("BACK_BTN", "EN")]))
 async def cmd_cancel(message: types.Message, state: FSMContext, user_service: UserService):
