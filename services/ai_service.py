@@ -75,14 +75,17 @@ correct_option_id should always be 0 (first option is the correct answer). Quest
 
         async with httpx.AsyncClient(timeout=180.0) as client:
             current_count = 0
-            while current_count < count:
+            attempts_without_progress = 0
+            max_attempts = 10 # Allow up to 10 batches with 0 questions before giving up
+            
+            while current_count < count and attempts_without_progress < max_attempts:
                 remaining = count - current_count
                 to_generate = min(batch_size, remaining)
                 
                 if lang == "UZ":
-                    user_prompt = f"Mavzu: {topic}\nSoni: {to_generate} ta yangi (takrorlanmagan) savol yarating."
+                    user_prompt = f"Mavzu: {topic}\nSoni: {to_generate} ta yangi (takrorlanmagan) test savoli yarating."
                 else:
-                    user_prompt = f"Topic: {topic}\nGenerate {to_generate} new (unique) questions."
+                    user_prompt = f"Topic: {topic}\nGenerate {to_generate} new (unique) quiz questions."
                 
                 try:
                     response = await client.post(
@@ -107,24 +110,40 @@ correct_option_id should always be 0 (first option is the correct answer). Quest
                     
                     if response.status_code != 200:
                         logger.error("Groq API error", status=response.status_code, error=response.text)
-                        if all_questions: break # Return what we have
+                        if all_questions: break 
                         return [], f"API error: {response.status_code}"
                     
                     data = response.json()
                     content = data["choices"][0]["message"]["content"]
                     
                     # Parse JSON
-                    batch_raw = json.loads(content)
-                    batch_questions = batch_raw.get("questions", [])
+                    try:
+                        batch_raw = json.loads(content)
+                        batch_questions = batch_raw.get("questions", [])
+                    except Exception as je:
+                        logger.error("JSON parse failed in batch", error=str(je), content=content[:500])
+                        attempts_without_progress += 1
+                        continue
                     
                     # Validate and fix
                     validated = self._validate_questions(batch_questions)
-                    all_questions.extend(validated)
-                    current_count = len(all_questions)
                     
-                    # Report progress
-                    if on_progress:
-                        await on_progress(min(current_count, count), count)
+                    if not validated:
+                        logger.warning("Batch returned 0 valid questions", content=content[:500])
+                        attempts_without_progress += 1
+                        continue
+                        
+                    all_questions.extend(validated)
+                    
+                    # Check if we actually made progress
+                    if len(all_questions) > current_count:
+                        current_count = len(all_questions)
+                        attempts_without_progress = 0
+                        # Report progress
+                        if on_progress:
+                            await on_progress(min(current_count, count), count)
+                    else:
+                        attempts_without_progress += 1
                         
                     # Slow down slightly to avoid extreme rate limits
                     if count > 50:
@@ -134,6 +153,11 @@ correct_option_id should always be 0 (first option is the correct answer). Quest
                     logger.exception(f"Batch generation error: {e}")
                     if all_questions: break
                     return [], f"Generation error: {str(e)}"
+        
+        if attempts_without_progress >= max_attempts:
+            logger.error("AI generation stopped due to lack of progress", topic=topic, generated=len(all_questions))
+            if not all_questions:
+                return [], "AI failed to generate valid questions after multiple attempts"
 
         if not all_questions:
             return [], "Failed to generate any questions"
