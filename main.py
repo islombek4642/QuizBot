@@ -39,11 +39,11 @@ async def main():
     dp.message.middleware(AuthMiddleware())
 
     # Include routers
-    dp.include_router(quiz.router)  # Prioritize private quiz handlers
-    dp.include_router(group.router)  # Group router next
     dp.include_router(admin.router)
     dp.include_router(start.router)
     dp.include_router(settings_handlers.router)
+    dp.include_router(group.router)
+    dp.include_router(quiz.router)  # Move to last to avoid blocking other routers with catch-all text handler
 
     # Set bot commands
     try:
