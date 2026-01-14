@@ -111,6 +111,14 @@ async def check_ai_limit(user_id: int, limit_type: str, redis, lang: str):
     return True, ""
 
 async def set_ai_limit(user_id: int, limit_type: str, redis):
+    # Check for credits first
+    credit_key = f"ai_credits:{limit_type}:{user_id}"
+    credits = await redis.get(credit_key)
+    if credits and int(credits) > 0:
+        await redis.decr(credit_key)
+        return
+
+    # No credits, set time limit
     setting_key = f"global_settings:ai_{limit_type}_limit"
     limit_hours = await redis.get(setting_key)
     
