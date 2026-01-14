@@ -619,11 +619,11 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
             leaderboard += f"{rank_str} <a href='tg://user?id={uid}'>{name}</a> – <b>{stats['correct']}</b>/{stats['answered']} ({total_time_str})\n"
         
         # Summary footer
-        total_questions = len(quiz_state.get("questions", []))
+        answered_count = quiz_state.get("current_index", 0)
         
         summary = Messages.get("GROUP_QUIZ_SUMMARY", lang).format(
             count=len(participants),
-            total_questions=total_questions
+            answered_count=answered_count
         )
         await bot.send_message(chat_id, leaderboard + summary, parse_mode="HTML")
     
@@ -805,11 +805,11 @@ async def cmd_group_quiz_stats(message: types.Message, user_service: UserService
         leaderboard += f"{rank_str} <a href='tg://user?id={uid}'>{name}</a> – <b>{stats['correct']}</b>/{stats['answered']} ({total_time_str})\n"
         
     # Summary footer
-    total_questions = len(quiz_state.get("questions", []))
+    answered_count = quiz_state.get("current_index", 0)
     
     summary = Messages.get("GROUP_QUIZ_SUMMARY", lang).format(
         count=len(participants),
-        total_questions=total_questions
+        answered_count=answered_count
     )
         
     await message.answer(leaderboard + summary, parse_mode="HTML", reply_markup=types.ReplyKeyboardRemove())
