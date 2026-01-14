@@ -332,9 +332,9 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
     try:
         # Get mapping
         logger.info("Processing private poll answer START", poll_id=poll_answer.poll_id, user_id=poll_answer.user.id if poll_answer.user else "N/A")
-        mapping_raw = await redis.get(f"quizbot:poll:{poll_answer.poll.id}")
+        mapping_raw = await redis.get(f"quizbot:poll:{poll_answer.poll_id}")
         if not mapping_raw:
-            logger.warning("Private poll answer ignored: mapping disappeared in handler", poll_id=poll_answer.poll.id)
+            logger.warning("Private poll answer ignored: mapping disappeared in handler", poll_id=poll_answer.poll_id)
             return
             
         try:
