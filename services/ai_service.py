@@ -137,27 +137,27 @@ correct_option_id should always be 0 (first option is the correct answer)."""
         if not self.api_key:
             return [], "GROQ_API_KEY is not configured"
 
-        # Smaller chunk size ensures we don't exceed output token limits for complex text
-        # Approx 10,000 chars per chunk
-        chunk_size = 10000 
+        # Reduced chunk size to ensure AI output fits within token limits (e.g. 4096 tokens)
+        # 4,000 characters of input text usually contains 20-25 questions.
+        chunk_size = 4000 
         chunks = [raw_text[i:i + chunk_size] for i in range(0, len(raw_text), chunk_size)]
         
         all_questions = []
         
-        system_prompt = """You are a professional test converter. Your task is to extract quiz questions from RAW TEXT and convert them to JSON format.
+        system_prompt = """You are a professional test converter. Convert provided RAW TEXT to a JSON array of quiz questions.
 
-RULES:
-1. Identify each question and its options.
-2. Each question MUST have EXACTLY 4 options (1 correct, 3 incorrect).
-3. Question text max 280 chars.
-4. Option text max 95 chars.
-5. If the correct answer is marked, use it. If not, determine it.
-6. Language: {lang_full}
+FORMAT RULES:
+1. Each question MUST have EXACTLY 4 options.
+2. Index 0 of 'options' MUST be the correct answer.
+3. 'correct_option_id' MUST always be 0.
+4. Question: max 280 chars. 
+5. Option: max 95 chars.
+6. Language: {lang_full}.
 
-Return ONLY a valid JSON array of objects. No additional text, no explanations.
+JSON SCHEMA:
 [
   {{
-    "question": "Question text...",
+    "question": "...",
     "options": ["Correct", "Wrong 1", "Wrong 2", "Wrong 3"],
     "correct_option_id": 0
   }}
@@ -168,7 +168,7 @@ Return ONLY a valid JSON array of objects. No additional text, no explanations.
 
         async with httpx.AsyncClient(timeout=180.0) as client:
             for i, chunk in enumerate(chunks):
-                logger.info(f"Processing chunk {i+1}/{len(chunks)} for conversion")
+                logger.info(f"Processing chunk {i+1}/{len(chunks)} ({len(chunk)} chars)")
                 
                 try:
                     response = await client.post(
@@ -181,10 +181,10 @@ Return ONLY a valid JSON array of objects. No additional text, no explanations.
                             "model": self.model,
                             "messages": [
                                 {"role": "system", "content": system_prompt},
-                                {"role": "user", "content": f"Convert this text to quiz questions JSON:\n\n{chunk}"}
+                                {"role": "user", "content": f"Convert to JSON:\n\n{chunk}"}
                             ],
-                            "temperature": 0.1, # Even lower for stricter format
-                            "max_tokens": 8000 # Increased limit
+                            "temperature": 0.1,
+                            "max_tokens": 4096 # Higher values might be ignored by server, 4096 is safer
                         }
                     )
                     
