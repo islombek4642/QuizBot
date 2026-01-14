@@ -135,6 +135,26 @@ async def check_and_deliver_broadcast(bot: Bot, user_id: int, redis):
     except Exception as e:
         logger.error(f"Error delivering last broadcast to {user_id}: {e}")
 
+@router.message(F.text.in_([Messages.get("SHARE_BOT_BTN", "UZ"), Messages.get("SHARE_BOT_BTN", "EN")]))
+async def cmd_share_bot(message: types.Message, bot: Bot, lang: str):
+    """Handle Share Bot button - send a nice ad/promo message"""
+    me = await bot.get_me()
+    promo_text = Messages.get("BOT_PROMO_TEXT", lang).format(username=me.username)
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    # switch_inline_query with empty string allows sharing the bot with friends easily
+    builder.button(
+        text=Messages.get("INVITE_FRIENDS_BTN", lang),
+        switch_inline_query=""
+    )
+    
+    await message.answer(
+        promo_text,
+        parse_mode="HTML",
+        reply_markup=builder.as_markup()
+    )
+
 @router.message(Command("help"))
 @router.message(F.text.in_([Messages.get("HELP_BTN", "UZ"), Messages.get("HELP_BTN", "EN")]))
 async def cmd_help(message: types.Message, user_service: UserService):

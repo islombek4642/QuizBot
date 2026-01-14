@@ -129,6 +129,9 @@ class Messages:
             "NEXT_BTN": "Keyingi ➡️",
             "FILE_DOWNLOAD_ERROR": "❌ Faylni yuklab bo'lmadi yoki u bo'sh. Qaytadan urinib ko'ring.",
             "CREATE_QUIZ_BTN": "➕ Test yaratish",
+            "SHARE_BOT_BTN": "📢 Botni ulashish",
+            "INVITE_FRIENDS_BTN": "👥 Do'stlarni taklif qilish",
+            "BOT_PROMO_TEXT": "🚀 <b>QuizBot — Bilimingizni sinab ko'ring!</b>\n\nBu bot orqali:\n✅ Tayyor Word/PDF testlarni Telegramga o'tkazish\n🤖 AI yordamida har qanday mavzuda test yaratish\n👥 Guruhlarda testlar o'tkazish mumkin.\n\nHoziroq sinab ko'ring: @{username}",
         },
         "EN": {
             "WELCOME": "Hello! Welcome to QuizBot.\n\nSend me a .docx file with tests, and I'll convert it into Telegram polls.",
@@ -262,6 +265,9 @@ class Messages:
             "ADMIN_GROUPS_BTN": "🏘 Groups",
             "ADMIN_STATS_BTN": "📊 Statistics",
             "CREATE_QUIZ_BTN": "➕ Create Quiz",
+            "SHARE_BOT_BTN": "📢 Share Bot",
+            "INVITE_FRIENDS_BTN": "👥 Invite Friends",
+            "BOT_PROMO_TEXT": "🚀 <b>QuizBot — Test Your Knowledge!</b>\n\nWith this bot, you can:\n✅ Convert Word/PDF tests to Telegram polls\n🤖 Generate tests on any topic using AI\n👥 Run interactive quizzes in groups.\n\nTry it now: @{username}",
         }
     }
 
