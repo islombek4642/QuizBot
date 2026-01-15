@@ -4,7 +4,9 @@ import asyncio
 import subprocess
 import tempfile
 import os
+import base64
 from typing import List, Dict, Optional, Tuple, Callable, Awaitable
+from io import BytesIO
 from core.config import settings
 from core.logger import logger
 import fitz  # PyMuPDF
@@ -419,8 +421,8 @@ def generate_docx_from_questions(questions: List[Dict], title: str) -> bytes:
     return buffer.getvalue()
 
 
-def extract_text_from_pdf(pdf_bytes: bytes) -> str:
-    """Extract text from PDF using PyMuPDF."""
+def extract_text_from_pdf(pdf_bytes: bytes, on_progress: Optional[Callable] = None) -> str:
+    """Extract text from PDF using PyMuPDF with Vision OCR fallback."""
     # Check signature: %PDF-
     if not pdf_bytes.startswith(b'%PDF-'):
         logger.error("Invalid PDF signature")
@@ -431,15 +433,97 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
         with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
             page_count = len(doc)
             logger.info("PDF opened", pages=page_count, size=len(pdf_bytes))
-            for i, page in enumerate(doc):
-                page_text = page.get_text()
-                text += page_text
             
-            if not text.strip():
-                logger.warning("No text extracted from PDF, might be scanned", pages=page_count)
+            # Try normal extraction first
+            for page in doc:
+                text += page.get_text()
+            
+            if not text.strip() and page_count > 0:
+                logger.warning("No text extracted from PDF, initiating Groq Vision OCR fallback", pages=page_count)
+                
+                # Use a specific event loop to run the async OCR if called from a thread
+                try:
+                    import asyncio
+                    new_loop = asyncio.new_event_loop()
+                    try:
+                        text = new_loop.run_until_complete(_extract_text_via_vision(doc, on_progress))
+                    finally:
+                        new_loop.close()
+                except Exception as e:
+                    logger.error("Failed to run OCR loop", error=str(e))
+                    
     except Exception as e:
         logger.error("PDF extraction failed", error=str(e))
     return text
+
+async def _extract_text_via_vision(doc: fitz.Document, on_progress: Optional[Callable] = None) -> str:
+    """Uses Groq Vision to perform OCR on PDF pages via httpx."""
+    full_text = ""
+    total_pages = len(doc)
+    
+    headers = {
+        "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        for i, page in enumerate(doc):
+            try:
+                if on_progress:
+                    # Inform the handler about OCR progress
+                    # In ai_service.py, we'll try to await it if it's a coro
+                    if asyncio.iscoroutinefunction(on_progress):
+                        await on_progress(i + 1, total_pages)
+                
+                # Render page to image (JPEG)
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) # 2x zoom
+                img_bytes = pix.tobytes("jpeg")
+                base64_image = base64.b64encode(img_bytes).decode('utf-8')
+                
+                payload = {
+                    "model": settings.GROQ_VISION_MODEL,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": "Extract all text from this image as plain text. Do not add any comments or explanations. Just the text content."},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}",
+                                    },
+                                },
+                            ],
+                        }
+                    ],
+                    "temperature": 0.1,
+                }
+                
+                response = await client.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers=headers,
+                    json=payload
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    page_text = data["choices"][0]["message"]["content"]
+                    full_text += page_text + "\n\n"
+                    logger.debug("Page OCR success", page=i+1)
+                else:
+                    logger.error("Groq Vision API error", status=response.status_code, body=response.text)
+                
+                # Cooldown to avoid hitting rate limits too fast
+                await asyncio.sleep(0.5)
+                
+            except Exception as e:
+                logger.error(f"OCR failed for page {i+1}", error=str(e))
+                continue
+            
+    return full_text
+    return full_text
+
+
 
 
 def extract_text_from_docx(docx_bytes: bytes) -> str:

@@ -366,7 +366,15 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
         # Extract text
         raw_text = ""
         if file_ext == "pdf":
-            raw_text = extract_text_from_pdf(file_bytes)
+            async def on_ocr_progress(current, total):
+                try:
+                    progress_text = Messages.get("CONVERT_PROCESSING", lang)
+                    progress_text += f"\n\n🔍 <b>OCR (Skaner):</b> {current}/{total} sahifa o'qildi..."
+                    await processing_msg.edit_text(progress_text, parse_mode="HTML")
+                except:
+                    pass
+            
+            raw_text = await asyncio.to_thread(extract_text_from_pdf, file_bytes, on_ocr_progress)
         elif file_ext == "doc":
             raw_text = extract_text_from_doc(file_bytes)
         else:
