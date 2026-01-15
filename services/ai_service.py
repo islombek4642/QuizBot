@@ -378,6 +378,18 @@ JSON SCHEMA:
         return validated
 
 
+def _clean_xml_string(s: str) -> str:
+    """Remove control characters and other strings that are not XML compatible."""
+    if not s:
+        return ""
+    # Remove NULL bytes and other invalid XML control characters
+    # Valid XML characters: #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
+    import re
+    # This regex matches characters NOT in the valid XML set
+    illegal_xml_re = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1F\uD800-\uDFFF\uFFFE\uFFFF]')
+    return illegal_xml_re.sub('', s)
+
+
 def generate_docx_from_questions(questions: List[Dict], title: str) -> bytes:
     """
     Generate a .docx file from questions in our format.
@@ -396,20 +408,21 @@ def generate_docx_from_questions(questions: List[Dict], title: str) -> bytes:
     doc = Document()
     
     # Add title
-    title_para = doc.add_heading(title, 0)
+    doc.add_heading(_clean_xml_string(title), 0)
     
     # Add each question in our format
     for i, q in enumerate(questions, 1):
         # Add question
-        doc.add_paragraph(f"?{q['question']}")
+        doc.add_paragraph(f"?{_clean_xml_string(q['question'])}")
         
         # Add options
         correct_id = q['correct_option_id']
         for j, opt in enumerate(q['options']):
+            cleaned_opt = _clean_xml_string(opt)
             if j == correct_id:
-                doc.add_paragraph(f"+{opt}")
+                doc.add_paragraph(f"+{cleaned_opt}")
             else:
-                doc.add_paragraph(f"={opt}")
+                doc.add_paragraph(f"={cleaned_opt}")
         
         # Add empty line between questions
         doc.add_paragraph()
