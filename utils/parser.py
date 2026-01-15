@@ -31,6 +31,9 @@ def parse_doc_to_json(file_path: str, lang: str = "UZ") -> Tuple[List[Dict], Lis
             errors='ignore'
         )
         if process.returncode != 0:
+            if "is not a Word Document" in process.stderr:
+                logger.info("Antiword failed in parser, trying docx fallback", path=file_path)
+                return parse_docx_to_json(file_path, lang)
             raise Exception(process.stderr)
             
         lines = process.stdout.splitlines()

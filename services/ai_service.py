@@ -482,6 +482,13 @@ def extract_text_from_doc(doc_bytes: bytes) -> str:
         if process.returncode == 0:
             text = process.stdout
         else:
+            # Fallback: if it's not a legacy Word doc, maybe it's a renamed .docx?
+            if "is not a Word Document" in process.stderr:
+                logger.info("Antiword failed, trying docx fallback", user_id=None)
+                try:
+                    return extract_text_from_docx(doc_bytes)
+                except:
+                    pass
             logger.error("Antiword failed", stderr=process.stderr)
     except Exception as e:
         logger.error("DOC extraction failed", error=str(e))
