@@ -59,8 +59,8 @@ async def handle_payload(payload: str, message: types.Message, user_service: Use
     telegram_id = message.from_user.id
 
     if payload == "create":
-        from handlers.quiz import cmd_create_quiz
-        return await cmd_create_quiz(message, state, user_service, lang, None) # user object will be picked up from data if needed
+        from handlers.quiz import cmd_upload_word
+        return await cmd_upload_word(message, state, lang, user)
     elif payload.startswith("ref_"):
         # Referral logic
         try:
