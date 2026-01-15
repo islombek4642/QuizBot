@@ -67,7 +67,7 @@ class AuthMiddleware(BaseMiddleware):
         telegram_id = event.from_user.id
         
         # Always fetch/create user to get language and check phone
-        user = await user_service.get_or_create_user(telegram_id)
+        user, is_new = await user_service.get_or_create_user(telegram_id)
         
         # Auto-update username and full_name if changed
         tg_user = event.from_user

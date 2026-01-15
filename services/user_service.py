@@ -7,21 +7,23 @@ class UserService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_or_create_user(self, telegram_id: int, **kwargs) -> User:
+    async def get_or_create_user(self, telegram_id: int, **kwargs) -> tuple[User, bool]:
         result = await self.db.execute(select(User).filter(User.telegram_id == telegram_id))
         user = result.scalar_one_or_none()
+        is_new = False
         
         if not user:
             user = User(telegram_id=telegram_id, **kwargs)
             self.db.add(user)
             await self.db.commit()
             await self.db.refresh(user)
+            is_new = True
             logger.info("New user created", telegram_id=telegram_id)
         
-        return user
+        return user, is_new
 
     async def update_user(self, telegram_id: int, **kwargs):
-        user = await self.get_or_create_user(telegram_id)
+        user, _ = await self.get_or_create_user(telegram_id)
         for key, value in kwargs.items():
             if hasattr(user, key):
                 setattr(user, key, value)
@@ -30,5 +32,5 @@ class UserService:
         return user
 
     async def get_language(self, telegram_id: int) -> str:
-        user = await self.get_or_create_user(telegram_id)
+        user, _ = await self.get_or_create_user(telegram_id)
         return user.language

@@ -169,10 +169,9 @@ async def cmd_ai_generate(message: types.Message, state: FSMContext, redis, lang
         )
         return
 
-    # Check if API key is configured
-    if not settings.GROQ_API_KEY:
-        await message.answer(Messages.get("AI_NO_API_KEY", lang))
-        return
+    # CONSUME credit/access immediately at the start of the flow
+    # This prevents double-run exploits and handles periodic access limits
+    await set_ai_limit(telegram_id, "gen", redis)
 
     await state.set_state(QuizStates.WAITING_FOR_AI_TOPIC)
     await message.answer(
@@ -303,9 +302,6 @@ async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, r
             parse_mode="HTML"
         )
         
-        # Set AI Limit after success
-        await set_ai_limit(telegram_id, "gen", redis)
-        
         # Increment global stats
         await redis.incr("stats:ai_gen_total")
         
@@ -348,11 +344,8 @@ async def cmd_convert_test(message: types.Message, state: FSMContext, redis, lan
         )
         return
     
-    # Check if API key is configured
-    if not settings.GROQ_API_KEY:
-        await message.answer(Messages.get("AI_NO_API_KEY", lang))
-        return
-    
+    # CONSUME credit/access immediately at the start of the flow
+    await set_ai_limit(telegram_id, "conv", redis)
     
     await state.set_state(QuizStates.WAITING_FOR_CONVERT_FILE)
     await message.answer(
@@ -458,9 +451,6 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
             parse_mode="HTML"
         )
         
-        # Set AI conversion limit after success
-        await set_ai_limit(telegram_id, "conv", redis)
-
         # Increment global stats
         await redis.incr("stats:ai_conv_total")
         
