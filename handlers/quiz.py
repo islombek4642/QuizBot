@@ -36,7 +36,9 @@ from services.ai_service import (
     extract_text_from_docx
 )
 from core.config import settings
+from core.config import settings
 from core.logger import logger
+from services.task_manager import task_manager
 
 router = Router()
 # Global filter removed - causes conflicts with other routers
@@ -77,6 +79,7 @@ class IsPrivatePoll(BaseFilter):
 async def cmd_cancel(message: types.Message, state: FSMContext, lang: str):
     telegram_id = message.from_user.id
     await state.clear()
+    task_manager.cancel_task(telegram_id)
     await message.answer(
         Messages.get("SELECT_BUTTON", lang),
         reply_markup=get_main_keyboard(lang, telegram_id)
@@ -680,13 +683,18 @@ async def send_next_question(bot: Bot, chat_id: int, session: Any, session_servi
     logger.info("Private poll sent and mapped", user_id=session.user_id, poll_id=poll_msg.poll.id, index=idx, redis_key=key, redis_success=success)
 
     # Set failsafe task to advance if no answer is received
-    asyncio.create_task(_failsafe_advance_private_quiz(bot, chat_id, session.id, idx, session_service.redis, lang))
+    failsafe_task = asyncio.create_task(_failsafe_advance_private_quiz(bot, chat_id, session.id, idx, session_service.redis, lang))
+    task_manager.register_task(chat_id, failsafe_task)
 
 async def _failsafe_advance_private_quiz(bot: Bot, chat_id: int, session_id: int, question_index: int, 
                                         redis, lang: str):
     """Wait for poll duration + buffer, then force advance if not already done (Private Quiz)"""
-    # Wait for duration + a small buffer
-    await asyncio.sleep(settings.POLL_DURATION_SECONDS + 2)
+    try:
+        # Wait for duration + a small buffer
+        await asyncio.sleep(settings.POLL_DURATION_SECONDS + 2)
+    except asyncio.CancelledError:
+        logger.debug("Failsafe task cancelled", user_id=chat_id)
+        return
     
     from db.session import AsyncSessionLocal
     from services.session_service import SessionService
@@ -788,6 +796,9 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
             logger.warning("Private poll answer ignored: INDEX MISMATCH", 
                            user_id=session.user_id, current=session.current_index, mapped=mapped_index)
             return
+
+        # CANCEL FAILSAFE TASK IMMEDIATELY
+        task_manager.cancel_task(session.user_id)
 
         logger.info("Private poll answer logic proceeding", user_id=session.user_id, session_id=session.id, index=session.current_index)
 
@@ -949,6 +960,9 @@ async def cmd_stop_quiz(message: types.Message, session_service: SessionService,
     session = await session_service.get_active_session(telegram_id)
     
     if session:
+        # Cancel failsafe task
+        task_manager.cancel_task(telegram_id)
+        
         # Stop active poll if exists
         last_poll_msg_id = session.session_data.get('last_poll_message_id')
         if last_poll_msg_id:
