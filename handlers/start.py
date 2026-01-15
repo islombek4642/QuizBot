@@ -75,8 +75,22 @@ async def handle_payload(payload: str, message: types.Message, user_service: Use
                 await message.answer(Messages.get("REFERRAL_SELF_ERROR", lang), parse_mode="HTML")
             
             elif referrer_id > 0 and redis:
-                if user:
-                    # User ALREADY exists in DB
+                import time
+                from datetime import datetime, timedelta
+                
+                # AuthMiddleware always creates the user, so check created_at to see if it's "New"
+                # If created within the last 60 seconds, treat as new
+                is_actually_new = (datetime.now() - user.created_at).total_seconds() < 60
+                
+                if is_actually_new:
+                    # User is NEW
+                    logger.info("New user referral check", telegram_id=telegram_id)
+                    ref_check_key = f"referral_processed:{telegram_id}"
+                    if not await redis.exists(ref_check_key):
+                        await redis.setex(ref_check_key, 86400 * 30, "1") # Keep for 30 days
+                        await handle_referral(referrer_id, message.bot, redis, user_service, user_full_name, is_new=True)
+                else:
+                    # User is EXISTING
                     logger.info("Existing user referral check", telegram_id=telegram_id)
                     ref_check_key = f"referral_notify:{telegram_id}:{referrer_id}" # Prevent spamming referrer
                     if not await redis.exists(ref_check_key):
@@ -84,13 +98,6 @@ async def handle_payload(payload: str, message: types.Message, user_service: Use
                         await handle_referral(referrer_id, message.bot, redis, user_service, user_full_name, is_new=False)
                     else:
                         logger.info("Referral debounce hit", telegram_id=telegram_id)
-                else:
-                    # User is NEW (not in DB)
-                    logger.info("New user referral check", telegram_id=telegram_id)
-                    ref_check_key = f"referral_processed:{telegram_id}"
-                    if not await redis.exists(ref_check_key):
-                        await redis.set(ref_check_key, "1")
-                        await handle_referral(referrer_id, message.bot, redis, user_service, user_full_name, is_new=True)
         except Exception as e:
             logger.error(f"Error handling referral: {e}")
             

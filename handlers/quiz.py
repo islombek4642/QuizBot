@@ -235,6 +235,16 @@ async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, r
 
     data = await state.get_data()
     topic = data.get("topic")
+
+    # Re-check limit just before generation to prevent exploits
+    allowed, time_rem, credits_count = await check_ai_limit(telegram_id, "gen", redis, lang)
+    if not allowed:
+        await message.answer(
+            Messages.get("AI_LIMIT_REACHED", lang).format(time=time_rem, credits=credits_count), 
+            parse_mode="HTML"
+        )
+        await state.clear()
+        return
     
     # Send generating message - removed ReplyKeyboardRemove to match conversion pattern
     generating_msg = await message.answer(
@@ -370,8 +380,17 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
         file_io = await bot.download(doc.file_id)
         file_bytes = file_io.read()
         
-        # Extract text
-        raw_text = ""
+        # Re-check limit just before conversion to prevent exploits
+        allowed, time_rem, credits_count = await check_ai_limit(telegram_id, "conv", redis, lang)
+        if not allowed:
+            await message.answer(
+                Messages.get("AI_LIMIT_REACHED", lang).format(time=time_rem, credits=credits_count), 
+                parse_mode="HTML"
+            )
+            await state.clear()
+            return
+
+        # Extract text from PDF first if it's a PDF
         if file_ext == "pdf":
             async def on_ocr_progress(current, total):
                 try:
