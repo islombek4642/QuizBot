@@ -92,16 +92,19 @@ async def check_ai_limit(user_id: int, limit_type: str, redis, lang: str):
     """
     Check if user is on cooldown for AI services.
     limit_type: 'gen' or 'conv'
-    Returns (allowed: bool, time_remaining: str)
+    Returns (allowed: bool, time_remaining: str, credits: int)
     """
-    if user_id == settings.ADMIN_ID:
-        return True, ""
-        
-    # Check for referral credits first
     credit_key = f"ai_credits:{limit_type}:{user_id}"
-    credits = await redis.get(credit_key)
-    if credits and int(credits) > 0:
-        return True, ""
+    credits_raw = await redis.get(credit_key)
+    
+    # Logic: If None, user has 1 initial credit. If 0 or more, use that.
+    credits = int(credits_raw) if credits_raw is not None else 1
+
+    if user_id == settings.ADMIN_ID:
+        return True, "", credits
+
+    if credits > 0:
+        return True, "", credits
         
     key = f"ai_limit:{limit_type}:{user_id}"
     ttl = await redis.ttl(key)
@@ -110,15 +113,22 @@ async def check_ai_limit(user_id: int, limit_type: str, redis, lang: str):
         hours = ttl // 3600
         minutes = (ttl % 3600) // 60
         time_str = f"{hours}h {minutes}m"
-        return False, time_str
+        return False, time_str, credits
         
-    return True, ""
+    return True, "", credits
 
 async def set_ai_limit(user_id: int, limit_type: str, redis):
     # Check for credits first
     credit_key = f"ai_credits:{limit_type}:{user_id}"
-    credits = await redis.get(credit_key)
-    if credits and int(credits) > 0:
+    credits_raw = await redis.get(credit_key)
+    
+    if credits_raw is None:
+        # First use (used their 1 free credit)
+        await redis.set(credit_key, "0")
+        return
+        
+    credits = int(credits_raw)
+    if credits > 0:
         await redis.decr(credit_key)
         return
 
@@ -151,9 +161,12 @@ async def cmd_ai_generate(message: types.Message, state: FSMContext, redis, lang
         return
     
     # Check AI Limit
-    allowed, time_rem = await check_ai_limit(telegram_id, "gen", redis, lang)
+    allowed, time_rem, credits_count = await check_ai_limit(telegram_id, "gen", redis, lang)
     if not allowed:
-        await message.answer(Messages.get("AI_LIMIT_REACHED", lang).format(time=time_rem), parse_mode="HTML")
+        await message.answer(
+            Messages.get("AI_LIMIT_REACHED", lang).format(time=time_rem, credits=credits_count), 
+            parse_mode="HTML"
+        )
         return
 
     # Check if API key is configured
@@ -161,14 +174,13 @@ async def cmd_ai_generate(message: types.Message, state: FSMContext, redis, lang
         await message.answer(Messages.get("AI_NO_API_KEY", lang))
         return
     
-    # Get credit info
-    credits_count = await redis.get(f"ai_credits:gen:{telegram_id}")
-    credits_count = int(credits_count) if credits_count else 0
-    credits_text = Messages.get("AI_CREDITS_INFO", lang).format(count=credits_count)
+    # Credits info removed from successful start per user request
+    # It will only show if they hit a limit now
+    credits_text = "" 
 
     await state.set_state(QuizStates.WAITING_FOR_AI_TOPIC)
     await message.answer(
-        Messages.get("AI_ENTER_TOPIC", lang).format(credits=credits_text),
+        Messages.get("AI_ENTER_TOPIC", lang).format(credits=credits_text).strip(),
         reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML"
     )
@@ -322,9 +334,12 @@ async def cmd_convert_test(message: types.Message, state: FSMContext, redis, lan
         return
     
     # Check AI Limit early
-    allowed, time_rem = await check_ai_limit(telegram_id, "conv", redis, lang)
+    allowed, time_rem, credits_count = await check_ai_limit(telegram_id, "conv", redis, lang)
     if not allowed:
-        await message.answer(Messages.get("AI_LIMIT_REACHED", lang).format(time=time_rem), parse_mode="HTML")
+        await message.answer(
+            Messages.get("AI_LIMIT_REACHED", lang).format(time=time_rem, credits=credits_count), 
+            parse_mode="HTML"
+        )
         return
     
     # Check if API key is configured
@@ -332,14 +347,13 @@ async def cmd_convert_test(message: types.Message, state: FSMContext, redis, lan
         await message.answer(Messages.get("AI_NO_API_KEY", lang))
         return
     
-    # Get credit info
-    credits_count = await redis.get(f"ai_credits:conv:{telegram_id}")
-    credits_count = int(credits_count) if credits_count else 0
-    credits_text = Messages.get("AI_CREDITS_INFO", lang).format(count=credits_count)
+    # Credits info removed from successful start per user request
+    credits_text = ""
     
     await state.set_state(QuizStates.WAITING_FOR_CONVERT_FILE)
     await message.answer(
-        f"{credits_text}\n\n{Messages.get('CONVERT_INFO', lang)}",
+    await message.answer(
+        f"{Messages.get('CONVERT_INFO', lang)}",
         reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML"
     )

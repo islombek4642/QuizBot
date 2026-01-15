@@ -136,9 +136,9 @@ class Messages:
             "REFERRAL_SUCCESS": "🎉 <b>Tabriklaymiz!</b>\n\nSizning havolangiz orqali <b>{name}</b> qo'shildi!\n\n🎁 <b>Mukofot:</b>\n✅ +1 ta AI Test yaratish imkoniyati\n✅ +1 ta AI Konvertatsiya imkoniyati\n🚀 Vaqt cheklovlari olib tashlandi!",
             "REFERRAL_EXISTING": "ℹ️ <b>Ma'lumot:</b>\n\n<b>{name}</b> havolangiz orqali kirdi, lekin u allaqachon ro'yxatdan o'tgan.",
             "REFERRAL_SELF_ERROR": "🚫 <b>Xatolik!</b>\n\nSiz o'zingizni taklif qila olmaysiz.",
-            "AI_LIMIT_REACHED": "⚠️ <b>Limitga yetdingiz!</b>\n\nSiz juda tez-tez foydalanyapsiz. Keyingi urinish: {time}\n\n💡 <b>Bonus:</b> Do'stingizni taklif qiling va darhol limitni o'chiring!\n\n👇 \"Botni ulashish\" tugmasini bosing:",
+            "AI_LIMIT_REACHED": "⚠️ <b>Limitga yetdingiz!</b>\n\nSiz juda tez-tez foydalanyapsiz. Keyingi urinish: {time}\n\n💳 <b>AI Kreditlar:</b> {credits} ta\n\n💡 <b>Bonus:</b> Do'stingizni taklif qiling va darhol limitni o'chiring!\n\n👇 \"Botni ulashish\" tugmasini bosing:",
             "AI_CREDITS_INFO": "💳 <b>AI Kreditlar:</b> {count} ta",
-            "AI_ENTER_TOPIC": "📝 <b>Test yaratish</b>\n\n{credits}\n\nMavzuni kiriting (masalan: 'Python asoslari'):",
+            "AI_ENTER_TOPIC": "📝 <b>Test yaratish</b>\n\nMavzuni kiriting (masalan: 'Python asoslari'):",
             "CONVERT_INFO": "📝 <b>Testni Konvertatsiya Qilish</b>\n\nWord (.docx) yoki PDF faylni yuboring, men uni Telegram formatiga o'tkazib beraman.",
         },
         "EN": {
@@ -280,9 +280,9 @@ class Messages:
             "REFERRAL_SUCCESS": "🎉 <b>Congratulations!</b>\n\n<b>{name}</b> joined via your link!\n\n🎁 <b>Reward:</b>\n✅ +1 AI Quiz Generation\n✅ +1 AI Test Conversion\n🚀 Cooldowns have been removed!",
             "REFERRAL_EXISTING": "ℹ️ <b>Info:</b>\n\n<b>{name}</b> clicked your link, but they are already registered.",
             "REFERRAL_SELF_ERROR": "🚫 <b>Error!</b>\n\nYou cannot refer yourself.",
-            "AI_LIMIT_REACHED": "⚠️ <b>Limit Reached!</b>\n\nYou are using AI too frequently. Next attempt in: {time}\n\n💡 <b>Bonus:</b> Invite a friend to remove limits immediately!\n\n👇 Click \"Share Bot\" below:",
+            "AI_LIMIT_REACHED": "⚠️ <b>Limit Reached!</b>\n\nYou are using AI too frequently. Next attempt in: {time}\n\n💳 <b>AI Credits:</b> {credits}\n\n💡 <b>Bonus:</b> Invite a friend to remove limits immediately!\n\n👇 Click \"Invite Friends\" below:",
             "AI_CREDITS_INFO": "💳 <b>AI Credits:</b> {count}",
-             "AI_ENTER_TOPIC": "📝 <b>Create Quiz</b>\n\n{credits}\n\nEnter a topic (e.g., 'Python Basics'):",
+             "AI_ENTER_TOPIC": "📝 <b>Create Quiz</b>\n\nEnter a topic (e.g., 'Python Basics'):",
              "CONVERT_INFO": "📝 <b>Convert Quiz</b>\n\nSend a Word (.docx) or PDF file, and I will convert it to Telegram format.",
         }
     }
