@@ -11,6 +11,7 @@ from core.logger import logger
 
 router = Router()
 # Only handle private chats - no keyboard buttons in groups
+# Secure referral and AI credit management
 router.message.filter(F.chat.type == "private")
 
 @router.message(CommandStart())
