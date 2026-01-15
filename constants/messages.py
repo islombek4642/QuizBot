@@ -140,6 +140,9 @@ class Messages:
             "AI_CREDITS_INFO": "💳 <b>AI Kreditlar:</b> {count} ta",
             "AI_ENTER_TOPIC": "📝 <b>Test yaratish</b>\n\nMavzuni kiriting (masalan: 'Python asoslari'):",
             "CONVERT_INFO": "📝 <b>Testni Konvertatsiya Qilish</b>\n\nWord (.docx) yoki PDF faylni yuboring, men uni Telegram formatiga o'tkazib beraman.",
+            "MAINTENANCE_WARNING": "⚠️ <b>Texnik ishlar</b>\n\nBot 1-2 daqiqa ichida qayta ishga tushadi.\n\n✅ Testingiz saqlanadi — qaytgach davom etasiz!",
+            "MAINTENANCE_SENT": "✅ {count} ta faol foydalanuvchiga xabar yuborildi.",
+            "ADMIN_MAINTENANCE_BTN": "⚠️ Maintenance (Aktiv sessiyalar)",
         },
         "EN": {
             "WELCOME": "Hello! Welcome to QuizBot.\n\nSend me a .docx file with tests, and I'll convert it into Telegram polls.",
@@ -284,6 +287,9 @@ class Messages:
             "AI_CREDITS_INFO": "💳 <b>AI Credits:</b> {count}",
              "AI_ENTER_TOPIC": "📝 <b>Create Quiz</b>\n\nEnter a topic (e.g., 'Python Basics'):",
              "CONVERT_INFO": "📝 <b>Convert Quiz</b>\n\nSend a Word (.docx) or PDF file, and I will convert it to Telegram format.",
+             "MAINTENANCE_WARNING": "⚠️ <b>Maintenance</b>\n\nBot will restart in 1-2 minutes.\n\n✅ Your quiz progress is saved!",
+             "MAINTENANCE_SENT": "✅ Notification sent to {count} active users.",
+             "ADMIN_MAINTENANCE_BTN": "⚠️ Maintenance (Active sessions)",
         }
     }
 
