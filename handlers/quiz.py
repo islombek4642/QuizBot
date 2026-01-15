@@ -336,7 +336,7 @@ async def cmd_convert_test(message: types.Message, state: FSMContext, redis, lan
     credits_count = int(credits_count) if credits_count else 0
     credits_text = Messages.get("AI_CREDITS_INFO", lang).format(count=credits_count)
     
-    await state.set_state(QuizStates.WAITING_FOR_FILE)
+    await state.set_state(QuizStates.WAITING_FOR_CONVERT_FILE)
     await message.answer(
         f"{credits_text}\n\n{Messages.get('CONVERT_INFO', lang)}",
         reply_markup=get_cancel_keyboard(lang),
