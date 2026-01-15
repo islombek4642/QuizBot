@@ -217,7 +217,8 @@ async def handle_referral(referrer_id: int, bot: Bot, redis, user_service: UserS
 async def cmd_share_bot(message: types.Message, bot: Bot, lang: str):
     """Handle Share Bot button - send a nice ad/promo message"""
     me = await bot.get_me()
-    promo_text = Messages.get("BOT_PROMO_TEXT", lang).format(username=me.username)
+    ref_link = f"https://t.me/{me.username}?start=ref_{message.from_user.id}"
+    promo_text = Messages.get("BOT_PROMO_TEXT", lang).format(username=me.username, link=ref_link)
     
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
