@@ -352,7 +352,6 @@ async def cmd_convert_test(message: types.Message, state: FSMContext, redis, lan
     
     await state.set_state(QuizStates.WAITING_FOR_CONVERT_FILE)
     await message.answer(
-    await message.answer(
         f"{Messages.get('CONVERT_INFO', lang)}",
         reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML"
