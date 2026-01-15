@@ -1101,15 +1101,15 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
     # Handle "share" query specifically
     if query.strip().lower().startswith("share"):
         me = await inline_query.bot.get_me()
-        promo_text = Messages.get("BOT_PROMO_TEXT", lang).format(username=me.username)
         
         # Create deep link with referrer ID
-        # This allows us to track referrals in /start
+        ref_link = f"https://t.me/{me.username}?start=ref_{inline_query.from_user.id}"
+        promo_text = Messages.get("BOT_PROMO_TEXT", lang).format(username=me.username, link=ref_link)
+        
         builder = InlineKeyboardBuilder()
-        # This allows us to track referrals in /start
         builder.button(
             text=Messages.get("START_BTN", lang), 
-            url=f"https://t.me/{me.username}?start=ref_{inline_query.from_user.id}"
+            url=ref_link
         )
         builder.adjust(1)
         
@@ -1136,7 +1136,9 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
     
     # Add Share Bot option at the top for empty queries too
     if not query:
-        promo_text = Messages.get("BOT_PROMO_TEXT", lang).format(username=bot_info.username)
+        # For top generic share, we use the user's ID if possible, or just bot link
+        ref_link = f"https://t.me/{bot_info.username}?start=ref_{telegram_id}"
+        promo_text = Messages.get("BOT_PROMO_TEXT", lang).format(username=bot_info.username, link=ref_link)
         share_builder = InlineKeyboardBuilder()
         # Use simple ref for generic top share, or dynamic if we want to track self-shares (but inline doesn't give sender ID easily here without extra context)
         # Better to keep it generic or use telegram_id from update
