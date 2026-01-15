@@ -3,6 +3,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 import json
+import time
+from typing import List, Any
 
 from core.config import settings
 from constants.messages import Messages
@@ -125,7 +127,6 @@ async def admin_groups_pagination(callback: types.CallbackQuery, redis, lang: st
 
 @router.message(F.text.in_([Messages.get("ADMIN_STATS_BTN", "UZ"), Messages.get("ADMIN_STATS_BTN", "EN")]))
 async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang: str):
-    import time
     # Users count
     res_users = await db.execute(select(func.count(User.id)))
     total_users = res_users.scalar()
@@ -334,7 +335,7 @@ async def admin_maintenance_notify(message: types.Message, bot: Bot, db: AsyncSe
     user_ids = result.scalars().all()
     
     if not user_ids:
-        await message.answer("ℹ️ Hozirda hech qanday faol quiz sessiyasi yo'q.")
+        await message.answer(Messages.get("MAINTENANCE_NO_SESSIONS", lang))
         return
 
     count = 0

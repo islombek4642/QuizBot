@@ -143,6 +143,7 @@ class Messages:
             "MAINTENANCE_WARNING": "⚠️ <b>Texnik ishlar</b>\n\nBot 1-2 daqiqa ichida qayta ishga tushadi.\n\n✅ Testingiz saqlanadi — qaytgach davom etasiz!",
             "MAINTENANCE_SENT": "✅ {count} ta faol foydalanuvchiga xabar yuborildi.",
             "ADMIN_MAINTENANCE_BTN": "⚠️ Maintenance (Aktiv sessiyalar)",
+            "MAINTENANCE_NO_SESSIONS": "ℹ️ Hozirda hech qanday faol quiz sessiyasi yo'q.",
         },
         "EN": {
             "WELCOME": "Hello! Welcome to QuizBot.\n\nSend me a .docx file with tests, and I'll convert it into Telegram polls.",
@@ -290,6 +291,7 @@ class Messages:
              "MAINTENANCE_WARNING": "⚠️ <b>Maintenance</b>\n\nBot will restart in 1-2 minutes.\n\n✅ Your quiz progress is saved!",
              "MAINTENANCE_SENT": "✅ Notification sent to {count} active users.",
              "ADMIN_MAINTENANCE_BTN": "⚠️ Maintenance (Active sessions)",
+             "MAINTENANCE_NO_SESSIONS": "ℹ️ No active quiz sessions found at the moment.",
         }
     }
 
