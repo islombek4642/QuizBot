@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # AI Quiz Generation (Groq)
     GROQ_API_KEY: str = Field("", description="Groq API key for AI quiz generation")
     GROQ_MODEL: str = Field("llama-3.3-70b-versatile", description="Groq model to use")
-    GROQ_VISION_MODEL: str = Field("llama-3.2-11b-vision-preview", description="Groq vision model for OCR")
+    GROQ_VISION_MODEL: str = Field("meta-llama/llama-4-scout-17b-16e-instruct", description="Groq vision model for OCR")
     AI_QUIZ_COUNT: int = Field(30, description="Number of questions to generate")
     AI_GENERATION_COOLDOWN_HOURS: int = 6
     AI_CONVERSION_COOLDOWN_HOURS: int = 6
