@@ -374,7 +374,8 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
             
         if not raw_text.strip():
             await processing_msg.delete()
-            await message.answer(Messages.get("CONVERT_ERROR", lang).format(error="Could not extract text from file"))
+            error_msg = Messages.get("PDF_NOT_TEXT", lang) if file_ext == "pdf" else Messages.get("CONVERT_ERROR", lang).format(error="Dastur fayldan matn ajratib ololmadi.")
+            await message.answer(error_msg)
             return
             
         # AI Conversion (Batch processing is handled inside AIService)

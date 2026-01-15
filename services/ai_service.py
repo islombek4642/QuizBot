@@ -421,11 +421,22 @@ def generate_docx_from_questions(questions: List[Dict], title: str) -> bytes:
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     """Extract text from PDF using PyMuPDF."""
+    # Check signature: %PDF-
+    if not pdf_bytes.startswith(b'%PDF-'):
+        logger.error("Invalid PDF signature")
+        return ""
+
     text = ""
     try:
         with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
-            for page in doc:
-                text += page.get_text()
+            page_count = len(doc)
+            logger.info("PDF opened", pages=page_count, size=len(pdf_bytes))
+            for i, page in enumerate(doc):
+                page_text = page.get_text()
+                text += page_text
+            
+            if not text.strip():
+                logger.warning("No text extracted from PDF, might be scanned", pages=page_count)
     except Exception as e:
         logger.error("PDF extraction failed", error=str(e))
     return text
