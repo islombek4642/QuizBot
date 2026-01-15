@@ -173,7 +173,12 @@ async def check_and_deliver_broadcast(bot: Bot, user_id: int, redis, user=None):
                 message_id=broadcast["message_id"]
             )
     except Exception as e:
-        logger.error(f"Error delivering last broadcast to {user_id}: {e}")
+        if "message to copy not found" in str(e).lower():
+            # If the source message was deleted, remove it from Redis to stop future errors
+            await redis.delete("global_settings:last_broadcast")
+            logger.info("Outdated broadcast removed from Redis (message not found)")
+        else:
+            logger.error(f"Error delivering last broadcast to {user_id}: {e}")
 
 async def handle_referral(referrer_id: int, bot: Bot, redis, user_service: UserService, new_user_name: str, is_new: bool):
     """Process referral reward and notification"""
