@@ -122,17 +122,17 @@ async def set_ai_limit(user_id: int, limit_type: str, redis):
     credit_key = f"ai_credits:{limit_type}:{user_id}"
     credits_raw = await redis.get(credit_key)
     
+    # Logic: If None, they have 1 implicit credit.
     if credits_raw is None:
-        # First use (used their 1 free credit)
+        # Spending the 1 free credit, set to 0
         await redis.set(credit_key, "0")
-        return
-        
-    credits = int(credits_raw)
-    if credits > 0:
-        await redis.decr(credit_key)
-        return
+    else:
+        credits = int(credits_raw)
+        if credits > 0:
+            await redis.decr(credit_key)
 
-    # No credits, set time limit
+    # ALWAYS set time limit after any AI usage
+    # This ensures that when credits hit 0, they are already on cooldown
     setting_key = f"global_settings:ai_{limit_type}_limit"
     limit_hours = await redis.get(setting_key)
     

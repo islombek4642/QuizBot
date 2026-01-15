@@ -193,9 +193,14 @@ async def handle_referral(referrer_id: int, bot: Bot, redis, user_service: UserS
         referrer_lang = await user_service.get_language(referrer_id)
 
         if is_new:
-            # Increment credits
-            await redis.incr(f"ai_credits:gen:{referrer_id}")
-            await redis.incr(f"ai_credits:conv:{referrer_id}")
+            # Increment credits - account for implicit 1 credit for new users
+            for limit_type in ['gen', 'conv']:
+                key = f"ai_credits:{limit_type}:{referrer_id}"
+                if not await redis.exists(key):
+                    # They had 1 implicit credit, now they get 1 more = 2
+                    await redis.set(key, "2")
+                else:
+                    await redis.incr(key)
             
             # Remove cooldowns immediately
             await redis.delete(f"ai_limit:gen:{referrer_id}")
