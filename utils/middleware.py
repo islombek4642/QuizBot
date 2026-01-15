@@ -92,6 +92,8 @@ class AuthMiddleware(BaseMiddleware):
         # Skip auth checks for group chats
         if isinstance(event, types.Message) and event.chat.type in ("group", "supergroup"):
             return await handler(event, data)
+        if isinstance(event, types.CallbackQuery) and event.message and event.message.chat.type in ("group", "supergroup"):
+            return await handler(event, data)
 
         # Allow /start (and its variations) and contact sharing without phone check
         is_start_command = False
