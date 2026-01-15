@@ -1,6 +1,9 @@
 import json
 import httpx
 import asyncio
+import subprocess
+import tempfile
+import os
 from typing import List, Dict, Optional, Tuple, Callable, Awaitable
 from core.config import settings
 from core.logger import logger
@@ -233,6 +236,10 @@ JSON SCHEMA:
                 logger.info(f"Processing chunk {i+1}/{len(chunks)} ({len(chunk)} chars)")
                 
                 try:
+                    # Slow down AI to avoid rate limits when having many chunks
+                    if i > 0:
+                        await asyncio.sleep(1.5)
+
                     response = await client.post(
                         self.base_url,
                         headers={
@@ -449,4 +456,37 @@ def extract_text_from_docx(docx_bytes: bytes) -> str:
                     
     except Exception as e:
         logger.error("DOCX extraction failed", error=str(e))
+    return text
+
+
+def extract_text_from_doc(doc_bytes: bytes) -> str:
+    """Extract text from legacy .doc using antiword (Linux)."""
+    import subprocess
+    import tempfile
+    import os
+    
+    text = ""
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".doc") as tmp:
+        tmp.write(doc_bytes)
+        tmp_path = tmp.name
+
+    try:
+        # Run antiword command
+        process = subprocess.run(
+            ["antiword", tmp_path],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='ignore'
+        )
+        if process.returncode == 0:
+            text = process.stdout
+        else:
+            logger.error("Antiword failed", stderr=process.stderr)
+    except Exception as e:
+        logger.error("DOC extraction failed", error=str(e))
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+            
     return text

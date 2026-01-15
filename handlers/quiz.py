@@ -13,7 +13,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import BufferedInputFile
 
-from utils.parser import parse_docx_to_json, ParserError
+from utils.parser import parse_docx_to_json, parse_doc_to_json, ParserError
 from constants.messages import Messages
 from handlers.common import (
     get_main_keyboard, 
@@ -38,6 +38,7 @@ from services.ai_service import (
 from core.config import settings
 from core.config import settings
 from core.logger import logger
+from services.ai_service import AIService, extract_text_from_doc
 from services.task_manager import task_manager
 
 router = Router()
@@ -351,8 +352,8 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
     
     # Check file type
     file_ext = doc.file_name.split(".")[-1].lower() if doc.file_name else ""
-    if file_ext not in ["docx", "pdf"]:
-        await message.answer(Messages.get("ONLY_DOCX", lang) + " (or .pdf)")
+    if file_ext not in ["docx", "pdf", "doc"]:
+        await message.answer(Messages.get("ONLY_DOCX", lang) + " (or .pdf, .doc)")
         return
     
     processing_msg = await message.answer(Messages.get("CONVERT_PROCESSING", lang), parse_mode="HTML")
@@ -366,6 +367,8 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
         raw_text = ""
         if file_ext == "pdf":
             raw_text = extract_text_from_pdf(file_bytes)
+        elif file_ext == "doc":
+            raw_text = extract_text_from_doc(file_bytes)
         else:
             raw_text = extract_text_from_docx(file_bytes)
             
@@ -481,8 +484,8 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
     telegram_id = message.from_user.id
     
     document = message.document
-    if not document or not document.file_name or not document.file_name.endswith('.docx'):
-        await message.answer(Messages.get("ONLY_DOCX", lang))
+    if not document or not document.file_name or not (document.file_name.endswith('.docx') or document.file_name.endswith('.doc')):
+        await message.answer(Messages.get("ONLY_DOCX", lang) + " (or .doc)")
         return
 
     temp_dir = os.path.join(os.getcwd(), "temp")
@@ -490,7 +493,8 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
         os.makedirs(temp_dir)
 
     file_info = await bot.get_file(document.file_id)
-    local_path = os.path.join(temp_dir, f"{uuid.uuid4()}.docx")
+    file_ext = ".doc" if document.file_name.endswith('.doc') else ".docx"
+    local_path = os.path.join(temp_dir, f"{uuid.uuid4()}{file_ext}")
     
     await bot.download_file(file_info.file_path, local_path)
     
@@ -502,8 +506,10 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
 
     try:
         # Offload parsing to thread to avoid blocking loop
-        # Now returns tuple (questions, errors)
-        questions, errors = await asyncio.to_thread(parse_docx_to_json, local_path, lang)
+        if local_path.endswith('.doc'):
+            questions, errors = await asyncio.to_thread(parse_doc_to_json, local_path, lang)
+        else:
+            questions, errors = await asyncio.to_thread(parse_docx_to_json, local_path, lang)
         
         if not questions:
              # All failed

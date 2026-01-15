@@ -1,4 +1,7 @@
 import docx
+import subprocess
+import tempfile
+import os
 from typing import List, Dict, Optional, Tuple
 from core.logger import logger
 from constants.messages import Messages
@@ -8,23 +11,43 @@ class ParserError(Exception):
     pass
 
 def parse_docx_to_json(file_path: str, lang: str = "UZ") -> Tuple[List[Dict], List[str]]:
-    """
-    Parses a docx file.
-    Returns: (questions, errors)
-    """
+    """Parses a docx file."""
     try:
         doc = docx.Document(file_path)
+        lines = [para.text for para in doc.paragraphs]
+        return parse_lines_to_json(lines, lang)
     except Exception as e:
-        logger.error("Failed to open docx file", path=file_path, error=str(e))
+        logger.error("Failed to parse docx file", path=file_path, error=str(e))
         raise ParserError(Messages.get("PARSER_FILE_ERROR", lang).format(error=str(e)))
 
+def parse_doc_to_json(file_path: str, lang: str = "UZ") -> Tuple[List[Dict], List[str]]:
+    """Parses a legacy .doc file using antiword."""
+    try:
+        process = subprocess.run(
+            ["antiword", file_path],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='ignore'
+        )
+        if process.returncode != 0:
+            raise Exception(process.stderr)
+            
+        lines = process.stdout.splitlines()
+        return parse_lines_to_json(lines, lang)
+    except Exception as e:
+        logger.error("Failed to parse .doc file", path=file_path, error=str(e))
+        raise ParserError(Messages.get("PARSER_FILE_ERROR", lang).format(error=str(e)))
+
+def parse_lines_to_json(lines: List[str], lang: str = "UZ") -> Tuple[List[Dict], List[str]]:
+    """Shared logic to parse lines of text in quiz format."""
     questions = []
     errors = []
     current_question = None
     current_question_start_line = 0
 
-    for i, para in enumerate(doc.paragraphs, 1):
-        text = para.text.strip()
+    for i, text in enumerate(lines, 1):
+        text = text.strip()
         if not text:
             continue
 
@@ -47,21 +70,8 @@ def parse_docx_to_json(file_path: str, lang: str = "UZ") -> Tuple[List[Dict], Li
                 
             elif text.startswith('+'):
                 if not current_question:
-                    continue # Ignore orphan options
+                    continue
                     
-                if current_question['correct_option_id'] is not None:
-                     # Skip adding this option, report error?
-                     # Better to report error for the whole question later or now?
-                     # Let's add an error but keep parsing to see if we can salvage?
-                     # No, multiple correct answers break the logic. 
-                     # We will mark this question as broken.
-                     # However, easiest is to raise error, catch it in outer loop if we wrap the block...
-                     # But we are in a loop.
-                     # Let's accumulate error string pending validation.
-                     pass 
-
-                # We just add it, validate_question will check correct_option_id count/uniqueness
-                # Wait, current logic sets generic ID.
                 if current_question['correct_option_id'] is not None:
                      current_question['__error'] = Messages.get("PARSER_MULTIPLE_CORRECT", lang).format(line=i, start_line=current_question_start_line)
 
@@ -71,25 +81,16 @@ def parse_docx_to_json(file_path: str, lang: str = "UZ") -> Tuple[List[Dict], Li
             elif text.startswith('='):
                 if not current_question:
                     continue
-                    
                 current_question['options'].append(text[1:].strip())
                 
             else:
-                # Check if this line looks like it belongs to format but has wrong prefix
                 if text.startswith(('-', '*', '•', 'A)', 'B)', '1.')):
-                     # This is an invalid line. If we are in a question, it might be a malformed option.
-                     # We treat it as an error for the current question?
-                     # Or just a standalone error?
-                     # User wants skipped questions reported.
-                     errors.append(Messages.get("PARSER_INVALID_PREFIX", lang).format(line=i, text=text[:20] + "..."))
-                # Otherwise ignore random text
+                    errors.append(Messages.get("PARSER_INVALID_PREFIX", lang).format(line=i, text=text[:20] + "..."))
         except Exception as e:
             errors.append(f"Error at line {i}: {str(e)}")
 
-    # Add the last question
     if current_question:
         try:
-            # Check internal error flag
             if '__error' in current_question:
                 raise ParserError(current_question['__error'])
             validate_question(current_question, current_question_start_line, lang)
@@ -119,12 +120,9 @@ def validate_question(q: Dict, line_num: int, lang: str):
         raise ParserError(msg)
         
     if len(q['options']) > 10:
-        # Telegram limit: max 10 options.
         msg = Messages.get("PARSER_TOO_MANY_OPTIONS", lang).format(line=line_num, count=len(q['options']))
         raise ParserError(msg)
     
-    # Check length limits for Telegram - HARD LIMITS
-    # We raise error instead of truncating to avoid API crashes or bad UX
     if len(q['question']) > 300:
         msg = Messages.get("PARSER_QUESTION_TOO_LONG", lang).format(line=line_num, count=len(q['question']))
         raise ParserError(msg)
