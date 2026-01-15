@@ -160,6 +160,8 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
         total_groups=total_groups,
         total_quizzes=total_quizzes,
         active_quizzes=total_active,
+        active_groups=active_group_quizzes,
+        active_private=active_private_quizzes,
         ai_gen_total=int(ai_gen_total),
         ai_conv_total=int(ai_conv_total)
     )
