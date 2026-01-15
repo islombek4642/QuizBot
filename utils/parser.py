@@ -21,8 +21,28 @@ def parse_docx_to_json(file_path: str, lang: str = "UZ") -> Tuple[List[Dict], Li
         raise ParserError(Messages.get("PARSER_FILE_ERROR", lang).format(error=str(e)))
 
 def parse_doc_to_json(file_path: str, lang: str = "UZ") -> Tuple[List[Dict], List[str]]:
-    """Parses a legacy .doc file using antiword."""
+    """Robustly parses a legacy .doc or RTF file renamed to .doc."""
     try:
+        # Read file bytes to check signature
+        with open(file_path, 'rb') as f:
+            header = f.read(1024)
+            f.seek(0)
+            file_bytes = f.read()
+
+        # 1. Check for RTF
+        if header.startswith(b'{\\rtf'):
+            try:
+                from striprtf.striprtf import rtf_to_text
+                text = rtf_to_text(file_bytes.decode('utf-8', errors='ignore'))
+                return parse_lines_to_json(text.splitlines(), lang)
+            except:
+                 pass
+
+        # 2. Check for DOCX (ZIP)
+        if header.startswith(b'PK\x03\x04'):
+             return parse_docx_to_json(file_path, lang)
+
+        # 3. Handle as legacy Word
         process = subprocess.run(
             ["antiword", file_path],
             capture_output=True,
@@ -30,13 +50,23 @@ def parse_doc_to_json(file_path: str, lang: str = "UZ") -> Tuple[List[Dict], Lis
             encoding='utf-8',
             errors='ignore'
         )
-        if process.returncode != 0:
-            if "is not a Word Document" in process.stderr:
-                logger.info("Antiword failed in parser, trying docx fallback", path=file_path)
-                return parse_docx_to_json(file_path, lang)
-            raise Exception(process.stderr)
+        
+        if process.returncode == 0 and process.stdout.strip():
+            lines = process.stdout.splitlines()
+        else:
+            # Fallback to catdoc
+            process_cat = subprocess.run(
+                ["catdoc", "-w", file_path],
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='ignore'
+            )
+            if process_cat.returncode == 0:
+                lines = process_cat.stdout.splitlines()
+            else:
+                raise Exception(f"Antiword & Catdoc failed: {process_cat.stderr}")
             
-        lines = process.stdout.splitlines()
         return parse_lines_to_json(lines, lang)
     except Exception as e:
         logger.error("Failed to parse .doc file", path=file_path, error=str(e))

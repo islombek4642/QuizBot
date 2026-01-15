@@ -460,18 +460,42 @@ def extract_text_from_docx(docx_bytes: bytes) -> str:
 
 
 def extract_text_from_doc(doc_bytes: bytes) -> str:
-    """Extract text from legacy .doc using antiword (Linux)."""
+    """
+    Robust extraction for .doc files.
+    Handles:
+    1. True legacy .doc (via antiword or catdoc)
+    2. RTF files renamed to .doc (via striprtf)
+    3. Docx files renamed to .doc (via python-docx)
+    """
     import subprocess
     import tempfile
     import os
-    
+
+    # 1. Check for RTF signature
+    if doc_bytes.startswith(b'{\\rtf'):
+        logger.info("Detected RTF format, using striprtf")
+        try:
+            from striprtf.striprtf import rtf_to_text
+            return rtf_to_text(doc_bytes.decode('utf-8', errors='ignore'))
+        except Exception as e:
+            logger.error("RTF extraction failed", error=str(e))
+
+    # 2. Check for DOCX (ZIP) signature
+    if doc_bytes.startswith(b'PK\x03\x04'):
+        logger.info("Detected DOCX format renamed to .doc, using docx parser")
+        try:
+            return extract_text_from_docx(doc_bytes)
+        except Exception as e:
+            logger.error("Docx fallback failed", error=str(e))
+
+    # 3. Handle as legacy Word (.doc)
     text = ""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".doc") as tmp:
         tmp.write(doc_bytes)
         tmp_path = tmp.name
 
     try:
-        # Run antiword command
+        # Try Antiword first
         process = subprocess.run(
             ["antiword", tmp_path],
             capture_output=True,
@@ -479,19 +503,25 @@ def extract_text_from_doc(doc_bytes: bytes) -> str:
             encoding='utf-8',
             errors='ignore'
         )
-        if process.returncode == 0:
+        if process.returncode == 0 and process.stdout.strip():
             text = process.stdout
         else:
-            # Fallback: if it's not a legacy Word doc, maybe it's a renamed .docx?
-            if "is not a Word Document" in process.stderr:
-                logger.info("Antiword failed, trying docx fallback", user_id=None)
-                try:
-                    return extract_text_from_docx(doc_bytes)
-                except:
-                    pass
-            logger.error("Antiword failed", stderr=process.stderr)
+            # Try Catdoc as fallback
+            logger.info("Antiword failed or empty, trying catdoc")
+            process_cat = subprocess.run(
+                ["catdoc", "-w", tmp_path],
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='ignore'
+            )
+            if process_cat.returncode == 0:
+                text = process_cat.stdout
+            else:
+                logger.error("Catdoc failed", stderr=process_cat.stderr)
+                
     except Exception as e:
-        logger.error("DOC extraction failed", error=str(e))
+        logger.error("Legacy Word extraction failed", error=str(e))
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
