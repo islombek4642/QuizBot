@@ -138,6 +138,7 @@ class Messages:
             "AI_LIMIT_REACHED": "⚠️ <b>Limitga yetdingiz!</b>\n\nSiz juda tez-tez foydalanyapsiz. Keyingi urinish: {time}\n\n💡 <b>Bonus:</b> Do'stingizni taklif qiling va darhol limitni o'chiring!\n\n👇 \"Botni ulashish\" tugmasini bosing:",
             "AI_CREDITS_INFO": "💳 <b>AI Kreditlar:</b> {count} ta",
             "AI_ENTER_TOPIC": "📝 <b>Test yaratish</b>\n\n{credits}\n\nMavzuni kiriting (masalan: 'Python asoslari'):",
+            "CONVERT_INFO": "📝 <b>Testni Konvertatsiya Qilish</b>\n\nWord (.docx) yoki PDF faylni yuboring, men uni Telegram formatiga o'tkazib beraman.",
         },
         "EN": {
             "WELCOME": "Hello! Welcome to QuizBot.\n\nSend me a .docx file with tests, and I'll convert it into Telegram polls.",
@@ -280,6 +281,7 @@ class Messages:
             "AI_LIMIT_REACHED": "⚠️ <b>Limit Reached!</b>\n\nYou are using AI too frequently. Next attempt in: {time}\n\n💡 <b>Bonus:</b> Invite a friend to remove limits immediately!\n\n👇 Click \"Share Bot\" below:",
             "AI_CREDITS_INFO": "💳 <b>AI Credits:</b> {count}",
              "AI_ENTER_TOPIC": "📝 <b>Create Quiz</b>\n\n{credits}\n\nEnter a topic (e.g., 'Python Basics'):",
+             "CONVERT_INFO": "📝 <b>Convert Quiz</b>\n\nSend a Word (.docx) or PDF file, and I will convert it to Telegram format.",
         }
     }
 
