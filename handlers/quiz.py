@@ -173,14 +173,10 @@ async def cmd_ai_generate(message: types.Message, state: FSMContext, redis, lang
     if not settings.GROQ_API_KEY:
         await message.answer(Messages.get("AI_NO_API_KEY", lang))
         return
-    
-    # Credits info removed from successful start per user request
-    # It will only show if they hit a limit now
-    credits_text = "" 
 
     await state.set_state(QuizStates.WAITING_FOR_AI_TOPIC)
     await message.answer(
-        Messages.get("AI_ENTER_TOPIC", lang).format(credits=credits_text).strip(),
+        Messages.get("AI_ENTER_TOPIC", lang).format(credits=credits_count),
         reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML"
     )
@@ -347,12 +343,10 @@ async def cmd_convert_test(message: types.Message, state: FSMContext, redis, lan
         await message.answer(Messages.get("AI_NO_API_KEY", lang))
         return
     
-    # Credits info removed from successful start per user request
-    credits_text = ""
     
     await state.set_state(QuizStates.WAITING_FOR_CONVERT_FILE)
     await message.answer(
-        f"{Messages.get('CONVERT_INFO', lang)}",
+        Messages.get('CONVERT_INFO', lang).format(credits=credits_count),
         reply_markup=get_cancel_keyboard(lang),
         parse_mode="HTML"
     )
