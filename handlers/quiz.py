@@ -1103,21 +1103,21 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
         me = await inline_query.bot.get_me()
         promo_text = Messages.get("BOT_PROMO_TEXT", lang).format(username=me.username)
         
-    # Create deep link with referrer ID
-    # This allows us to track referrals in /start
-    builder = InlineKeyboardBuilder()
-    # This allows us to track referrals in /start
-    builder.button(
-        text=Messages.get("START_BTN", lang), 
-        url=f"https://t.me/{me.username}?start=ref_{inline_query.from_user.id}"
-    )
-    builder.adjust(1)
-    
-    results = [
-        types.InlineQueryResultArticle(
-            id="share_bot",
-            title=Messages.get("SHARE_BOT_BTN", lang),
-            description=f"@{me.username}",
+        # Create deep link with referrer ID
+        # This allows us to track referrals in /start
+        builder = InlineKeyboardBuilder()
+        # This allows us to track referrals in /start
+        builder.button(
+            text=Messages.get("START_BTN", lang), 
+            url=f"https://t.me/{me.username}?start=ref_{inline_query.from_user.id}"
+        )
+        builder.adjust(1)
+        
+        results = [
+            types.InlineQueryResultArticle(
+                id="share_bot",
+                title=Messages.get("SHARE_BOT_BTN", lang),
+                description=f"@{me.username}",
             # thumb_url removed to prevent WEBDOCUMENT_URL_INVALID error
             input_message_content=types.InputTextMessageContent(
                 message_text=promo_text,
