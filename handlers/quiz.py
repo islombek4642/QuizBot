@@ -374,7 +374,7 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
                 except:
                     pass
             
-            raw_text = await asyncio.to_thread(extract_text_from_pdf, file_bytes, on_ocr_progress)
+            raw_text = await extract_text_from_pdf(file_bytes, on_ocr_progress)
         elif file_ext == "doc":
             raw_text = extract_text_from_doc(file_bytes)
         else:

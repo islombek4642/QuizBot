@@ -421,7 +421,7 @@ def generate_docx_from_questions(questions: List[Dict], title: str) -> bytes:
     return buffer.getvalue()
 
 
-def extract_text_from_pdf(pdf_bytes: bytes, on_progress: Optional[Callable] = None) -> str:
+async def extract_text_from_pdf(pdf_bytes: bytes, on_progress: Optional[Callable] = None) -> str:
     """Extract text from PDF using PyMuPDF with Vision OCR fallback."""
     # Check signature: %PDF-
     if not pdf_bytes.startswith(b'%PDF-'):
@@ -430,6 +430,8 @@ def extract_text_from_pdf(pdf_bytes: bytes, on_progress: Optional[Callable] = No
 
     text = ""
     try:
+        # Blocking open and text extraction (usually fast enough for main loop, but we could to_thread if paranoid)
+        # However, OCR is the main part we care about being async.
         with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
             page_count = len(doc)
             logger.info("PDF opened", pages=page_count, size=len(pdf_bytes))
@@ -440,17 +442,8 @@ def extract_text_from_pdf(pdf_bytes: bytes, on_progress: Optional[Callable] = No
             
             if not text.strip() and page_count > 0:
                 logger.warning("No text extracted from PDF, initiating Groq Vision OCR fallback", pages=page_count)
-                
-                # Use a specific event loop to run the async OCR if called from a thread
-                try:
-                    import asyncio
-                    new_loop = asyncio.new_event_loop()
-                    try:
-                        text = new_loop.run_until_complete(_extract_text_via_vision(doc, on_progress))
-                    finally:
-                        new_loop.close()
-                except Exception as e:
-                    logger.error("Failed to run OCR loop", error=str(e))
+                # Now we can just await directly since we are async
+                text = await _extract_text_via_vision(doc, on_progress)
                     
     except Exception as e:
         logger.error("PDF extraction failed", error=str(e))
