@@ -1125,9 +1125,9 @@ async def handle_inline_share(inline_query: types.InlineQuery, quiz_service: Qui
             ),
             reply_markup=builder.as_markup()
         )
-    ]
-    await inline_query.answer(results, cache_time=300, is_personal=True)
-    return
+        ]
+        await inline_query.answer(results, cache_time=300, is_personal=True)
+        return
 
     # Otherwise show user's recent quizzes
     quizzes = await quiz_service.get_user_quizzes(telegram_id)
