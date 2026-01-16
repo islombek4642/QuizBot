@@ -328,35 +328,33 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
 
 @router.message(F.text == "/maintenance")
 @router.message(F.text.in_([Messages.get("ADMIN_MAINTENANCE_BTN", "UZ"), Messages.get("ADMIN_MAINTENANCE_BTN", "EN")]))
-async def admin_maintenance_notify(message: types.Message, bot: Bot, db: AsyncSession, lang: str):
-    """
-    Notifies only users with currently active quiz sessions about upcoming maintenance.
-    """
-    # Get all active sessions with user telegram_id
-    # We join with User to get telegram_id (though QuizSession has user_id which IS telegram_id in this bot's logic)
+    # 1. Get all active sessions with user telegram_id
     result = await db.execute(
         select(QuizSession.user_id)
         .filter(QuizSession.is_active == True)
         .distinct()
     )
-    user_ids = result.scalars().all()
+    user_ids = list(result.scalars().all())
     
-    if not user_ids:
+    # 2. Get all active group quizzes from Redis
+    group_keys = await bot.context.get("redis").keys("group_quiz:*")
+    group_ids = [int(key.split(":")[1]) for key in group_keys]
+    
+    all_targets = list(set(user_ids + group_ids))
+    
+    if not all_targets:
         await message.answer(Messages.get("MAINTENANCE_NO_SESSIONS", lang))
         return
 
     count = 0
-    for user_id in user_ids:
+    msg_text = Messages.get("MAINTENANCE_WARNING", "UZ") + "\n\n" + Messages.get("MAINTENANCE_WARNING", "EN")
+    
+    for target_id in all_targets:
         try:
-            # We don't know the user's language easily here without extra query per user
-            # But we can default to UZ or try to get it if we want to be perfect.
-            # For simplicity and speed before restart, we send a dual-language message or just UZ
-            # In this bot, most users are UZ.
-            msg_text = Messages.get("MAINTENANCE_WARNING", "UZ") + "\n\n" + Messages.get("MAINTENANCE_WARNING", "EN")
-            await bot.send_message(chat_id=user_id, text=msg_text, parse_mode="HTML")
+            await bot.send_message(chat_id=target_id, text=msg_text, parse_mode="HTML")
             count += 1
         except Exception as e:
-            logger.warning(f"Failed to send maintenance warning to {user_id}: {e}")
+            logger.warning(f"Failed to send maintenance warning to {target_id}: {e}")
 
     await message.answer(
         Messages.get("MAINTENANCE_SENT", lang).format(count=count)
