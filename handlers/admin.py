@@ -32,12 +32,12 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
     limit = 10
     offset = page * limit
     
-    # Get total count
-    total_result = await db.execute(select(func.count(User.id)))
+    # Get total count (only users with phone numbers)
+    total_result = await db.execute(select(func.count(User.id)).filter(User.phone_number.isnot(None)))
     total_users = total_result.scalar()
     
-    # Get users for page
-    result = await db.execute(select(User).offset(offset).limit(limit).order_by(User.id.desc()))
+    # Get users for page (only users with phone numbers)
+    result = await db.execute(select(User).filter(User.phone_number.isnot(None)).offset(offset).limit(limit).order_by(User.id.desc()))
     users = result.scalars().all()
     
     text = Messages.get("ADMIN_USERS_TITLE", lang).format(total=total_users) + "\n\n"
@@ -292,8 +292,12 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
     group_ids = list(group_result.scalars().all())
     
     all_targets = user_ids + group_ids
+    user_ids_set = set(user_ids)
     
     count = 0
+    user_success = 0
+    group_success = 0
+    
     progress_msg = await message.answer(f"🚀 Broadcasting... 0/{len(all_targets)}")
     
     for i, target_id in enumerate(all_targets, 1):
@@ -306,6 +310,10 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
                 message_id=message.message_id
             )
             count += 1
+            if target_id in user_ids_set:
+                user_success += 1
+            else:
+                group_success += 1
         except Exception as e:
             logger.warning(f"Failed to send broadcast to {target_id}: {e}")
         
@@ -324,7 +332,11 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
     
     await state.clear()
     await message.answer(
-        Messages.get("ADMIN_BROADCAST_SUCCESS", lang).format(count=count),
+        Messages.get("ADMIN_BROADCAST_SUCCESS", lang).format(
+            users=user_success,
+            groups=group_success,
+            total=count
+        ),
         reply_markup=get_main_keyboard(lang, settings.ADMIN_ID)
     )
 
