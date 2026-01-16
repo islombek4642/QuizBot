@@ -16,7 +16,8 @@ from sqlalchemy import select
 from aiogram import Router, types, F, Bot
 from aiogram.types import ChatMemberUpdated
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.filters import ChatMemberUpdatedFilter, IS_MEMBER, IS_NOT_MEMBER, Command
+from aiogram.filters import ChatMemberUpdatedFilter, IS_MEMBER, IS_NOT_MEMBER, Command, CommandStart
+from aiogram.fsm.context import FSMContext
 
 from constants.messages import Messages
 from handlers.common import get_main_keyboard
@@ -141,6 +142,59 @@ async def on_bot_removed_from_group(event: ChatMemberUpdated, group_service: Gro
     
     logger.info("Bot removed from group", chat_id=chat.id, chat_title=chat.title)
 
+
+@router.message(CommandStart(), F.chat.type.in_({"group", "supergroup"}))
+async def cmd_start_group(message: types.Message, user_service: UserService, redis, **kwargs):
+    """Handle /start quiz_123 deep links in groups"""
+    args = message.text.split()
+    if len(args) < 2:
+        return  # Ignore bare /start in groups
+        
+    payload = args[1]
+    if not payload.startswith("quiz_"):
+        return
+        
+    # Check admin permission
+    member = await message.chat.get_member(message.from_user.id)
+    lang = await user_service.get_language(message.from_user.id)
+    
+    if member.status not in ("administrator", "creator"):
+        await message.reply(Messages.get("ONLY_ADMINS", lang))
+        return
+        
+    # Get redux from kwargs if passed differently
+    redis = kwargs.get("redis") or redis
+    
+    from db.session import AsyncSessionLocal
+    
+    async with AsyncSessionLocal() as session:
+        quiz_service = QuizService(session)
+        session_service = SessionService(session, redis)
+        
+        try:
+            quiz_id = int(payload.split("_")[1])
+            quiz = await quiz_service.get_quiz(quiz_id)
+            if not quiz:
+                await message.reply(Messages.get("ERROR_TEST_NOT_FOUND", lang))
+                return
+                
+            # Use group language preference if set
+            group_lang = await redis.get(f"group_lang:{message.chat.id}")
+            
+            # Start the quiz lobby (not direct start)
+            await announce_group_quiz(
+                message.bot, 
+                quiz, 
+                message.chat.id, 
+                message.from_user.id, 
+                group_lang or lang, 
+                redis
+            )
+            
+        except (ValueError, IndexError):
+            logger.warning(f"Invalid quiz payload: {payload}")
+        except Exception as e:
+            logger.error("Error in cmd_start_group", error=str(e))
 
 @router.message(F.text.in_([Messages.get("ADD_TO_GROUP_BTN", "UZ"), Messages.get("ADD_TO_GROUP_BTN", "EN")]))
 async def cmd_add_to_group(message: types.Message, user_service: UserService):
