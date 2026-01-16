@@ -991,7 +991,7 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
             )
             await show_stats(bot, updated_session, lang)
         else:
-            await asyncio.sleep(3)
+            await asyncio.sleep(5)
             # Re-verify session is still active and NOT hard-stopped after the delay
             if await session_service.is_stopped(session.user_id):
                 logger.info("Private session hard-stopped during 3s delay", user_id=session.user_id)
@@ -1073,7 +1073,7 @@ async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service
             )
             await show_stats(bot, updated_session, lang)
         else:
-            await asyncio.sleep(3)
+            await asyncio.sleep(5)
             # Re-verify session is still active and NOT hard-stopped after the delay
             if await session_service.is_stopped(session.user_id):
                 return
