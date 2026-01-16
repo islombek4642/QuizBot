@@ -328,7 +328,7 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
 
 @router.message(F.text == "/maintenance")
 @router.message(F.text.in_([Messages.get("ADMIN_MAINTENANCE_BTN", "UZ"), Messages.get("ADMIN_MAINTENANCE_BTN", "EN")]))
-async def admin_maintenance_notify(message: types.Message, bot: Bot, db: AsyncSession, lang: str):
+async def admin_maintenance_notify(message: types.Message, bot: Bot, db: AsyncSession, lang: str, redis: Any):
     # 1. Get all active sessions with user telegram_id
     result = await db.execute(
         select(QuizSession.user_id)
@@ -338,7 +338,7 @@ async def admin_maintenance_notify(message: types.Message, bot: Bot, db: AsyncSe
     user_ids = list(result.scalars().all())
     
     # 2. Get all active group quizzes from Redis
-    group_keys = await bot.context.get("redis").keys("group_quiz:*")
+    group_keys = await redis.keys("group_quiz:*")
     group_ids = [int(key.split(":")[1]) for key in group_keys]
     
     all_targets = list(set(user_ids + group_ids))
