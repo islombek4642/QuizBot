@@ -651,7 +651,8 @@ async def start_quiz_callback_handler(callback: types.CallbackQuery, state: FSMC
     await state.set_state(QuizStates.SELECTING_MODE)
     await callback.message.answer(
         Messages.get("MODE_SELECT_PROMPT", lang),
-        reply_markup=get_mode_keyboard(lang)
+        reply_markup=get_mode_keyboard(lang),
+        parse_mode="HTML"
     )
     await callback.answer()
 
@@ -668,7 +669,8 @@ async def start_quiz_message_handler(message: types.Message, state: FSMContext,
     await state.set_state(QuizStates.SELECTING_MODE)
     await message.answer(
         Messages.get("MODE_SELECT_PROMPT", lang),
-        reply_markup=get_mode_keyboard(lang)
+        reply_markup=get_mode_keyboard(lang),
+        parse_mode="HTML"
     )
 
 @router.message(QuizStates.SELECTING_MODE, F.text)
@@ -717,7 +719,7 @@ async def handle_range_input(message: types.Message, state: FSMContext, quiz_ser
     text = message.text.strip()
     if text == Messages.get("CANCEL_BTN", lang):
         await state.set_state(QuizStates.SELECTING_MODE)
-        await message.answer(Messages.get("MODE_SELECT_PROMPT", lang), reply_markup=get_mode_keyboard(lang))
+        await message.answer(Messages.get("MODE_SELECT_PROMPT", lang), reply_markup=get_mode_keyboard(lang), parse_mode="HTML")
         return
 
     data = await state.get_data()
@@ -749,7 +751,7 @@ async def handle_random_count_input(message: types.Message, state: FSMContext, q
     text = message.text.strip()
     if text == Messages.get("CANCEL_BTN", lang):
         await state.set_state(QuizStates.SELECTING_MODE)
-        await message.answer(Messages.get("MODE_SELECT_PROMPT", lang), reply_markup=get_mode_keyboard(lang))
+        await message.answer(Messages.get("MODE_SELECT_PROMPT", lang), reply_markup=get_mode_keyboard(lang), parse_mode="HTML")
         return
 
     data = await state.get_data()
