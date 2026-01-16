@@ -116,7 +116,10 @@ async def check_ai_limit(user_id: int, limit_type: str, redis, lang: str):
         time_str = f"{hours}h {minutes}m"
         return False, time_str, credits
         
-    return True, "", credits
+    # If we are here, it means credits are 0 AND there is no active time limit (TTL <= 0)
+    # Give +1 credit back to the user
+    await redis.set(credit_key, "1")
+    return True, "", 1
 
 async def set_ai_limit(user_id: int, limit_type: str, redis):
     # Check for credits first
