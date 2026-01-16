@@ -45,6 +45,7 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-quizbot}
       - REDIS_URL=redis://redis:6379/0
+      - GROQ_SERVICE_TIER=${GROQ_SERVICE_TIER:-on_demand}
 
 volumes:
   postgres_data:
