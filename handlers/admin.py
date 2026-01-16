@@ -4,6 +4,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 import json
 import time
+import asyncio
 from typing import List, Any
 
 from core.config import settings
