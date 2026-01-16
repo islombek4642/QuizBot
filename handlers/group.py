@@ -246,14 +246,23 @@ async def start_group_quiz_callback(callback: types.CallbackQuery, user_service:
     groups = await get_bot_groups(redis)
     # Filter groups where user is admin
     user_admin_groups = []
+    stale_groups = []  # Track groups to remove
     for group_id in groups:
         try:
             member = await callback.bot.get_chat_member(chat_id=int(group_id), user_id=telegram_id)
             if member.status in ('administrator', 'creator'):
                 user_admin_groups.append(group_id)
         except Exception as e:
+            error_msg = str(e).lower()
+            # Remove stale groups (bot kicked, chat deleted, etc.)
+            if "chat not found" in error_msg or "bot was kicked" in error_msg or "chat was upgraded" in error_msg:
+                stale_groups.append(group_id)
             logger.warning(f"Could not check member status for {group_id}: {e}")
             continue
+    
+    # Clean up stale groups from Redis
+    for stale_id in stale_groups:
+        await remove_bot_group(redis, int(stale_id))
 
     if not user_admin_groups:
         # If no groups found where user is admin, show "Add to Group" button
