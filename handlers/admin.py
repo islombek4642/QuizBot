@@ -347,16 +347,32 @@ async def admin_maintenance_notify(message: types.Message, bot: Bot, db: AsyncSe
         await message.answer(Messages.get("MAINTENANCE_NO_SESSIONS", lang))
         return
 
-    count = 0
     msg_text = Messages.get("MAINTENANCE_WARNING", "UZ") + "\n\n" + Messages.get("MAINTENANCE_WARNING", "EN")
     
-    for target_id in all_targets:
-        try:
-            await bot.send_message(chat_id=target_id, text=msg_text, parse_mode="HTML")
-            count += 1
-        except Exception as e:
-            logger.warning(f"Failed to send maintenance warning to {target_id}: {e}")
+    user_count = 0
+    group_count = 0
 
+    # Notify users
+    for user_id in user_ids:
+        try:
+            await bot.send_message(chat_id=user_id, text=msg_text, parse_mode="HTML")
+            user_count += 1
+        except Exception as e:
+            logger.warning(f"Failed to send maintenance warning to user {user_id}: {e}")
+
+    # Notify groups
+    for group_id in group_ids:
+        try:
+            await bot.send_message(chat_id=group_id, text=msg_text, parse_mode="HTML")
+            group_count += 1
+        except Exception as e:
+            logger.warning(f"Failed to send maintenance warning to group {group_id}: {e}")
+
+    total_count = user_count + group_count
     await message.answer(
-        Messages.get("MAINTENANCE_SENT", lang).format(count=count)
+        Messages.get("MAINTENANCE_SENT_DETAILS", lang).format(
+            user_count=user_count, 
+            group_count=group_count, 
+            total=total_count
+        )
     )
