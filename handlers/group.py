@@ -152,14 +152,12 @@ async def cmd_add_to_group(message: types.Message, user_service: UserService):
     telegram_id = message.from_user.id
     lang = await user_service.get_language(telegram_id)
     
-    bot_username = settings.BOT_USERNAME
-    if not bot_username:
-        # Try to get username from bot info
-        try:
-            bot_info = await message.bot.get_me()
-            bot_username = bot_info.username
-        except:
-            bot_username = ""
+    # Always get username from bot API to ensure it's correct (new token)
+    try:
+        bot_info = await message.bot.get_me()
+        bot_username = bot_info.username
+    except:
+        bot_username = settings.BOT_USERNAME
     
     if not bot_username:
         await message.answer(Messages.get("ERROR_GENERIC", lang))
