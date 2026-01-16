@@ -129,17 +129,38 @@ async def admin_groups_pagination(callback: types.CallbackQuery, db: AsyncSessio
 
 @router.message(F.text.in_([Messages.get("ADMIN_STATS_BTN", "UZ"), Messages.get("ADMIN_STATS_BTN", "EN")]))
 async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang: str):
-    # Users count
+    from datetime import datetime, timedelta
+    
+    # Today's date range
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Users count (total and today)
     res_users = await db.execute(select(func.count(User.id)))
     total_users = res_users.scalar()
+    
+    res_today_users = await db.execute(
+        select(func.count(User.id)).filter(User.created_at >= today_start)
+    )
+    today_users = res_today_users.scalar() or 0
     
     # Groups count
     res_groups = await db.execute(select(func.count(Group.id)))
     total_groups = res_groups.scalar()
     
-    # Quizzes count
+    # Quizzes count (total and today)
     res_quizzes = await db.execute(select(func.count(Quiz.id)))
     total_quizzes = res_quizzes.scalar()
+    
+    res_today_quizzes = await db.execute(
+        select(func.count(Quiz.id)).filter(Quiz.created_at >= today_start)
+    )
+    today_quizzes = res_today_quizzes.scalar() or 0
+    
+    # Total quiz sessions (completed)
+    res_total_sessions = await db.execute(
+        select(func.count(QuizSession.id)).filter(QuizSession.is_active == False)
+    )
+    total_sessions = res_total_sessions.scalar() or 0
     
     # Active quizzes (Group) - Redis keys with 4h TTL
     keys = await redis.keys("group_quiz:*")
@@ -159,18 +180,41 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     ai_gen_total = await redis.get("stats:ai_gen_total") or 0
     ai_conv_total = await redis.get("stats:ai_conv_total") or 0
     
+    # Bot uptime (from process start)
+    import os
+    import psutil
+    try:
+        process = psutil.Process(os.getpid())
+        uptime_seconds = time.time() - process.create_time()
+        days = int(uptime_seconds // 86400)
+        hours = int((uptime_seconds % 86400) // 3600)
+        mins = int((uptime_seconds % 3600) // 60)
+        if days > 0:
+            uptime_str = f"{days}d {hours}h {mins}m"
+        elif hours > 0:
+            uptime_str = f"{hours}h {mins}m"
+        else:
+            uptime_str = f"{mins}m"
+    except:
+        uptime_str = "N/A"
+    
     stats_msg = Messages.get("ADMIN_STATS_MSG", lang).format(
         total_users=total_users,
+        today_users=today_users,
         total_groups=total_groups,
         total_quizzes=total_quizzes,
+        today_quizzes=today_quizzes,
+        total_sessions=total_sessions,
         active_quizzes=total_active,
         active_groups=active_group_quizzes,
         active_private=active_private_quizzes,
         ai_gen_total=int(ai_gen_total),
-        ai_conv_total=int(ai_conv_total)
+        ai_conv_total=int(ai_conv_total),
+        uptime=uptime_str
     )
     
     await message.answer(stats_msg, parse_mode="HTML")
+
 
 # ===================== AI SETTINGS =====================
 
