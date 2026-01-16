@@ -10,6 +10,7 @@ from alembic import context
 from core.config import settings
 from models.base import Base
 from models.user import User  # Ensure models are imported for metadata
+from models.group import Group
 from models.quiz import Quiz
 from models.session import QuizSession
 

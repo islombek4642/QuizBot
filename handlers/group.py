@@ -22,6 +22,7 @@ from handlers.common import get_main_keyboard
 from services.user_service import UserService
 from services.quiz_service import QuizService
 from services.session_service import SessionService
+from services.group_service import GroupService
 from core.config import settings
 from core.logger import logger
 
@@ -85,7 +86,7 @@ async def get_group_title(redis, chat_id: int) -> str:
 
 
 @router.my_chat_member(ChatMemberUpdatedFilter(IS_NOT_MEMBER >> IS_MEMBER))
-async def on_bot_added_to_group(event: ChatMemberUpdated, user_service: UserService, redis):
+async def on_bot_added_to_group(event: ChatMemberUpdated, user_service: UserService, group_service: GroupService, redis):
     """Handle bot being added to a group"""
     chat = event.chat
     user = event.from_user
@@ -96,7 +97,15 @@ async def on_bot_added_to_group(event: ChatMemberUpdated, user_service: UserServ
     # Get user language for response
     lang = await user_service.get_language(user.id)
     
-    # Store group in Redis
+    # Store group in Database
+    await group_service.get_or_create_group(
+        telegram_id=chat.id,
+        title=chat.title or f"Group {chat.id}",
+        username=chat.username,
+        language=lang
+    )
+    
+    # Keep in Redis for backward compatibility if needed, though GroupService should be primary
     if redis:
         await add_bot_group(redis, chat.id, chat.title or f"Group {chat.id}", chat.username)
     
@@ -114,12 +123,15 @@ async def on_bot_added_to_group(event: ChatMemberUpdated, user_service: UserServ
 
 
 @router.my_chat_member(ChatMemberUpdatedFilter(IS_MEMBER >> IS_NOT_MEMBER))
-async def on_bot_removed_from_group(event: ChatMemberUpdated, redis):
+async def on_bot_removed_from_group(event: ChatMemberUpdated, group_service: GroupService, redis):
     """Handle bot being removed from a group"""
     chat = event.chat
     
     if chat.type not in ("group", "supergroup"):
         return
+    
+    # Remove group from Database
+    await group_service.remove_group(chat.id)
     
     # Remove group from Redis
     if redis:
@@ -167,7 +179,7 @@ async def cmd_add_to_group(message: types.Message, user_service: UserService):
 
 @router.callback_query(F.data.startswith("start_group_quiz_"))
 async def start_group_quiz_callback(callback: types.CallbackQuery, user_service: UserService, 
-                                   quiz_service: QuizService, session_service: SessionService, redis, lang: str):
+                                   group_service: GroupService, quiz_service: QuizService, session_service: SessionService, redis, lang: str):
     """Refactored: Handle 'Start in Group' button - show group selection"""
     quiz_id = int(callback.data.split("_")[3])
     telegram_id = callback.from_user.id
@@ -218,7 +230,9 @@ async def start_group_quiz_callback(callback: types.CallbackQuery, user_service:
     # Build group selection keyboard
     builder = InlineKeyboardBuilder()
     for group_id in user_admin_groups:
-        title = await get_group_title(redis, int(group_id))
+        # Try to get title from DB first
+        res = await session_service.db.execute(select(Group.title).filter(Group.telegram_id == int(group_id)))
+        title = res.scalar() or await get_group_title(redis, int(group_id))
         builder.button(
             text=title,
             callback_data=f"confirm_group_quiz_{quiz_id}_{group_id}"
@@ -700,7 +714,7 @@ async def cmd_group_set_language(message: types.Message, user_service: UserServi
 
 
 @router.callback_query(F.data.startswith("set_group_lang_"))
-async def cb_set_group_lang(callback: types.CallbackQuery, redis, lang: str):
+async def cb_set_group_lang(callback: types.CallbackQuery, group_service: GroupService, redis, lang: str):
     """Refactored: Handle group language selection"""
     member = await callback.message.chat.get_member(callback.from_user.id)
     if member.status not in ("administrator", "creator"):
@@ -708,6 +722,9 @@ async def cb_set_group_lang(callback: types.CallbackQuery, redis, lang: str):
         return
         
     new_lang = callback.data.split("_")[-1]
+    # Store group language in Database
+    await group_service.update_language(callback.message.chat.id, new_lang)
+    
     # Store group language in Redis
     await redis.set(f"group_lang:{callback.message.chat.id}", new_lang)
     

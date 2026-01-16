@@ -9,9 +9,11 @@ from typing import List, Any
 from core.config import settings
 from constants.messages import Messages
 from models.user import User
+from models.group import Group
 from models.quiz import Quiz
 from models.session import QuizSession
 from services.user_service import UserService
+from services.group_service import GroupService
 from core.logger import logger
 from handlers.common import QuizStates, get_main_keyboard, get_admin_ai_keyboard, get_cancel_keyboard
 from aiogram.fsm.context import FSMContext
@@ -75,33 +77,32 @@ async def admin_users_pagination(callback: types.CallbackQuery, db: AsyncSession
     await callback.answer()
 
 @router.message(F.text.in_([Messages.get("ADMIN_GROUPS_BTN", "UZ"), Messages.get("ADMIN_GROUPS_BTN", "EN")]))
-async def admin_list_groups(message: types.Message, redis, lang: str):
-    await show_groups_page(message, redis, lang, page=0)
+async def admin_list_groups(message: types.Message, db: AsyncSession, lang: str):
+    await show_groups_page(message, db, lang, page=0)
 
-async def show_groups_page(message_or_query, redis, lang: str, page: int):
-    GROUP_MEMBERS_KEY = "bot_groups"
+async def show_groups_page(message_or_query, db: AsyncSession, lang: str, page: int):
     limit = 10
     offset = page * limit
     
-    # Redis smembers doesn't support offset/limit natively easily for small sets
-    # Get all and slice
-    all_groups = await redis.smembers(GROUP_MEMBERS_KEY)
-    total_groups = len(all_groups)
-    groups_slice = list(all_groups)[offset:offset+limit]
+    # Get total count
+    total_result = await db.execute(select(func.count(Group.id)))
+    total_groups = total_result.scalar()
+    
+    # Get groups for page
+    result = await db.execute(select(Group).offset(offset).limit(limit).order_by(Group.id.desc()))
+    groups = result.scalars().all()
     
     text = Messages.get("ADMIN_GROUPS_TITLE", lang).format(total=total_groups) + "\n\n"
     
     builder = InlineKeyboardBuilder()
-    for i, group_id in enumerate(groups_slice, 1 + offset):
-        info = await redis.hgetall(f"group_info:{group_id}")
-        title = info.get("title") or f"Group {group_id}"
-        username = info.get("username")
+    for i, group in enumerate(groups, 1 + offset):
+        title = group.title or f"Group {group.telegram_id}"
+        username = group.username
         
         if username:
-            text += f"{i}. <a href='https://t.me/{username}'>{title}</a>\n"
+            text += f"{i}. <a href='https://t.me/{username}'>{title}</a> (ID: {group.telegram_id})\n"
         else:
-            # Cannot link to private group easily without invite link
-            text += f"{i}. <b>{title}</b> (ID: {group_id})\n"
+            text += f"{i}. <b>{title}</b> (ID: {group.telegram_id})\n"
         
     text += "\n" + Messages.get("ADMIN_PAGE", lang).format(page=page+1, total=(total_groups + limit - 1) // limit if total_groups > 0 else 1)
     
@@ -120,9 +121,9 @@ async def show_groups_page(message_or_query, redis, lang: str, page: int):
         await message_or_query.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML", link_preview_options=types.LinkPreviewOptions(is_disabled=True))
 
 @router.callback_query(F.data.startswith("admin_groups_page_"))
-async def admin_groups_pagination(callback: types.CallbackQuery, redis, lang: str):
+async def admin_groups_pagination(callback: types.CallbackQuery, db: AsyncSession, lang: str):
     page = int(callback.data.split("_")[-1])
-    await show_groups_page(callback, redis, lang, page)
+    await show_groups_page(callback, db, lang, page)
     await callback.answer()
 
 @router.message(F.text.in_([Messages.get("ADMIN_STATS_BTN", "UZ"), Messages.get("ADMIN_STATS_BTN", "EN")]))
@@ -132,7 +133,8 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     total_users = res_users.scalar()
     
     # Groups count
-    total_groups = await redis.scard("bot_groups")
+    res_groups = await db.execute(select(func.count(Group.id)))
+    total_groups = res_groups.scalar()
     
     # Quizzes count
     res_quizzes = await db.execute(select(func.count(Quiz.id)))
@@ -281,29 +283,34 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
         )
         return
 
-    # Get all users (telegram_id only)
-    result = await db.execute(select(User.telegram_id))
-    user_ids = result.scalars().all()
+    # Get all users and groups (telegram_id only)
+    user_result = await db.execute(select(User.telegram_id))
+    user_ids = list(user_result.scalars().all())
+    
+    group_result = await db.execute(select(Group.telegram_id))
+    group_ids = list(group_result.scalars().all())
+    
+    all_targets = user_ids + group_ids
     
     count = 0
-    progress_msg = await message.answer(f"🚀 Broadcasting... 0/{len(user_ids)}")
+    progress_msg = await message.answer(f"🚀 Broadcasting... 0/{len(all_targets)}")
     
-    for i, user_id in enumerate(user_ids, 1):
+    for i, target_id in enumerate(all_targets, 1):
         try:
             # Use copy_message for much better reliability with media
             await bot.copy_message(
-                chat_id=user_id,
+                chat_id=target_id,
                 from_chat_id=message.chat.id,
                 message_id=message.message_id
             )
             count += 1
         except Exception as e:
-            logger.warning(f"Failed to send broadcast to {user_id}: {e}")
+            logger.warning(f"Failed to send broadcast to {target_id}: {e}")
         
-        # Update progress every 20 users
+        # Update progress every 20 targets
         if i % 20 == 0:
             try:
-                await progress_msg.edit_text(f"🚀 Broadcasting... {i}/{len(user_ids)}")
+                await progress_msg.edit_text(f"🚀 Broadcasting... {i}/{len(all_targets)}")
             except:
                 pass
     

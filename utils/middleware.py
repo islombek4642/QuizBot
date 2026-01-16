@@ -6,6 +6,7 @@ from redis.asyncio import Redis
 from services.user_service import UserService
 from services.quiz_service import QuizService
 from services.session_service import SessionService
+from services.group_service import GroupService
 from constants.messages import Messages
 from handlers.common import get_contact_keyboard
 from core.logger import logger
@@ -21,6 +22,7 @@ class DbSessionMiddleware(BaseMiddleware):
             data["db"] = session
             data["user_service"] = UserService(session)
             data["quiz_service"] = QuizService(session)
+            data["group_service"] = GroupService(session)
             
             # Injection for SessionService requires redis which is added by another middleware
             return await handler(event, data)
