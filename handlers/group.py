@@ -11,6 +11,7 @@ import asyncio
 import time
 import json
 from typing import Optional, Dict, Any
+from sqlalchemy import select
 
 from aiogram import Router, types, F, Bot
 from aiogram.types import ChatMemberUpdated
