@@ -144,6 +144,14 @@ class Messages:
             "MAINTENANCE_SENT": "✅ {count} ta faol foydalanuvchiga xabar yuborildi.",
             "ADMIN_MAINTENANCE_BTN": "⚠️ Maintenance (Aktiv sessiyalar)",
             "MAINTENANCE_NO_SESSIONS": "ℹ️ Hozirda hech qanday faol quiz sessiyasi yo'q.",
+            "MODE_SELECT_PROMPT": "📚 Test rejimini tanlang:",
+            "MODE_FULL": "• To'liq test",
+            "MODE_RANGE": "• Oraliq test",
+            "MODE_RANDOM": "• Tasodifiy test",
+            "ENTER_RANGE_PROMPT": "📝 Test oralig'ini kiriting (masalan: 50-100).\nJami savollar: {total}",
+            "ENTER_RANDOM_COUNT_PROMPT": "🔢 Tasodifiy nechta savol yechmoqchisiz? (1-{total} oralig'ida son kiriting):",
+            "INVALID_RANGE": "⚠️ Noto'g'ri oraliq kiritildi. Masalan: 50-100",
+            "INVALID_COUNT": "⚠️ Noto'g'ri son kiritildi.",
         },
         "EN": {
             "WELCOME": "Hello! Welcome to QuizBot.\n\nSend me a .docx file with tests, and I'll convert it into Telegram polls.",
@@ -292,6 +300,14 @@ class Messages:
              "MAINTENANCE_SENT": "✅ Notification sent to {count} active users.",
              "ADMIN_MAINTENANCE_BTN": "⚠️ Maintenance (Active sessions)",
              "MAINTENANCE_NO_SESSIONS": "ℹ️ No active quiz sessions found at the moment.",
+             "MODE_SELECT_PROMPT": "📚 Select test mode:",
+             "MODE_FULL": "• Full test",
+             "MODE_RANGE": "• Range test",
+             "MODE_RANDOM": "• Random test",
+             "ENTER_RANGE_PROMPT": "📝 Enter test range (e.g., 50-100).\nTotal questions: {total}",
+             "ENTER_RANDOM_COUNT_PROMPT": "🔢 How many random questions? (Enter a number between 1-{total}):",
+             "INVALID_RANGE": "⚠️ Invalid range entered. Example: 50-100",
+             "INVALID_COUNT": "⚠️ Invalid number entered.",
         }
     }
 

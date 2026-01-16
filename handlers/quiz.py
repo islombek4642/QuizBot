@@ -24,7 +24,8 @@ from handlers.common import (
     get_quizzes_keyboard,
     get_start_quiz_keyboard,
     get_inline_shuffle_keyboard,
-    get_cancel_keyboard
+    get_cancel_keyboard,
+    get_mode_keyboard
 )
 from services.user_service import UserService
 from services.quiz_service import QuizService
@@ -638,34 +639,151 @@ async def handle_quiz_shuffle(message: types.Message, state: FSMContext, quiz_se
 
 @router.callback_query(F.data.startswith("start_quiz_"))
 async def start_quiz_callback_handler(callback: types.CallbackQuery, state: FSMContext, 
-                                     quiz_service: QuizService, session_service: SessionService, lang: str):
+                                     quiz_service: QuizService, lang: str):
     quiz_id = int(callback.data.split("_")[2])
-    await process_start_quiz(callback.message, quiz_id, quiz_service, session_service, lang)
+    
+    quiz = await quiz_service.get_quiz(quiz_id)
+    if not quiz:
+        await callback.answer(Messages.get("ERROR_TEST_NOT_FOUND", lang))
+        return
+        
+    await state.update_data(current_quiz_id=quiz_id)
+    await state.set_state(QuizStates.SELECTING_MODE)
+    await callback.message.answer(
+        Messages.get("MODE_SELECT_PROMPT", lang),
+        reply_markup=get_mode_keyboard(lang)
+    )
     await callback.answer()
 
 @router.message(QuizStates.QUIZ_READY, F.text.in_([Messages.get("START_QUIZ_BTN", "UZ"), Messages.get("START_QUIZ_BTN", "EN")]))
 async def start_quiz_message_handler(message: types.Message, state: FSMContext, 
-                                    quiz_service: QuizService, session_service: SessionService, lang: str):
+                                    quiz_service: QuizService, lang: str):
     data = await state.get_data()
     quiz_id = data.get("current_quiz_id")
     if not quiz_id:
-        telegram_id = message.from_user.id
         await message.answer(Messages.get("ERROR_QUIZ_NOT_FOUND", lang))
         await state.clear()
         return
     
-    await process_start_quiz(message, quiz_id, quiz_service, session_service, lang)
-    await state.clear()
+    await state.set_state(QuizStates.SELECTING_MODE)
+    await message.answer(
+        Messages.get("MODE_SELECT_PROMPT", lang),
+        reply_markup=get_mode_keyboard(lang)
+    )
+
+@router.message(QuizStates.SELECTING_MODE, F.text)
+async def handle_mode_selection(message: types.Message, state: FSMContext, quiz_service: QuizService, 
+                               session_service: SessionService, lang: str):
+    text = message.text
+    data = await state.get_data()
+    quiz_id = data.get("current_quiz_id")
+    
+    quiz = await quiz_service.get_quiz(quiz_id)
+    if not quiz:
+        await message.answer(Messages.get("ERROR_TEST_NOT_FOUND", lang))
+        await state.clear()
+        return
+
+    total_questions = len(quiz.questions_json)
+
+    if text == Messages.get("MODE_FULL", lang):
+        await state.clear()
+        await process_start_quiz(message, quiz_id, quiz_service, session_service, lang)
+        
+    elif text == Messages.get("MODE_RANGE", lang):
+        await state.set_state(QuizStates.WAITING_FOR_RANGE)
+        await message.answer(
+            Messages.get("ENTER_RANGE_PROMPT", lang).format(total=total_questions),
+            reply_markup=get_cancel_keyboard(lang)
+        )
+        
+    elif text == Messages.get("MODE_RANDOM", lang):
+        await state.set_state(QuizStates.WAITING_FOR_RANDOM_COUNT)
+        await message.answer(
+            Messages.get("ENTER_RANDOM_COUNT_PROMPT", lang).format(total=total_questions),
+            reply_markup=get_cancel_keyboard(lang)
+        )
+        
+    elif text == Messages.get("CANCEL_BTN", lang):
+        await state.clear()
+        await message.answer(
+            Messages.get("SELECT_BUTTON", lang),
+            reply_markup=get_main_keyboard(lang, message.from_user.id)
+        )
+
+@router.message(QuizStates.WAITING_FOR_RANGE, F.text)
+async def handle_range_input(message: types.Message, state: FSMContext, quiz_service: QuizService, 
+                             session_service: SessionService, lang: str):
+    text = message.text.strip()
+    if text == Messages.get("CANCEL_BTN", lang):
+        await state.set_state(QuizStates.SELECTING_MODE)
+        await message.answer(Messages.get("MODE_SELECT_PROMPT", lang), reply_markup=get_mode_keyboard(lang))
+        return
+
+    data = await state.get_data()
+    quiz_id = data.get("current_quiz_id")
+    quiz = await quiz_service.get_quiz(quiz_id)
+    total = len(quiz.questions_json)
+
+    try:
+        if '-' not in text:
+            raise ValueError()
+        parts = text.split('-')
+        start = int(parts[0].strip())
+        end = int(parts[1].strip())
+        
+        if not (1 <= start <= end <= total):
+            raise ValueError()
+            
+        # Extract questions in range (1-indexed)
+        custom_questions = quiz.questions_json[start-1:end]
+        await state.clear()
+        await process_start_quiz(message, quiz_id, quiz_service, session_service, lang, custom_questions=custom_questions)
+        
+    except ValueError:
+        await message.answer(Messages.get("INVALID_RANGE", lang))
+
+@router.message(QuizStates.WAITING_FOR_RANDOM_COUNT, F.text)
+async def handle_random_count_input(message: types.Message, state: FSMContext, quiz_service: QuizService, 
+                                   session_service: SessionService, lang: str):
+    text = message.text.strip()
+    if text == Messages.get("CANCEL_BTN", lang):
+        await state.set_state(QuizStates.SELECTING_MODE)
+        await message.answer(Messages.get("MODE_SELECT_PROMPT", lang), reply_markup=get_mode_keyboard(lang))
+        return
+
+    data = await state.get_data()
+    quiz_id = data.get("current_quiz_id")
+    quiz = await quiz_service.get_quiz(quiz_id)
+    total = len(quiz.questions_json)
+
+    try:
+        count = int(text)
+        if not (1 <= count <= total):
+            raise ValueError()
+            
+        # Pick random questions
+        custom_questions = random.sample(quiz.questions_json, count)
+        
+        await state.clear()
+        await process_start_quiz(message, quiz_id, quiz_service, session_service, lang, custom_questions=custom_questions)
+        
+    except ValueError:
+        await message.answer(Messages.get("INVALID_COUNT", lang))
 
 async def process_start_quiz(message: types.Message, quiz_id: int, quiz_service: QuizService, 
-                            session_service: SessionService, lang: str):
+                            session_service: SessionService, lang: str, custom_questions: list = None):
     telegram_id = message.chat.id
 
     quiz = await quiz_service.get_quiz(quiz_id)
     if not quiz:
         await message.answer(Messages.get("ERROR_TEST_NOT_FOUND", lang))
         return
-    questions = list(quiz.questions_json) # Copy to avoid mutating original if cached
+    
+    if custom_questions:
+        questions = list(custom_questions)
+    else:
+        questions = list(quiz.questions_json) # Copy to avoid mutating original if cached
     
     # Clear any lingering stop signals from previous abandoned sessions
     await session_service.clear_stop_signal(telegram_id)

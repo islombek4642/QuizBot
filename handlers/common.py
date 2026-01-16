@@ -20,6 +20,9 @@ class QuizStates(StatesGroup):
     ADMIN_SETTING_GENERATE_COOLDOWN = State()
     ADMIN_SETTING_CONVERT_COOLDOWN = State()
     ADMIN_BROADCAST_MSG = State()
+    SELECTING_MODE = State()
+    WAITING_FOR_RANGE = State()
+    WAITING_FOR_RANDOM_COUNT = State()
 
 def get_main_keyboard(lang: str, user_id: int = None):
     builder = ReplyKeyboardBuilder()
@@ -97,6 +100,15 @@ def get_stop_keyboard(lang: str):
 def get_start_quiz_keyboard(lang: str):
     builder = ReplyKeyboardBuilder()
     builder.button(text=Messages.get("START_QUIZ_BTN", lang))
+    builder.button(text=Messages.get("CANCEL_BTN", lang))
+    builder.adjust(1)
+    return builder.as_markup(resize_keyboard=True)
+
+def get_mode_keyboard(lang: str):
+    builder = ReplyKeyboardBuilder()
+    builder.button(text=Messages.get("MODE_FULL", lang))
+    builder.button(text=Messages.get("MODE_RANGE", lang))
+    builder.button(text=Messages.get("MODE_RANDOM", lang))
     builder.button(text=Messages.get("CANCEL_BTN", lang))
     builder.adjust(1)
     return builder.as_markup(resize_keyboard=True)
