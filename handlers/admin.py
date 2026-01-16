@@ -357,6 +357,7 @@ async def admin_maintenance_notify(message: types.Message, bot: Bot, db: AsyncSe
         try:
             await bot.send_message(chat_id=user_id, text=msg_text, parse_mode="HTML")
             user_count += 1
+            await asyncio.sleep(0.05)  # 20 messages per second limit
         except Exception as e:
             logger.warning(f"Failed to send maintenance warning to user {user_id}: {e}")
 
@@ -365,6 +366,7 @@ async def admin_maintenance_notify(message: types.Message, bot: Bot, db: AsyncSe
         try:
             await bot.send_message(chat_id=group_id, text=msg_text, parse_mode="HTML")
             group_count += 1
+            await asyncio.sleep(0.05)  # 20 messages per second limit
         except Exception as e:
             logger.warning(f"Failed to send maintenance warning to group {group_id}: {e}")
 
