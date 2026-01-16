@@ -328,6 +328,7 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
 
 @router.message(F.text == "/maintenance")
 @router.message(F.text.in_([Messages.get("ADMIN_MAINTENANCE_BTN", "UZ"), Messages.get("ADMIN_MAINTENANCE_BTN", "EN")]))
+async def admin_maintenance_notify(message: types.Message, bot: Bot, db: AsyncSession, lang: str):
     # 1. Get all active sessions with user telegram_id
     result = await db.execute(
         select(QuizSession.user_id)
