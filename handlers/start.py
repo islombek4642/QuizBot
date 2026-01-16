@@ -81,7 +81,7 @@ async def handle_payload(payload: str, message: types.Message, user_service: Use
                 
                 # AuthMiddleware always creates the user, so check created_at to see if it's "New"
                 # If created within the last 60 seconds, treat as new
-                is_actually_new = (datetime.now() - user.created_at).total_seconds() < 60
+                is_actually_new = (datetime.now() - user.created_at).total_seconds() < 60 if user else True
                 
                 if is_actually_new:
                     # User is NEW
