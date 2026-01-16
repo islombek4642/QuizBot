@@ -1,5 +1,4 @@
 import json
-import httpx
 import asyncio
 import subprocess
 import tempfile
@@ -11,7 +10,7 @@ from core.config import settings
 from core.logger import logger
 import fitz  # PyMuPDF
 from docx import Document as DocxDocument
-
+from groq import AsyncGroq, RateLimitError, APITimeoutError
 
 class AIService:
     """Service for AI-powered quiz generation using Groq API."""
@@ -19,26 +18,15 @@ class AIService:
     def __init__(self):
         self.api_key = settings.GROQ_API_KEY
         self.model = settings.GROQ_MODEL
-        self.base_url = "https://api.groq.com/openai/v1/chat/completions"
-        
-    def _log_rate_limits(self, headers: httpx.Headers):
-        """Extract and log Groq rate limit information."""
-        remaining_requests = headers.get("x-ratelimit-remaining-requests")
-        remaining_tokens = headers.get("x-ratelimit-remaining-tokens")
-        
-        if remaining_requests or remaining_tokens:
-            logger.info(
-                "Groq rate limits",
-                rem_req=remaining_requests,
-                rem_tok=remaining_tokens,
-                reset_req=headers.get("x-ratelimit-reset-requests"),
-                reset_tok=headers.get("x-ratelimit-reset-tokens")
-            )
+        self.client = AsyncGroq(
+            api_key=self.api_key,
+            max_retries=3
+        )
         
     async def generate_quiz(self, topic: str, count: int = 30, lang: str = "UZ", 
                            on_progress: Optional[Callable[[int, int], Awaitable[None]]] = None) -> Tuple[List[Dict], Optional[str]]:
         """
-        Generate quiz questions using Groq AI with batching for large counts.
+        Generate quiz questions using Groq SDK with batching for large counts.
         """
         if not self.api_key:
             return [], "GROQ_API_KEY is not configured"
@@ -46,7 +34,7 @@ class AIService:
         all_questions = []
         batch_size = 15 # Generate 15 questions per batch for reliability
         
-        # Build base system prompt
+        # Build base system prompt (Logic unchanged)
         if lang == "UZ":
             system_prompt = """Siz universitet darajasidagi professional professor va imtihon tuzuvchi ekspertsiz. 
 Mavzuni chuqur tahlil qiling va talabalarni imtihonga tayyorlash uchun sifatli, Oliy ta'lim standartlariga mos testlar yarating.
@@ -92,87 +80,78 @@ Return ONLY the following JSON format:
 
 correct_option_id should always be 0. Question max 280 chars, options max 100 chars."""
 
-        async with httpx.AsyncClient(timeout=180.0) as client:
-            current_count = 0
-            attempts_without_progress = 0
-            max_attempts = 10 # Allow up to 10 batches with 0 questions before giving up
+        current_count = 0
+        attempts_without_progress = 0
+        max_attempts = 10 
+        
+        while current_count < count and attempts_without_progress < max_attempts:
+            remaining = count - current_count
+            to_generate = min(batch_size, remaining)
             
-            while current_count < count and attempts_without_progress < max_attempts:
-                remaining = count - current_count
-                to_generate = min(batch_size, remaining)
+            if lang == "UZ":
+                user_prompt = f"Mavzu: {topic}\nSoni: {to_generate} ta yangi (takrorlanmagan) test savoli yarating."
+            else:
+                user_prompt = f"Topic: {topic}\nGenerate {to_generate} new (unique) quiz questions."
+            
+            try:
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.8,
+                    max_completion_tokens=4096,
+                    # Pass service_tier if supported by installed version, otherwise via extra_body.
+                    # extra_body is safe for both.
+                    extra_body={"service_tier": settings.GROQ_SERVICE_TIER}
+                )
                 
-                if lang == "UZ":
-                    user_prompt = f"Mavzu: {topic}\nSoni: {to_generate} ta yangi (takrorlanmagan) test savoli yarating."
-                else:
-                    user_prompt = f"Topic: {topic}\nGenerate {to_generate} new (unique) quiz questions."
+                content = response.choices[0].message.content
                 
+                # Parse JSON
                 try:
-                    response = await client.post(
-                        self.base_url,
-                        headers={
-                            "Authorization": f"Bearer {self.api_key}",
-                            "Content-Type": "application/json"
-                        },
-                        json={
-                            "model": self.model,
-                            "messages": [
-                                {"role": "system", "content": system_prompt},
-                                {"role": "user", "content": user_prompt}
-                            ],
-                            "response_format": {"type": "json_object"},
-                            "temperature": 0.8,
-                            "max_completion_tokens": 4096
-                        }
-                    )
+                    batch_raw = json.loads(content)
+                    batch_questions = batch_raw.get("questions", [])
+                except Exception as je:
+                    logger.error("JSON parse failed in batch", error=str(je), content=content[:500])
+                    attempts_without_progress += 1
+                    continue
+                
+                # Validate and fix
+                validated = self._validate_questions(batch_questions)
+                
+                if not validated:
+                    logger.warning("Batch returned 0 valid questions", content=content[:500])
+                    attempts_without_progress += 1
+                    continue
                     
-                    self._log_rate_limits(response.headers)
+                all_questions.extend(validated)
+                
+                # Check if we actually made progress
+                if len(all_questions) > current_count:
+                    current_count = len(all_questions)
+                    attempts_without_progress = 0
+                    logger.info("Generation progress", topic=topic, current=current_count, total=count)
+                    # Report progress
+                    if on_progress:
+                        await on_progress(min(current_count, count), count)
+                else:
+                    attempts_without_progress += 1
                     
-                    if response.status_code != 200:
-                        logger.error("Groq API error", status=response.status_code, error=response.text)
-                        if all_questions: break 
-                        return [], f"API error: {response.status_code}"
+                # Slow down slightly 
+                if count > 50:
+                    await asyncio.sleep(1)
                     
-                    data = response.json()
-                    content = data["choices"][0]["message"]["content"]
-                    
-                    # Parse JSON
-                    try:
-                        batch_raw = json.loads(content)
-                        batch_questions = batch_raw.get("questions", [])
-                    except Exception as je:
-                        logger.error("JSON parse failed in batch", error=str(je), content=content[:500])
-                        attempts_without_progress += 1
-                        continue
-                    
-                    # Validate and fix
-                    validated = self._validate_questions(batch_questions)
-                    
-                    if not validated:
-                        logger.warning("Batch returned 0 valid questions", content=content[:500])
-                        attempts_without_progress += 1
-                        continue
-                        
-                    all_questions.extend(validated)
-                    
-                    # Check if we actually made progress
-                    if len(all_questions) > current_count:
-                        current_count = len(all_questions)
-                        attempts_without_progress = 0
-                        logger.info("Generation progress", topic=topic, current=current_count, total=count)
-                        # Report progress
-                        if on_progress:
-                            await on_progress(min(current_count, count), count)
-                    else:
-                        attempts_without_progress += 1
-                        
-                    # Slow down slightly to avoid extreme rate limits
-                    if count > 50:
-                        await asyncio.sleep(1)
-                        
-                except Exception as e:
-                    logger.exception(f"Batch generation error: {e}")
-                    if all_questions: break
-                    return [], f"Generation error: {str(e)}"
+            except (RateLimitError, APITimeoutError) as e:
+                logger.error(f"Groq API Error: {e}")
+                if all_questions: break
+                return [], f"Groq API Error: {str(e)}"
+            except Exception as e:
+                logger.exception(f"Batch generation error: {e}")
+                if all_questions: break
+                return [], f"Generation error: {str(e)}"
         
         if attempts_without_progress >= max_attempts:
             logger.error("AI generation stopped due to lack of progress", topic=topic, generated=len(all_questions))
@@ -188,18 +167,10 @@ correct_option_id should always be 0. Question max 280 chars, options max 100 ch
     async def convert_quiz(self, raw_text: str, lang: str = "UZ", on_progress: Optional[Callable[[int, int, int], Awaitable[None]]] = None) -> Tuple[List[Dict], Optional[str]]:
         """
         Convert raw text from PDF/Word to our quiz format using AI.
-        Processes in batches to avoid token limits.
-        
-        Args:
-            raw_text: The text to convert
-            lang: Language code
-            on_progress: Async callback(current_batch, total_batches, found_questions)
         """
         if not self.api_key:
             return [], "GROQ_API_KEY is not configured"
 
-        # Reduced chunk size to ensure AI output fits within token limits (e.g. 4096 tokens)
-        # 4,000 characters of input text usually contains 20-25 questions.
         chunk_size = 4000 
         chunks = [raw_text[i:i + chunk_size] for i in range(0, len(raw_text), chunk_size)]
         
@@ -233,54 +204,40 @@ JSON SCHEMA:
         lang_full = "Uzbek" if lang == "UZ" else "English"
         system_prompt = system_prompt.format(lang_full=lang_full)
 
-        async with httpx.AsyncClient(timeout=180.0) as client:
-            for i, chunk in enumerate(chunks):
-                logger.info(f"Processing chunk {i+1}/{len(chunks)} ({len(chunk)} chars)")
-                
-                try:
-                    # Slow down AI to avoid rate limits when having many chunks
-                    if i > 0:
-                        await asyncio.sleep(1.5)
+        for i, chunk in enumerate(chunks):
+            logger.info(f"Processing chunk {i+1}/{len(chunks)} ({len(chunk)} chars)")
+            
+            try:
+                # Slow down AI to avoid rate limits when having many chunks
+                if i > 0:
+                    await asyncio.sleep(1.5)
 
-                    response = await client.post(
-                        self.base_url,
-                        headers={
-                            "Authorization": f"Bearer {self.api_key}",
-                            "Content-Type": "application/json"
-                        },
-                        json={
-                            "model": self.model,
-                            "messages": [
-                                {"role": "system", "content": system_prompt},
-                                {"role": "user", "content": f"Convert to JSON:\n\n{chunk}"}
-                            ],
-                            "response_format": {"type": "json_object"},
-                            "temperature": 0.1,
-                            "max_completion_tokens": 4096
-                        }
-                    )
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": f"Convert to JSON:\n\n{chunk}"}
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.1,
+                    max_completion_tokens=4096,
+                    extra_body={"service_tier": settings.GROQ_SERVICE_TIER}
+                )
+                
+                content = response.choices[0].message.content
+                
+                chunk_questions = self._parse_response(content)
+                if chunk_questions:
+                    validated = self._validate_questions(chunk_questions)
+                    all_questions.extend(validated)
                     
-                    self._log_rate_limits(response.headers)
+                # Trigger progress callback
+                if on_progress:
+                    await on_progress(i + 1, len(chunks), len(all_questions))
                     
-                    if response.status_code != 200:
-                        logger.error(f"Batch {i+1} failed", status=response.status_code)
-                        continue
-                        
-                    data = response.json()
-                    content = data["choices"][0]["message"]["content"]
-                    
-                    chunk_questions = self._parse_response(content)
-                    if chunk_questions:
-                        validated = self._validate_questions(chunk_questions)
-                        all_questions.extend(validated)
-                        
-                    # Trigger progress callback
-                    if on_progress:
-                        await on_progress(i + 1, len(chunks), len(all_questions))
-                        
-                except Exception as e:
-                    logger.error(f"Error in batch {i+1}", error=str(e))
-                    continue
+            except Exception as e:
+                logger.error(f"Error in batch {i+1}", error=str(e))
+                continue
 
         if not all_questions:
             return [], "Could not extract any questions from the file."
@@ -393,13 +350,6 @@ def _clean_xml_string(s: str) -> str:
 def generate_docx_from_questions(questions: List[Dict], title: str) -> bytes:
     """
     Generate a .docx file from questions in our format.
-    
-    Args:
-        questions: List of question dicts with 'question', 'options', 'correct_option_id'
-        title: Quiz title for the document
-        
-    Returns:
-        bytes: The docx file content
     """
     from docx import Document
     from docx.shared import Pt
@@ -443,8 +393,6 @@ async def extract_text_from_pdf(pdf_bytes: bytes, on_progress: Optional[Callable
 
     text = ""
     try:
-        # Blocking open and text extraction (usually fast enough for main loop, but we could to_thread if paranoid)
-        # However, OCR is the main part we care about being async.
         with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
             page_count = len(doc)
             logger.info("PDF opened", pages=page_count, size=len(pdf_bytes))
@@ -455,7 +403,6 @@ async def extract_text_from_pdf(pdf_bytes: bytes, on_progress: Optional[Callable
             
             if not text.strip() and page_count > 0:
                 logger.warning("No text extracted from PDF, initiating Groq Vision OCR fallback", pages=page_count)
-                # Now we can just await directly since we are async
                 text = await _extract_text_via_vision(doc, on_progress)
                     
     except Exception as e:
@@ -463,21 +410,20 @@ async def extract_text_from_pdf(pdf_bytes: bytes, on_progress: Optional[Callable
     return text
 
 async def _extract_text_via_vision(doc: fitz.Document, on_progress: Optional[Callable] = None) -> str:
-    """Uses Groq Vision to perform OCR on PDF pages via httpx."""
+    """Uses Groq Vision to perform OCR on PDF pages via AsyncGroq SDK."""
     full_text = ""
     total_pages = len(doc)
     
-    headers = {
-        "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    # Instantiate client just for OCR
+    ocr_client = AsyncGroq(
+        api_key=settings.GROQ_API_KEY,
+        max_retries=3
+    )
+
+    try:
         for i, page in enumerate(doc):
             try:
                 if on_progress:
-                    # Inform the handler about OCR progress
-                    # In ai_service.py, we'll try to await it if it's a coro
                     if asyncio.iscoroutinefunction(on_progress):
                         await on_progress(i + 1, total_pages)
                 
@@ -486,9 +432,9 @@ async def _extract_text_via_vision(doc: fitz.Document, on_progress: Optional[Cal
                 img_bytes = pix.tobytes("jpeg")
                 base64_image = base64.b64encode(img_bytes).decode('utf-8')
                 
-                payload = {
-                    "model": settings.GROQ_VISION_MODEL,
-                    "messages": [
+                response = await ocr_client.chat.completions.create(
+                    model=settings.GROQ_VISION_MODEL,
+                    messages=[
                         {
                             "role": "user",
                             "content": [
@@ -502,22 +448,16 @@ async def _extract_text_via_vision(doc: fitz.Document, on_progress: Optional[Cal
                             ],
                         }
                     ],
-                    "temperature": 0.1,
-                }
-                
-                response = await client.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    headers=headers,
-                    json=payload
+                    temperature=0.1,
+                    extra_body={"service_tier": settings.GROQ_SERVICE_TIER}
                 )
                 
-                if response.status_code == 200:
-                    data = response.json()
-                    page_text = data["choices"][0]["message"]["content"]
+                if response.choices and response.choices[0].message.content:
+                    page_text = response.choices[0].message.content
                     full_text += page_text + "\n\n"
                     logger.debug("Page OCR success", page=i+1)
                 else:
-                    logger.error("Groq Vision API error", status=response.status_code, body=response.text)
+                    logger.error("Groq Vision API returned empty content")
                 
                 # Cooldown to avoid hitting rate limits too fast
                 await asyncio.sleep(0.5)
@@ -525,11 +465,10 @@ async def _extract_text_via_vision(doc: fitz.Document, on_progress: Optional[Cal
             except Exception as e:
                 logger.error(f"OCR failed for page {i+1}", error=str(e))
                 continue
+    finally:
+        await ocr_client.close()
             
     return full_text
-    return full_text
-
-
 
 
 def extract_text_from_docx(docx_bytes: bytes) -> str:
@@ -563,10 +502,6 @@ def extract_text_from_docx(docx_bytes: bytes) -> str:
 def extract_text_from_doc(doc_bytes: bytes) -> str:
     """
     Robust extraction for .doc files.
-    Handles:
-    1. True legacy .doc (via antiword or catdoc)
-    2. RTF files renamed to .doc (via striprtf)
-    3. Docx files renamed to .doc (via python-docx)
     """
     import subprocess
     import tempfile
