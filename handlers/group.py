@@ -24,6 +24,7 @@ from services.user_service import UserService
 from services.quiz_service import QuizService
 from services.session_service import SessionService
 from services.group_service import GroupService
+from models.group import Group
 from core.config import settings
 from core.logger import logger
 
