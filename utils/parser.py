@@ -97,7 +97,8 @@ def parse_lines_to_json(lines: List[str], lang: str = "UZ") -> Tuple[List[Dict],
                 current_question = {
                     'question': text[1:].strip(),
                     'options': [],
-                    'correct_option_id': None
+                    'correct_option_id': None,
+                    'last_item_type': 'q' # Track if last content was question 'q', correct option 'c', or wrong 'w'
                 }
                 current_question_start_line = i
                 
@@ -110,15 +111,25 @@ def parse_lines_to_json(lines: List[str], lang: str = "UZ") -> Tuple[List[Dict],
 
                 current_question['correct_option_id'] = len(current_question['options'])
                 current_question['options'].append(text[1:].strip())
+                current_question['last_item_type'] = 'c'
                 
             elif text.startswith('='):
                 if not current_question:
                     continue
                 current_question['options'].append(text[1:].strip())
+                current_question['last_item_type'] = 'w'
                 
             else:
                 if text.startswith(('-', '*', '•', 'A)', 'B)', '1.')):
                     errors.append(Messages.get("PARSER_INVALID_PREFIX", lang).format(line=i, text=text[:20] + "..."))
+                elif current_question:
+                    # Multiline support: append to last item
+                    last_type = current_question.get('last_item_type')
+                    if last_type == 'q':
+                        current_question['question'] += " " + text
+                    elif last_type in ('c', 'w') and current_question['options']:
+                        current_question['options'][-1] += " " + text
+
         except Exception as e:
             errors.append(f"Error at line {i}: {str(e)}")
 
@@ -162,5 +173,5 @@ def validate_question(q: Dict, line_num: int, lang: str):
 
     for i, opt in enumerate(q['options']):
         if len(opt) > 100:
-             msg = Messages.get("PARSER_OPTION_TOO_LONG", lang).format(line=line_num, count=len(opt))
+             msg = Messages.get("PARSER_OPTION_TOO_LONG", lang).format(line=line_num, text=opt[:20] + "...", count=len(opt))
              raise ParserError(msg)
