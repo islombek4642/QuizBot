@@ -72,7 +72,7 @@ async def main():
     try:
         await dp.start_polling(bot)
     finally:
-        await redis.close()
+        await redis.aclose()
 
 if __name__ == "__main__":
     try:

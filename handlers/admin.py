@@ -297,6 +297,7 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
     
     for i, target_id in enumerate(all_targets, 1):
         try:
+            await asyncio.sleep(0.05)  # Rate limit: ~20 messages/second
             # Use copy_message for much better reliability with media
             await bot.copy_message(
                 chat_id=target_id,
