@@ -203,13 +203,12 @@ async def start_group_quiz_callback(callback: types.CallbackQuery, user_service:
 
     if not user_admin_groups:
         # If no groups found where user is admin, show "Add to Group" button
-        bot_username = settings.BOT_USERNAME
-        if not bot_username:
-            try:
-                bot_info = await callback.bot.get_me()
-                bot_username = bot_info.username
-            except:
-                bot_username = ""
+        # Always get username from bot API to ensure it's correct
+        try:
+            bot_info = await callback.bot.get_me()
+            bot_username = bot_info.username
+        except:
+            bot_username = settings.BOT_USERNAME
         
         if bot_username:
             builder = InlineKeyboardBuilder()
