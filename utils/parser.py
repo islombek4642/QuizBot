@@ -80,6 +80,11 @@ def parse_lines_to_json(lines: List[str], lang: str = "UZ") -> Tuple[List[Dict],
     current_question_start_line = 0
 
     for i, text in enumerate(lines, 1):
+        if "++++++" in text:
+            # Detected new format separator, switch strategy
+            return _parse_custom_format(lines, lang)
+
+    for i, text in enumerate(lines, 1):
         text = text.strip()
         if not text:
             continue
@@ -145,6 +150,75 @@ def parse_lines_to_json(lines: List[str], lang: str = "UZ") -> Tuple[List[Dict],
     if not questions and not errors:
         raise ParserError(Messages.get("PARSER_NO_QUIZZES", lang))
 
+    return questions, errors
+
+def _parse_custom_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[str]]:
+    """
+    Parse questions using custom format:
+    Question
+    ======
+    #Correct
+    ======
+    Wrong
+    ++++++
+    """
+    full_text = "\n".join(lines)
+    # Split by question separator
+    raw_blocks = full_text.split("++++++")
+    
+    questions = []
+    errors = []
+    
+    for i, block in enumerate(raw_blocks, 1):
+        block = block.strip()
+        if not block:
+            continue
+            
+        try:
+            # Split by part separator
+            parts = [p.strip() for p in block.split("======") if p.strip()]
+            
+            if len(parts) < 3: # Need at least Question + 2 Options
+                errors.append(Messages.get("PARSER_BLOCK_INCOMPLETE", lang).format(line=i))
+                continue
+                
+            question_text = parts[0]
+            options_raw = parts[1:]
+            
+            options = []
+            correct_option_id = None
+            
+            for idx, opt in enumerate(options_raw):
+                clean_opt = opt
+                # Check for correct answer marker '#'
+                if clean_opt.startswith("#"):
+                    if correct_option_id is not None:
+                         # We raise ParserError here, which is caught below and added to errors
+                         raise ParserError(Messages.get("PARSER_MULTIPLE_CORRECT_BLOCK", lang).format(line=i))
+                    correct_option_id = idx
+                    clean_opt = clean_opt[1:].strip()
+                
+                options.append(clean_opt)
+            
+            q_obj = {
+                'question': question_text,
+                'options': options,
+                'correct_option_id': correct_option_id
+            }
+            
+            # Use shared validator
+            # Line number is approximate since we flattened text
+            validate_question(q_obj, i, lang) 
+            questions.append(q_obj)
+            
+        except ParserError as pe:
+            errors.append(str(pe))
+        except Exception as e:
+            errors.append(f"❌ Block {i}: {str(e)}")
+            
+    if not questions and not errors:
+         raise ParserError(Messages.get("PARSER_NO_QUIZZES", lang))
+         
     return questions, errors
 
 def validate_question(q: Dict, line_num: int, lang: str):

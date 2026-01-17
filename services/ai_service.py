@@ -34,7 +34,7 @@ class AIService:
         all_questions = []
         batch_size = 15 # Generate 15 questions per batch for reliability
         
-        # Build base system prompt (Logic unchanged)
+        # Build base system prompt
         if lang == "UZ":
             system_prompt = """Siz universitet darajasidagi professional professor va imtihon tuzuvchi ekspertsiz. 
 Mavzuni chuqur tahlil qiling va talabalarni imtihonga tayyorlash uchun sifatli, Oliy ta'lim standartlariga mos testlar yarating.
@@ -111,9 +111,13 @@ correct_option_id should always be 0. Question max 280 chars, options max 100 ch
                 content = response.choices[0].message.content
                 
                 # Parse JSON
+                batch_questions = []
                 try:
                     batch_raw = json.loads(content)
-                    batch_questions = batch_raw.get("questions", [])
+                    if isinstance(batch_raw, dict) and "questions" in batch_raw:
+                        batch_questions = batch_raw.get("questions", [])
+                    elif isinstance(batch_raw, list): # Fallback
+                        batch_questions = batch_raw
                 except Exception as je:
                     logger.error("JSON parse failed in batch", error=str(je), content=content[:500])
                     attempts_without_progress += 1
@@ -126,11 +130,13 @@ correct_option_id should always be 0. Question max 280 chars, options max 100 ch
                     logger.warning("Batch returned 0 valid questions", content=content[:500])
                     attempts_without_progress += 1
                     continue
-                    
-                all_questions.extend(validated)
                 
-                # Check if we actually made progress
-                if len(all_questions) > current_count:
+                # Deduplication
+                existing_questions = {q["question"] for q in all_questions}
+                unique_validated = [q for q in validated if q["question"] not in existing_questions]
+                
+                if unique_validated:
+                    all_questions.extend(unique_validated)
                     current_count = len(all_questions)
                     attempts_without_progress = 0
                     logger.info("Generation progress", topic=topic, current=current_count, total=count)
@@ -138,6 +144,10 @@ correct_option_id should always be 0. Question max 280 chars, options max 100 ch
                     if on_progress:
                         await on_progress(min(current_count, count), count)
                 else:
+                    # Logic: We got valid JSON, but they were duplicates. 
+                    # This is technically "bad progress", but maybe not a hard failure of the AI.
+                    # We still count it as attempt_without_progress to prevent infinite loops if model keeps repeating.
+                    logger.info("Batch generated duplicates only")
                     attempts_without_progress += 1
                     
                 # Slow down slightly 
@@ -177,7 +187,7 @@ correct_option_id should always be 0. Question max 280 chars, options max 100 ch
         all_questions = []
         
         system_prompt = """You are a smart quiz parser. 
-TASK: Convert text into a JSON array of questions.
+TASK: Convert text into a JSON object containing an array of questions.
 
 RULES:
 1. Detect language automatically and output in that language.
@@ -197,18 +207,22 @@ PATTERN 2 (Legacy Format):
 =[Wrong Answer]
 
 JSON OUTPUT FORMAT:
-[
-  {
-    "question": "Question text",
-    "options": ["Correct Option", "Wrong1", "Wrong2", "Wrong3"],
-    "correct_option_id": 0
-  }
-]
+{
+  "questions": [
+    {
+      "question": "Question text",
+      "options": ["Correct Option", "Wrong1", "Wrong2", "Wrong3"],
+      "correct_option_id": 0
+    }
+  ]
+}
 
 CRITICAL: 
 - Index 0 of 'options' MUST be the correct answer.
 - If using Pattern 1: '======' separates parts, '#' allows marks correct answer.
 - If using Pattern 2: '?' starts question, '+' starts correct answer."""
+
+        # Removed .format call as we support auto-detect now
 
         for i, chunk in enumerate(chunks):
             logger.info(f"Processing chunk {i+1}/{len(chunks)} ({len(chunk)} chars)")
@@ -313,7 +327,7 @@ CRITICAL:
         for q in questions:
             try:
                 # Check required fields
-                if "question" not in q or "options" not in q or "correct_option_id" not in q:
+                if "question" not in q or "options" not in q:
                     continue
                 
                 # Ensure exactly 4 options
@@ -328,9 +342,9 @@ CRITICAL:
                 options = [opt[:95] if len(opt) > 95 else opt for opt in options]
                 
                 # Ensure correct_option_id is valid
-                correct_id = q["correct_option_id"]
-                if not isinstance(correct_id, int) or correct_id < 0 or correct_id >= len(options):
-                    correct_id = 0
+                # IMPORTANT: Based on prompt system "correct_option_id should always be 0". 
+                # We enforce this at validation level to be safe.
+                correct_id = 0
                 
                 validated.append({
                     "question": question_text,
@@ -343,6 +357,13 @@ CRITICAL:
                 continue
         
         return validated
+    
+    async def close(self):
+        """Close the AsyncGroq client session."""
+        try:
+            await self.client.close()
+        except:
+            pass
 
 
 def _clean_xml_string(s: str) -> str:
@@ -407,9 +428,11 @@ async def extract_text_from_pdf(pdf_bytes: bytes, on_progress: Optional[Callable
             page_count = len(doc)
             logger.info("PDF opened", pages=page_count, size=len(pdf_bytes))
             
-            # Try normal extraction first
+            # Try normal extraction first (Optimized with join)
+            texts = []
             for page in doc:
-                text += page.get_text()
+                texts.append(page.get_text())
+            text = "".join(texts)
             
             if not text.strip() and page_count > 0:
                 logger.warning("No text extracted from PDF, initiating Groq Vision OCR fallback", pages=page_count)

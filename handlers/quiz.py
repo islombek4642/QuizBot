@@ -273,51 +273,54 @@ async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, r
                 pass
 
         ai_service = AIService()
-        questions, error = await ai_service.generate_quiz(
-            topic=topic,
-            count=count,
-            lang=lang,
-            on_progress=on_progress
-        )
-        
-        if error and not questions:
+        try:
+            questions, error = await ai_service.generate_quiz(
+                topic=topic,
+                count=count,
+                lang=lang,
+                on_progress=on_progress
+            )
+            
+            if error and not questions:
+                await generating_msg.delete()
+                await message.answer(
+                    Messages.get("AI_GENERATION_ERROR", lang).format(error=error),
+                    reply_markup=get_main_keyboard(lang, telegram_id)
+                )
+                return
+            
+            # Generate Word file
+            quiz_title = topic
+            docx_bytes = generate_docx_from_questions(questions, quiz_title)
+            
+            # Send Word file
+            docx_file = BufferedInputFile(
+                docx_bytes,
+                filename=f"quiz_{topic[:20].replace(' ', '_')}.docx"
+            )
+            await message.answer_document(
+                docx_file,
+                caption=f"📄 {quiz_title}"
+            )
+            
+            await state.update_data(questions=questions, title=quiz_title)
+            await state.set_state(QuizStates.WAITING_FOR_SHUFFLE)
+            
             await generating_msg.delete()
             await message.answer(
-                Messages.get("AI_GENERATION_ERROR", lang).format(error=error),
-                reply_markup=get_main_keyboard(lang, telegram_id)
+                Messages.get("AI_GENERATION_SUCCESS", lang).format(count=len(questions)),
+                parse_mode="HTML"
             )
-            return
-        
-        # Generate Word file
-        quiz_title = topic
-        docx_bytes = generate_docx_from_questions(questions, quiz_title)
-        
-        # Send Word file
-        docx_file = BufferedInputFile(
-            docx_bytes,
-            filename=f"quiz_{topic[:20].replace(' ', '_')}.docx"
-        )
-        await message.answer_document(
-            docx_file,
-            caption=f"📄 {quiz_title}"
-        )
-        
-        await state.update_data(questions=questions, title=quiz_title)
-        await state.set_state(QuizStates.WAITING_FOR_SHUFFLE)
-        
-        await generating_msg.delete()
-        await message.answer(
-            Messages.get("AI_GENERATION_SUCCESS", lang).format(count=len(questions)),
-            parse_mode="HTML"
-        )
-        
-        # Increment global stats
-        await redis.incr("stats:ai_gen_total")
-        
-        await message.answer(
-            Messages.get("ASK_SHUFFLE", lang),
-            reply_markup=get_shuffle_keyboard(lang)
-        )
+            
+            # Increment global stats
+            await redis.incr("stats:ai_gen_total")
+            
+            await message.answer(
+                Messages.get("ASK_SHUFFLE", lang),
+                reply_markup=get_shuffle_keyboard(lang)
+            )
+        finally:
+            await ai_service.close()
         
     except Exception as e:
         logger.error("AI quiz generation failed", error=str(e), topic=topic, user_id=telegram_id)
