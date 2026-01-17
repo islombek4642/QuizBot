@@ -197,60 +197,66 @@ def _parse_custom_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[
                 if len(segments) > 1:
                     # Take the last segment as the potential question
                     candidate = segments[-1].strip()
-                    # Only accept if it's not excessively long (headers usually precede the question)
-                    if len(candidate) < 300 and len(candidate) > 0:
+                    if len(candidate) > 0:
                         question_text = candidate
 
+            # Length check relaxation for Q1 specifically if it still looks long
+            if i == 1 and len(question_text) > 300:
+                 # If still too long, just take the last 300 chars? No, that's risky.
+                 # Let's just strip everything before the last newline
+                 last_nl = question_text.rfind('\n')
+                 if last_nl != -1:
+                     question_text = question_text[last_nl+1:].strip()
+            
             options_raw = parts[1:]
             
             options = []
             correct_option_id = None
             
             # Heuristic: Check if separator was missing between Question and Option 1 (starting with #)
-            # If no options were found (len < 2 check above might fail, but let's say parts was just Q?)
-            # Wait, if separator missing, Q text includes Opt1.
-            # But earlier check `len(parts) < 3` might filter it out if there was only Q and Opt2.
-            # But the user case has Q+#Opt1 (no sep) -> Opt2 (sep) -> Opt3. 
-            # So parts = [Q+#Opt1, Opt2, Opt3]. len=3. Passes check.
+            # ... (Existing logic kept or slightly improved) because regex split helps, 
+            # but sometimes users put Space+#Answer.
             
-            # We need to check if Q text contains #Opt1
+            # Re-implement detailed missing separator logic specific to custom parser text flows
+            # If we see lines starting with # inside question text, it's definitely a merged option.
+            
             last_q_line_idx = -1
             q_lines = question_text.splitlines()
             for q_idx, line in enumerate(q_lines):
                 if line.strip().startswith("#"):
-                     # Found a # line inside question text!
-                     # Treat this line and subsequent lines as OPTIONS?
-                     # No, just this line is probably the first option (merged).
-                     # But what if multiple options merged?
-                     # Simple fix: If we find ONE line starting with #, assume it's the Correct Option missing a separator.
                      last_q_line_idx = q_idx
                      break
             
             if last_q_line_idx != -1:
-                # We found a # line in Question. Split!
                 real_question = "\n".join(q_lines[:last_q_line_idx]).strip()
-                missing_opt = "\n".join(q_lines[last_q_line_idx:]).strip() # All remaining lines?
-                
-                # If there are multiple lines after #, they might be other options too?
-                # User case:
-                # Wie viele Sekunden hat eine Minute?
-                # #60
-                # (End of part 0)
-                
+                missing_opt = "\n".join(q_lines[last_q_line_idx:]).strip() 
                 if real_question:
                     question_text = real_question
-                    # Insert the missing option at the start of options_raw
                     options_raw.insert(0, missing_opt)
 
             for idx, opt in enumerate(options_raw):
-                clean_opt = opt
+                clean_opt = opt.strip() # Ensure strip happens first
+                if not clean_opt: continue # Skip empty options
+                
                 # Check for correct answer marker '#'
                 if clean_opt.startswith("#"):
                     if correct_option_id is not None:
-                         # We raise ParserError here, which is caught below and added to errors
+                         # Instead of erroring, let's just accept the FIRST correct one and warn?
+                         # Or maybe the user duplicated the option?
+                         # User requirement: "Bir nechta to'g'ri javob (#) belgilangan" is an error.
+                         # But let's verify if lines match exactly?
+                         pass # Allow logic to proceed to error below for now, OR:
+                         
+                    if correct_option_id is None:
+                        correct_option_id = idx
+                        clean_opt = clean_opt[1:].strip()
+                    else:
+                         # If we already have a correct option, and find another #, it's an error.
+                         # CHECK: Is it the SAME option duplicated?
+                         if idx > 0 and options[-1] == clean_opt[1:].strip():
+                             # Likely a copy-paste error where same line repeated?
+                             continue
                          raise ParserError(Messages.get("PARSER_MULTIPLE_CORRECT_BLOCK", lang).format(line=i))
-                    correct_option_id = idx
-                    clean_opt = clean_opt[1:].strip()
                 
                 options.append(clean_opt)
             
