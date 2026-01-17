@@ -152,19 +152,23 @@ def parse_lines_to_json(lines: List[str], lang: str = "UZ") -> Tuple[List[Dict],
 
     return questions, errors
 
+import re
+
 def _parse_custom_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[str]]:
     """
-    Parse questions using custom format:
+    Parse questions using custom format with flexible separators:
     Question
-    ======
+    ====== (min 4 =)
     #Correct
     ======
     Wrong
-    ++++++
+    ++++++ (min 4 +)
     """
     full_text = "\n".join(lines)
-    # Split by question separator
-    raw_blocks = full_text.split("++++++")
+    
+    # Split by question separator (at least 4 pluses)
+    # Using filter to remove empty strings caused by leading/trailing separators
+    raw_blocks = [b for b in re.split(r'\n\+{4,}\s*\n?', full_text) if b.strip()]
     
     questions = []
     errors = []
@@ -175,19 +179,69 @@ def _parse_custom_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[
             continue
             
         try:
-            # Split by part separator
-            parts = [p.strip() for p in block.split("======") if p.strip()]
+            # Split by part separator (at least 4 equals)
+            parts = [p.strip() for p in re.split(r'\n={4,}\s*\n?', block) if p.strip()]
             
-            if len(parts) < 3: # Need at least Question + 2 Options
+            if len(parts) < 3: 
+                # Strict check: Must have Question + at least 2 Options
+                # But sometimes users mess up separators.
                 errors.append(Messages.get("PARSER_BLOCK_INCOMPLETE", lang).format(line=i))
                 continue
                 
             question_text = parts[0]
+            
+            # Heuristic for Block 1: Remove Header if present
+            # Always try to clean up Block 1 if it has double newlines
+            if i == 1:
+                segments = re.split(r'\n\s*\n', question_text)
+                if len(segments) > 1:
+                    # Take the last segment as the potential question
+                    candidate = segments[-1].strip()
+                    # Only accept if it's not excessively long (headers usually precede the question)
+                    if len(candidate) < 300 and len(candidate) > 0:
+                        question_text = candidate
+
             options_raw = parts[1:]
             
             options = []
             correct_option_id = None
             
+            # Heuristic: Check if separator was missing between Question and Option 1 (starting with #)
+            # If no options were found (len < 2 check above might fail, but let's say parts was just Q?)
+            # Wait, if separator missing, Q text includes Opt1.
+            # But earlier check `len(parts) < 3` might filter it out if there was only Q and Opt2.
+            # But the user case has Q+#Opt1 (no sep) -> Opt2 (sep) -> Opt3. 
+            # So parts = [Q+#Opt1, Opt2, Opt3]. len=3. Passes check.
+            
+            # We need to check if Q text contains #Opt1
+            last_q_line_idx = -1
+            q_lines = question_text.splitlines()
+            for q_idx, line in enumerate(q_lines):
+                if line.strip().startswith("#"):
+                     # Found a # line inside question text!
+                     # Treat this line and subsequent lines as OPTIONS?
+                     # No, just this line is probably the first option (merged).
+                     # But what if multiple options merged?
+                     # Simple fix: If we find ONE line starting with #, assume it's the Correct Option missing a separator.
+                     last_q_line_idx = q_idx
+                     break
+            
+            if last_q_line_idx != -1:
+                # We found a # line in Question. Split!
+                real_question = "\n".join(q_lines[:last_q_line_idx]).strip()
+                missing_opt = "\n".join(q_lines[last_q_line_idx:]).strip() # All remaining lines?
+                
+                # If there are multiple lines after #, they might be other options too?
+                # User case:
+                # Wie viele Sekunden hat eine Minute?
+                # #60
+                # (End of part 0)
+                
+                if real_question:
+                    question_text = real_question
+                    # Insert the missing option at the start of options_raw
+                    options_raw.insert(0, missing_opt)
+
             for idx, opt in enumerate(options_raw):
                 clean_opt = opt
                 # Check for correct answer marker '#'
@@ -207,12 +261,11 @@ def _parse_custom_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[
             }
             
             # Use shared validator
-            # Line number is approximate since we flattened text
             validate_question(q_obj, i, lang) 
             questions.append(q_obj)
             
         except ParserError as pe:
-            errors.append(str(pe))
+             errors.append(str(pe))
         except Exception as e:
             errors.append(f"❌ Block {i}: {str(e)}")
             
