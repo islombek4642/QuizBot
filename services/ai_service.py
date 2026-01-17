@@ -176,33 +176,39 @@ correct_option_id should always be 0. Question max 280 chars, options max 100 ch
         
         all_questions = []
         
-        system_prompt = """You are a professional university examination expert. Your task is to convert RAW TEXT into a high-quality JSON array of quiz questions.
+        system_prompt = """You are a smart quiz parser. 
+TASK: Convert text into a JSON array of questions.
 
-QUALITY RULES:
-1. **Academic Rigor**: Extract complex concepts and transform them into challenging questions that require analysis, not just recall.
-2. **Plausible Distractors**: Create incorrect options that are logically related to the text and challenging for students. Avoid obvious or generic wrong answers.
-3. **Formal Tone**: Ensure all questions and options use formal, professional language.
-4. **Accuracy**: Ensure the "correct" answer is strictly derived from the provided text.
+RULES:
+1. Detect language automatically and output in that language.
+2. If the text uses specific delimiters, follow them STRICTLY.
 
-FORMAT RULES:
-1. Each question MUST have EXACTLY 4 options.
-2. Index 0 of 'options' MUST be the correct answer.
-3. 'correct_option_id' MUST always be 0.
-4. Question: max 280 chars. 
-5. Option: max 100 chars.
-6. Language: {lang_full}.
+PATTERN 1 (New Custom Format):
+[Question]
+======
+#[Correct Answer]
+======
+[Wrong Answer]
+++++++
 
-JSON SCHEMA:
+PATTERN 2 (Legacy Format):
+?[Question]
++[Correct Answer]
+=[Wrong Answer]
+
+JSON OUTPUT FORMAT:
 [
-  {{
-    "question": "Logically challenging question text",
-    "options": ["Correct answer based on text", "Plausible distractor 1", "Plausible distractor 2", "Plausible distractor 3"],
+  {
+    "question": "Question text",
+    "options": ["Correct Option", "Wrong1", "Wrong2", "Wrong3"],
     "correct_option_id": 0
-  }}
-]"""
+  }
+]
 
-        lang_full = "Uzbek" if lang == "UZ" else "English"
-        system_prompt = system_prompt.format(lang_full=lang_full)
+CRITICAL: 
+- Index 0 of 'options' MUST be the correct answer.
+- If using Pattern 1: '======' separates parts, '#' allows marks correct answer.
+- If using Pattern 2: '?' starts question, '+' starts correct answer."""
 
         for i, chunk in enumerate(chunks):
             logger.info(f"Processing chunk {i+1}/{len(chunks)} ({len(chunk)} chars)")
@@ -251,7 +257,11 @@ JSON SCHEMA:
         # Helper to try parsing a string as JSON
         def try_parse(s):
             try:
-                return json.loads(s)
+                data = json.loads(s)
+                # Handle {"questions": [...]} wrapper
+                if isinstance(data, dict) and "questions" in data:
+                    return data["questions"]
+                return data
             except json.JSONDecodeError:
                 # If it's a truncated array, try to close it
                 if s.startswith('[') and not s.endswith(']'):
@@ -265,34 +275,34 @@ JSON SCHEMA:
                         pass
                 return None
 
-        # 1. Try direct parse
+        # 1. Try direct parse (or wrapper)
         parsed = try_parse(content)
-        if parsed is not None: return parsed
+        if parsed is not None and isinstance(parsed, list): return parsed
         
         # 2. Try to extract JSON from markdown code block
         if "```json" in content:
             start = content.find("```json") + 7
             end = content.find("```", start)
-            if end > start:
-                parsed = try_parse(content[start:end].strip())
-                if parsed is not None: return parsed
-            else:
-                # Truncated code block
-                parsed = try_parse(content[start:].strip())
-                if parsed is not None: return parsed
+            candidate = content[start:end].strip() if end > start else content[start:].strip()
+            parsed = try_parse(candidate)
+            if parsed is not None and isinstance(parsed, list): return parsed
 
         # 3. Try to find JSON array
         if "[" in content:
             start = content.find("[")
             end = content.rfind("]") + 1
+            candidate = content[start:end] if end > start else content[start:]
+            parsed = try_parse(candidate)
+            if parsed is not None and isinstance(parsed, list): return parsed
+        
+        # 4. Try to find JSON object (wrapper case where code block might be missing)
+        if "{" in content:
+            start = content.find("{")
+            end = content.rfind("}") + 1
             if end > start:
                 parsed = try_parse(content[start:end])
-                if parsed is not None: return parsed
-            else:
-                # Truncated but has start
-                parsed = try_parse(content[start:])
-                if parsed is not None: return parsed
-        
+                if parsed is not None and isinstance(parsed, list): return parsed
+
         logger.error("Failed to parse AI response", content=content[:500])
         return []
     
