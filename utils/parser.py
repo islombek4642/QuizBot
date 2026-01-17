@@ -170,10 +170,64 @@ def _parse_custom_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[
     # Using filter to remove empty strings caused by leading/trailing separators
     raw_blocks = [b for b in re.split(r'\n\+{4,}\s*\n?', full_text) if b.strip()]
     
+    # 2. Rescuing merged blocks (Missing +++++ separator)
+    # The user's file has instances where the "++++++" separator is missing, 
+    # merging two questions into one block (e.g. Q1... #A1 ... Q2 ... #A2).
+    # We detect this by finding multiple correct answer markers (#) in a single block.
+    # We then try to find a natural split point (\n\n) strictly located *between* the correct option of Q1 
+    # and the answer of Q2.
+
+    def rescue_merged_blocks(blk_text: str) -> List[str]:
+        # Parse into components to locate markers reliably
+        parts = [p.strip() for p in re.split(r'\n={4,}\s*\n?', blk_text)]
+        # Use simple string checks to locate markers in the parts list
+        correct_indices = [idx for idx, p in enumerate(parts) if p.startswith("#")]
+        
+        # If fewer than 2 distinct correct answers, no merge suspected
+        if len(correct_indices) < 2:
+            return [blk_text]
+
+        # Scan for a split point between the first and second correct marker
+        idx1 = correct_indices[0]
+        idx2 = correct_indices[1]
+        
+        for k in range(idx1, idx2 + 1):
+            if k >= len(parts): break
+            
+            p_text = parts[k]
+            # Check for double newline which indicates the boundary
+            if '\n\n' in p_text:
+                # Found likely split point!
+                splits = re.split(r'\n\s*\n', p_text, maxsplit=1)
+                if len(splits) < 2: continue
+                
+                left_segment = splits[0]
+                right_segment = splits[1]
+                
+                # Reconstruct Block 1
+                b1_parts = parts[:k] + [left_segment]
+                b1_str = "\n======\n".join(b1_parts)
+                
+                # Reconstruct Block 2
+                b2_parts = [right_segment] + parts[k+1:]
+                b2_str = "\n======\n".join(b2_parts)
+                
+                # Recursively process Block 2 in case it has MORE merged questions
+                return [b1_str] + rescue_merged_blocks(b2_str)
+        
+        # If no clean split found, return original
+        return [blk_text]
+
+    processed_blocks = []
+    for block in raw_blocks:
+        processed_blocks.extend(rescue_merged_blocks(block))
+            
+    raw_blocks = processed_blocks
+    
     questions = []
     errors = []
     
-    for i, block in enumerate(raw_blocks, 1):
+    for i_blk, block in enumerate(raw_blocks, 1):
         block = block.strip()
         if not block:
             continue
@@ -185,14 +239,14 @@ def _parse_custom_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[
             if len(parts) < 3: 
                 # Strict check: Must have Question + at least 2 Options
                 # But sometimes users mess up separators.
-                errors.append(Messages.get("PARSER_BLOCK_INCOMPLETE", lang).format(line=i))
+                errors.append(Messages.get("PARSER_BLOCK_INCOMPLETE", lang).format(line=i_blk))
                 continue
                 
             question_text = parts[0]
             
             # Heuristic for Block 1: Remove Header if present
             # Always try to clean up Block 1 if it has double newlines
-            if i == 1:
+            if i_blk == 1:
                 segments = re.split(r'\n\s*\n', question_text)
                 if len(segments) > 1:
                     # Take the last segment as the potential question
@@ -201,7 +255,7 @@ def _parse_custom_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[
                         question_text = candidate
 
             # Length check relaxation for Q1 specifically if it still looks long
-            if i == 1 and len(question_text) > 300:
+            if i_blk == 1 and len(question_text) > 300:
                  # If still too long, just take the last 300 chars? No, that's risky.
                  # Let's just strip everything before the last newline
                  last_nl = question_text.rfind('\n')
@@ -256,7 +310,7 @@ def _parse_custom_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[
                          if idx > 0 and options[-1] == clean_opt[1:].strip():
                              # Likely a copy-paste error where same line repeated?
                              continue
-                         raise ParserError(Messages.get("PARSER_MULTIPLE_CORRECT_BLOCK", lang).format(line=i))
+                         raise ParserError(Messages.get("PARSER_MULTIPLE_CORRECT_BLOCK", lang).format(line=i_blk))
                 
                 options.append(clean_opt)
             
@@ -267,13 +321,13 @@ def _parse_custom_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[
             }
             
             # Use shared validator
-            validate_question(q_obj, i, lang) 
+            validate_question(q_obj, i_blk, lang) 
             questions.append(q_obj)
             
         except ParserError as pe:
              errors.append(str(pe))
         except Exception as e:
-            errors.append(f"❌ Block {i}: {str(e)}")
+            errors.append(f"❌ Block {i_blk}: {str(e)}")
             
     if not questions and not errors:
          raise ParserError(Messages.get("PARSER_NO_QUIZZES", lang))
