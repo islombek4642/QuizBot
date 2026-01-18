@@ -249,18 +249,21 @@ async function saveChanges() {
     if (hasError) {
         tg.MainButton.hideProgress();
 
-        // Fix: If items are hidden by search, user won't see errors. 
-        // Reset search to show all.
+        // Reset search to ensure target is visible
         searchInput.value = '';
-        items.forEach(item => item.style.display = 'flex');
+        items.forEach(item => {
+            item.style.display = 'flex';
+            item.classList.remove('highlight-pulse');
+        });
 
-        // Scroll to first error
         const firstError = questionsContainer.querySelector('.input-error');
         if (firstError) {
             firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // More specific message based on the error
+            const val = firstError.value.trim();
+            if (!val) tg.showAlert("Error: Some fields are empty. Please fill them.");
+            else tg.showAlert("Error: Some fields exceed the character limit.");
         }
-
-        tg.showAlert("Cannot save: Some fields are empty or too long. See red highlighted fields.");
         return;
     }
 
@@ -272,15 +275,15 @@ async function saveChanges() {
             method: 'PUT',
             headers: headers,
             body: JSON.stringify({
-                title: currentQuizData.title, // Title editing can be added easily
+                title: currentQuizData.title,
                 questions: updatedQuestions
             })
         });
 
         if (!res.ok) throw new Error("Save failed");
 
-        tg.showScanQrPopup({ text: "Changes saved successfully! ✅" }); // Or just showAlert
-        setTimeout(() => switchView('dashboard'), 1500);
+        tg.showAlert("Changes saved successfully! ✅");
+        setTimeout(() => switchView('dashboard'), 1000);
     } catch (err) {
         console.error(err);
         tg.showAlert("Failed to save changes. Check your connection.");
@@ -296,21 +299,33 @@ searchInput.oninput = (e) => {
     const items = questionsContainer.querySelectorAll('.question-item');
     const isNumber = /^\d+$/.test(query);
 
-    items.forEach(item => {
-        const index = parseInt(item.dataset.index) + 1; // 1-based index
+    // Reset highlights
+    items.forEach(i => i.classList.remove('highlight-pulse'));
 
-        let match = false;
-        if (isNumber) {
-            // Strict match for numbers (User request: "aniq usha savolni topadigan qil")
-            match = (index.toString() === query);
-        } else {
-            // Normal text match
-            const text = item.innerText.toLowerCase();
-            match = text.includes(query);
+    if (isNumber && query) {
+        // "Scroll To" Mode for numbers
+        items.forEach(item => item.style.display = 'flex'); // Show all
+
+        const targetIndex = parseInt(query) - 1;
+        const targetItem = Array.from(items).find(item => parseInt(item.dataset.index) === targetIndex);
+
+        if (targetItem) {
+            targetItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            targetItem.classList.add('highlight-pulse');
         }
+    } else {
+        // "Filter" Mode for text
+        items.forEach(item => {
+            if (!query) {
+                item.style.display = 'flex';
+                return;
+            }
 
-        item.style.display = match ? 'flex' : 'none';
-    });
+            const text = item.innerText.toLowerCase();
+            const match = text.includes(query);
+            item.style.display = match ? 'flex' : 'none';
+        });
+    }
 };
 
 function switchView(view) {
