@@ -9,9 +9,12 @@ from services.user_service import UserService
 
 router = Router()
 
-@router.message(F.text.in_([Messages.get("WEBAPP_EDITOR_BTN", "UZ"), Messages.get("WEBAPP_EDITOR_BTN", "EN")]))
+from core.logger import logger
+
+@router.message(F.text.contains("Tahrirlash") | F.text.contains("Edit"))
 async def cmd_webapp_editor(message: types.Message, user_service: UserService):
     telegram_id = message.from_user.id
+    logger.info("WebApp Editor handler triggered", user_id=telegram_id, text=message.text)
     lang = await user_service.get_language(telegram_id)
     
     # Generate Token
