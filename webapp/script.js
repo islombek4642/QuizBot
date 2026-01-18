@@ -23,20 +23,34 @@ const searchInput = document.getElementById('search-input');
 function getInitData() {
     if (tg.initData) return tg.initData;
 
-    const hash = window.location.hash.slice(1);
-    const search = window.location.search.slice(1);
+    try {
+        const hash = window.location.hash.slice(1);
+        const search = window.location.search.slice(1);
 
-    const hashParams = new URLSearchParams(hash);
-    const searchParams = new URLSearchParams(search);
+        // 1. Try URLSearchParams on Hash
+        let params = new URLSearchParams(hash);
+        if (params.get('tgWebAppData')) return params.get('tgWebAppData');
 
-    const data = hashParams.get('tgWebAppData') ||
-        searchParams.get('tgWebAppData') ||
-        (hash.includes('hash=') ? hash : "");
+        // 2. Try URLSearchParams on Search
+        params = new URLSearchParams(search);
+        if (params.get('tgWebAppData')) return params.get('tgWebAppData');
 
-    if (!data) {
-        console.warn("No initData found in SDK, Hash or Search.");
+        // 3. Regex fallback (Hash)
+        let match = hash.match(/tgWebAppData=([^&]+)/);
+        if (match) return decodeURIComponent(match[1]);
+
+        // 4. Regex fallback (Search)
+        match = search.match(/tgWebAppData=([^&]+)/);
+        if (match) return decodeURIComponent(match[1]);
+
+        // 5. Check if hash itself is the data
+        if (hash.includes('auth_date=') && hash.includes('hash=')) return hash;
+
+    } catch (e) {
+        console.error("InitData parsing error:", e);
     }
-    return data;
+
+    return "";
 }
 
 // Initialize
@@ -59,9 +73,14 @@ async function loadQuizzes() {
         });
 
         if (res.status === 401) {
+            const hash = window.location.hash.slice(1);
+            const hashParams = new URLSearchParams(hash);
+            const keys = Array.from(hashParams.keys()).join(', ');
+
             const debugInfo = `
 SDK Data: ${tg.initData ? 'Yes' : 'No'}
-Hash: ${window.location.hash.substring(0, 30)}...
+Keys: [${keys}]
+Hash(start): ${hash.substring(0, 40)}...
 Version: ${tg.version}
             `;
             throw new Error("Empty Auth Data.\n" + debugInfo);
