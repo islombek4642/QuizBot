@@ -74,16 +74,32 @@ async function loadQuizzes() {
 
         if (res.status === 401) {
             const hash = window.location.hash.slice(1);
-            const hashParams = new URLSearchParams(hash);
-            const keys = Array.from(hashParams.keys()).join(', ');
+            const search = window.location.search.slice(1);
 
-            const debugInfo = `
-SDK Data: ${tg.initData ? 'Yes' : 'No'}
-Keys: [${keys}]
-Hash(start): ${hash.substring(0, 40)}...
-Version: ${tg.version}
+            // Construct detailed debug view
+            const debugHTML = `
+                <div style="background: #000; color: #0f0; padding: 20px; font-family: monospace; white-space: pre-wrap; word-break: break-all;">
+                    <h1>AUTH FAILED (401)</h1>
+                    <hr>
+                    <strong>URL:</strong> ${window.location.href}
+                    <hr>
+                    <strong>SDK initData:</strong> ${tg.initData || "EMPTY"}
+                    <hr>
+                    <strong>Hash Params:</strong> ${hash}
+                    <hr>
+                    <strong>Search Params:</strong> ${search}
+                    <hr>
+                    <strong>Version:</strong> ${tg.version}
+                    <hr>
+                    <strong>Platform:</strong> ${tg.platform}
+                    <br><br>
+                    <button onclick="window.location.reload()" style="padding: 10px 20px; font-size: 16px;">RETRY</button>
+                    <button onclick="tg.close()" style="padding: 10px 20px; font-size: 16px;">CLOSE</button>
+                </div>
             `;
-            throw new Error("Empty Auth Data.\n" + debugInfo);
+
+            document.body.innerHTML = debugHTML;
+            throw new Error("Unauthorized");
         }
         if (!res.ok) throw new Error("Failed to load quizzes");
 
