@@ -5,7 +5,7 @@ from redis.asyncio import Redis
 
 from core.config import settings
 from core.logger import setup_logging, logger
-from handlers import start, quiz, settings as settings_handlers, group, admin
+from handlers import start, quiz, settings as settings_handlers, group, admin, webapp
 from utils.middleware import DbSessionMiddleware, RedisMiddleware, AuthMiddleware
 
 async def start_api():
@@ -52,6 +52,7 @@ async def main():
     dp.include_router(settings_handlers.router)
     dp.include_router(group.router)
     dp.include_router(quiz.router)  
+    dp.include_router(webapp.router)
 
     # Set bot commands
     try:

@@ -5,6 +5,7 @@ const API_BASE = "/api";
 let currentQuizzes = [];
 let currentQuizData = null;
 let currentView = 'dashboard';
+let authToken = null;
 
 // Elements
 const loader = document.getElementById('loader');
@@ -19,38 +20,26 @@ const editorActions = document.getElementById('editor-actions');
 const saveBtn = document.getElementById('save-btn');
 const searchInput = document.getElementById('search-input');
 
-// Helper to get initData with fallback and debug
-function getInitData() {
-    if (tg.initData) return tg.initData;
+// Helper to get params
+function getAuthHeaders() {
+    const headers = {};
 
-    try {
-        const hash = window.location.hash.slice(1);
-        const search = window.location.search.slice(1);
-
-        // 1. Try URLSearchParams on Hash
-        let params = new URLSearchParams(hash);
-        if (params.get('tgWebAppData')) return params.get('tgWebAppData');
-
-        // 2. Try URLSearchParams on Search
-        params = new URLSearchParams(search);
-        if (params.get('tgWebAppData')) return params.get('tgWebAppData');
-
-        // 3. Regex fallback (Hash)
-        let match = hash.match(/tgWebAppData=([^&]+)/);
-        if (match) return decodeURIComponent(match[1]);
-
-        // 4. Regex fallback (Search)
-        match = search.match(/tgWebAppData=([^&]+)/);
-        if (match) return decodeURIComponent(match[1]);
-
-        // 5. Check if hash itself is the data
-        if (hash.includes('auth_date=') && hash.includes('hash=')) return hash;
-
-    } catch (e) {
-        console.error("InitData parsing error:", e);
+    // 1. Check for token in URL (Priority)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('token')) {
+        authToken = urlParams.get('token');
     }
 
-    return "";
+    if (authToken) {
+        headers['X-Auth-Token'] = authToken;
+    }
+
+    // 2. Always send initData if available (Fallback)
+    if (tg.initData) {
+        headers['X-Telegram-Init-Data'] = tg.initData;
+    }
+
+    return headers;
 }
 
 // Initialize
@@ -67,39 +56,23 @@ async function init() {
 
 async function loadQuizzes() {
     try {
-        const initData = getInitData();
-        const res = await fetch(`${API_BASE}/quizzes`, {
-            headers: { 'X-Telegram-Init-Data': initData }
-        });
+        const headers = getAuthHeaders();
+
+        // Validation: Must have at least one auth method
+        if (!headers['X-Auth-Token'] && !headers['X-Telegram-Init-Data']) {
+            // Try manual parsing as last resort for initData
+            try {
+                const hash = window.location.hash.slice(1);
+                const params = new URLSearchParams(hash);
+                if (params.get('tgWebAppData')) headers['X-Telegram-Init-Data'] = params.get('tgWebAppData');
+            } catch (e) { }
+        }
+
+        const res = await fetch(`${API_BASE}/quizzes`, { headers });
 
         if (res.status === 401) {
-            const hash = window.location.hash.slice(1);
-            const search = window.location.search.slice(1);
-
-            // Construct detailed debug view
-            const debugHTML = `
-                <div style="background: #000; color: #0f0; padding: 20px; font-family: monospace; white-space: pre-wrap; word-break: break-all;">
-                    <h1>AUTH FAILED (401)</h1>
-                    <hr>
-                    <strong>URL:</strong> ${window.location.href}
-                    <hr>
-                    <strong>SDK initData:</strong> ${tg.initData || "EMPTY"}
-                    <hr>
-                    <strong>Hash Params:</strong> ${hash}
-                    <hr>
-                    <strong>Search Params:</strong> ${search}
-                    <hr>
-                    <strong>Version:</strong> ${tg.version}
-                    <hr>
-                    <strong>Platform:</strong> ${tg.platform}
-                    <br><br>
-                    <button onclick="window.location.reload()" style="padding: 10px 20px; font-size: 16px;">RETRY</button>
-                    <button onclick="tg.close()" style="padding: 10px 20px; font-size: 16px;">CLOSE</button>
-                </div>
-            `;
-
-            document.body.innerHTML = debugHTML;
-            throw new Error("Unauthorized");
+            showError("Authentication Failed. Please retry via the Bot link.");
+            return;
         }
         if (!res.ok) throw new Error("Failed to load quizzes");
 
@@ -107,8 +80,20 @@ async function loadQuizzes() {
         renderQuizList();
     } catch (err) {
         console.error(err);
-        tg.showAlert("Error: " + err.message);
+        showError(err.message);
     }
+}
+
+function showError(msg) {
+    const debugHTML = `
+        <div style="background: var(--bg-color); color: var(--text-color); padding: 20px; text-align: center;">
+            <h3>Error</h3>
+            <p>${msg}</p>
+            <br>
+            <button onclick="window.location.reload()" style="padding: 10px 20px;">Retry</button>
+        </div>
+    `;
+    appContainer.innerHTML = debugHTML;
 }
 
 function renderQuizList() {
@@ -196,13 +181,12 @@ async function saveChanges() {
     });
 
     try {
-        const initData = tg.initData || "";
+        const headers = getAuthHeaders();
+        headers['Content-Type'] = 'application/json';
+
         const res = await fetch(`${API_BASE}/quizzes/${currentQuizData.id}`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Telegram-Init-Data': initData
-            },
+            headers: headers,
             body: JSON.stringify({
                 title: currentQuizData.title, // Title editing can be added easily
                 questions: updatedQuestions

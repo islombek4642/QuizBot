@@ -32,9 +32,9 @@ def get_main_keyboard(lang: str, user_id: int = None):
     builder.button(text=Messages.get("UPLOAD_WORD_BTN", lang))
     builder.button(text=Messages.get("MY_QUIZZES_BTN", lang))
     
-    # Add WebApp Editor button
+    # Add WebApp Editor button - now a regular button that triggers a signed link
     if settings.WEBAPP_URL:
-        builder.button(text=Messages.get("WEBAPP_EDITOR_BTN", lang), web_app=WebAppInfo(url=settings.WEBAPP_URL))
+        builder.button(text=Messages.get("WEBAPP_EDITOR_BTN", lang))
         
     builder.button(text=Messages.get("ADD_TO_GROUP_BTN", lang))
     builder.button(text=Messages.get("SHARE_BOT_BTN", lang))
