@@ -586,11 +586,48 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
              )
              return
 
+        # STRICT VALIDATION: Check for Telegram limits
+        validation_errors = []
+        valid_questions = [] # Only keep valid ones if we were doing partial, but here we do strict Reject
+        
+        for i, q in enumerate(questions, 1):
+            q_text = q.get("question", "")
+            if len(q_text) > 300:
+                validation_errors.append(f"❌ {i}-savol: Savol matni juda uzun ({len(q_text)}/300 belgi).")
+                continue
+            
+            opts = q.get("options", [])
+            opt_error = False
+            for j, opt in enumerate(opts, 1):
+                if len(opt) > 100:
+                    validation_errors.append(f"❌ {i}-savol, {j}-variant: Javob juda uzun ({len(opt)}/100 belgi).")
+                    validation_errors.append(f"   Matn: {opt[:50]}...")
+                    opt_error = True
+                    break
+            
+            if opt_error:
+                continue
+                
+            valid_questions.append(q)
+
+        if validation_errors:
+            # Reject file if there are validation errors
+            error_msg = "\n".join(validation_errors[:10])
+            if len(validation_errors) > 10:
+                error_msg += f"\n... (+{len(validation_errors)-10} ta xato)"
+            
+            await processing_msg.delete()
+            await message.answer(
+                Messages.get("QUIZ_ALL_FAILED", lang).format(errors=error_msg),
+                parse_mode="HTML"
+            )
+            return
+
         await state.update_data(questions=questions)
         await state.set_state(QuizStates.WAITING_FOR_TITLE)
         
         if errors:
-             # Partial success
+             # Partial success (Parser errors)
              error_list = "\n".join(errors[:10])
              if len(errors) > 10:
                  error_list += f"\n... (+{len(errors)-10})"
