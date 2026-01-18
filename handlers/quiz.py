@@ -13,7 +13,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import BufferedInputFile
 
-from utils.parser import parse_docx_to_json, parse_doc_to_json, ParserError
+from utils.parser import parse_docx_to_json, parse_doc_to_json, parse_lines_to_json, ParserError
 from constants.messages import Messages
 from handlers.common import (
     get_main_keyboard, 
@@ -376,8 +376,9 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
     
     # Check file type
     file_ext = doc.file_name.split(".")[-1].lower() if doc.file_name else ""
-    if file_ext not in ["docx", "pdf", "doc"]:
-        await message.answer(Messages.get("ONLY_DOCX", lang) + " (or .pdf, .doc)")
+    supported_exts = ["docx", "pdf", "doc", "txt", "rtf"]
+    if file_ext not in supported_exts:
+        await message.answer(Messages.get("ONLY_DOCX", lang) + " (or .pdf, .doc, .txt, .rtf)")
         return
     
     processing_msg = await message.answer(Messages.get("CONVERT_PROCESSING", lang), parse_mode="HTML")
@@ -411,8 +412,10 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
                     pass
             
             raw_text = await extract_text_from_pdf(file_bytes, on_ocr_progress)
-        elif file_ext == "doc":
+        elif file_ext in ("doc", "rtf"):
             raw_text = extract_text_from_doc(file_bytes)
+        elif file_ext == "txt":
+            raw_text = file_bytes.decode('utf-8', errors='ignore')
         else:
             raw_text = extract_text_from_docx(file_bytes)
             
@@ -529,8 +532,9 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
     telegram_id = message.from_user.id
     
     document = message.document
-    if not document or not document.file_name or not (document.file_name.endswith('.docx') or document.file_name.endswith('.doc')):
-        await message.answer(Messages.get("ONLY_DOCX", lang) + " (or .doc)")
+    valid_exts = ('.docx', '.doc', '.txt', '.rtf')
+    if not document or not document.file_name or not any(document.file_name.lower().endswith(ext) for ext in valid_exts):
+        await message.answer(Messages.get("ONLY_DOCX", lang) + " (or .doc, .txt, .rtf)")
         return
 
     temp_dir = os.path.join(os.getcwd(), "temp")
@@ -538,8 +542,9 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
         os.makedirs(temp_dir)
 
     file_info = await bot.get_file(document.file_id)
-    file_ext = ".doc" if document.file_name.endswith('.doc') else ".docx"
-    local_path = os.path.join(temp_dir, f"{uuid.uuid4()}{file_ext}")
+    # Extract extension properly
+    orig_ext = os.path.splitext(document.file_name)[1].lower()
+    local_path = os.path.join(temp_dir, f"{uuid.uuid4()}{orig_ext}")
     
     await bot.download_file(file_info.file_path, local_path)
     
@@ -549,10 +554,16 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
         await message.answer(Messages.get("FILE_DOWNLOAD_ERROR", lang))
         return
 
+    processing_msg = await message.answer(Messages.get("FILE_RECEIVED", lang))
+    
     try:
         # Offload parsing to thread to avoid blocking loop
-        if local_path.endswith('.doc'):
+        if local_path.endswith(('.doc', '.rtf')):
             questions, errors = await asyncio.to_thread(parse_doc_to_json, local_path, lang)
+        elif local_path.endswith('.txt'):
+            with open(local_path, 'r', encoding='utf-8', errors='ignore') as f:
+                txt_lines = f.readlines()
+            questions, errors = parse_lines_to_json(txt_lines, lang)
         else:
             questions, errors = await asyncio.to_thread(parse_docx_to_json, local_path, lang)
         
@@ -562,6 +573,7 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
              if len(errors) > 15:
                  error_list += f"\n... va yana {len(errors)-15} ta xatolik."
                  
+             await processing_msg.delete()
              await message.answer(
                  Messages.get("QUIZ_ALL_FAILED", lang).format(errors=error_list),
                  parse_mode="HTML"
@@ -577,6 +589,7 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
              if len(errors) > 10:
                  error_list += f"\n... (+{len(errors)-10})"
             
+             await processing_msg.delete()
              await message.answer(
                 Messages.get("QUIZ_PARTIAL_SUCCESS", lang).format(
                     count=len(questions),
@@ -587,6 +600,7 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
              )
         else:
              # Full success
+             await processing_msg.delete()
              await message.answer(
                 Messages.get("QUIZ_UPLOADED", lang).format(count=len(questions)),
                 parse_mode="HTML"

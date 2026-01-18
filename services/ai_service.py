@@ -177,66 +177,67 @@ correct_option_id should always be 0. Question max 280 chars, options max 100 ch
     async def convert_quiz(self, raw_text: str, lang: str = "UZ", on_progress: Optional[Callable[[int, int, int], Awaitable[None]]] = None) -> Tuple[List[Dict], Optional[str]]:
         """
         Convert raw text from PDF/Word to our quiz format using AI.
+        Uses line-aware chunking and exhaustive parsing.
         """
         if not self.api_key:
             return [], "GROQ_API_KEY is not configured"
 
-        chunk_size = 4000 
-        chunks = [raw_text[i:i + chunk_size] for i in range(0, len(raw_text), chunk_size)]
+        # Line-aware chunking (approx 3500 chars to stay safe)
+        max_chunk_chars = 3500
+        lines = raw_text.splitlines()
+        chunks = []
+        current_chunk = []
+        current_len = 0
         
+        for line in lines:
+            if current_len + len(line) > max_chunk_chars and current_chunk:
+                chunks.append("\n".join(current_chunk))
+                current_chunk = [line]
+                current_len = len(line)
+            else:
+                current_chunk.append(line)
+                current_len += len(line) + 1
+        if current_chunk:
+            chunks.append("\n".join(current_chunk))
+            
         all_questions = []
         
-        system_prompt = """You are a smart quiz parser. 
-TASK: Convert text into a JSON object containing an array of questions.
+        system_prompt = """You are a professional quiz extractor and educational content creator.
+TASK: Extract ALL questions/topics from the provided text and convert them into a structured JSON quiz.
 
-RULES:
-1. Detect language automatically and output in that language.
-2. If the text uses specific delimiters, follow them STRICTLY.
+STRICT RULES:
+1. EXHAUSTIVE EXTRACTION: Do not skip ANY question or topic found in the text. Every identifiable point must become a quiz question.
+2. AUTO-FILL OPTIONS: If a question/topic has no options provided, CREATE 4 high-quality, academic-level options (1 correct + 3 plausible distractors).
+3. JSON FORMAT: You MUST return a JSON object with a "questions" array.
+4. Correct answer MUST ALWAYS be at index 0 of the "options" array.
+5. Language: Use the same language as the input text.
 
-PATTERN 1 (New Custom Format):
-[Question]
-======
-#[Correct Answer]
-======
-[Wrong Answer]
-++++++
-
-PATTERN 2 (Legacy Format):
-?[Question]
-+[Correct Answer]
-=[Wrong Answer]
-
-JSON OUTPUT FORMAT:
+JSON STRUCTURE:
 {
   "questions": [
     {
-      "question": "Question text",
-      "options": ["Correct Option", "Wrong1", "Wrong2", "Wrong3"],
+      "question": "Clear and concise question text",
+      "options": ["Correct Answer", "Distractor 1", "Distractor 2", "Distractor 3"],
       "correct_option_id": 0
     }
   ]
 }
 
-CRITICAL: 
-- Index 0 of 'options' MUST be the correct answer.
-- If using Pattern 1: '======' separates parts, '#' allows marks correct answer.
-- If using Pattern 2: '?' starts question, '+' starts correct answer."""
-
-        # Removed .format call as we support auto-detect now
+CRITICAL: Return only the JSON object. Do not explain your work."""
 
         for i, chunk in enumerate(chunks):
+            if not chunk.strip(): continue
             logger.info(f"Processing chunk {i+1}/{len(chunks)} ({len(chunk)} chars)")
             
             try:
-                # Slow down AI to avoid rate limits when having many chunks
                 if i > 0:
-                    await asyncio.sleep(1.5)
+                    await asyncio.sleep(1.5) # Rate limit protection
 
                 response = await self.client.chat.completions.create(
                     model=self.model,
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"Convert to JSON:\n\n{chunk}"}
+                        {"role": "user", "content": f"Convert the following text segment into JSON. Extract every possible question:\n\n{chunk}"}
                     ],
                     response_format={"type": "json_object"},
                     temperature=0.1,
@@ -245,22 +246,21 @@ CRITICAL:
                 )
                 
                 content = response.choices[0].message.content
-                
                 chunk_questions = self._parse_response(content)
+                
                 if chunk_questions:
                     validated = self._validate_questions(chunk_questions)
                     all_questions.extend(validated)
                     
-                # Trigger progress callback
                 if on_progress:
                     await on_progress(i + 1, len(chunks), len(all_questions))
                     
             except Exception as e:
-                logger.error(f"Error in batch {i+1}", error=str(e))
+                logger.error(f"Error in chunk {i+1}", error=str(e))
                 continue
 
         if not all_questions:
-            return [], "Could not extract any questions from the file."
+            return [], "Fayldan hech qanday savol ajratib bo'lmadi."
             
         return all_questions, None
     
