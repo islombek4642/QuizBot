@@ -610,8 +610,8 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
                 
             valid_questions.append(q)
 
-        if validation_errors:
-            # Reject file if there are validation errors
+        if not valid_questions:
+            # Reject file ONLY if ALL questions failed (no valid questions remained)
             error_msg = "\n".join(validation_errors[:10])
             if len(validation_errors) > 10:
                 error_msg += f"\n... (+{len(validation_errors)-10} ta xato)"
@@ -622,12 +622,17 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
                 parse_mode="HTML"
             )
             return
+            
+        # If we have valid questions, proceed (Partial or Full Success)
+        # Add validation errors to existing parsing errors if any
+        if validation_errors:
+             errors.extend(validation_errors)
 
-        await state.update_data(questions=questions)
+        await state.update_data(questions=valid_questions) # Use filtered VALID questions
         await state.set_state(QuizStates.WAITING_FOR_TITLE)
         
         if errors:
-             # Partial success (Parser errors)
+             # Partial success (Parser or Validation errors)
              error_list = "\n".join(errors[:10])
              if len(errors) > 10:
                  error_list += f"\n... (+{len(errors)-10})"
@@ -635,7 +640,7 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
              await processing_msg.delete()
              await message.answer(
                 Messages.get("QUIZ_PARTIAL_SUCCESS", lang).format(
-                    count=len(questions),
+                    count=len(valid_questions),
                     errors_count=len(errors),
                     errors=error_list
                 ),
@@ -645,9 +650,10 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
              # Full success
              await processing_msg.delete()
              await message.answer(
-                Messages.get("QUIZ_UPLOADED", lang).format(count=len(questions)),
+                Messages.get("QUIZ_UPLOADED", lang).format(count=len(valid_questions)),
                 parse_mode="HTML"
              )
+        return
 
     except ParserError as e:
         await message.answer(str(e))
