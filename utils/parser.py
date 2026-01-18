@@ -79,10 +79,19 @@ def parse_lines_to_json(lines: List[str], lang: str = "UZ") -> Tuple[List[Dict],
     current_question = None
     current_question_start_line = 0
 
-    for i, text in enumerate(lines, 1):
-        if "++++" in text:
-            # Detected new format separator (min 4 pluses), switch strategy
+    # Detection logic for different formats
+    is_abc = False
+    abc_markers = 0
+    for text in lines[:100]:
+        t = text.strip()
+        if not t: continue
+        if "++++" in t:
             return _parse_custom_format(lines, lang)
+        if re.match(r'^\d+[\.\)]', t) or re.match(r'^#?[A-Z][\.\)]', t, re.I):
+            abc_markers += 1
+            
+    if abc_markers > 5:
+        return _parse_abc_format(lines, lang)
 
     for i, text in enumerate(lines, 1):
         text = text.strip()
@@ -334,6 +343,86 @@ def _parse_custom_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[
          
     return questions, errors
 
+def _parse_abc_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[str]]:
+    """
+    Parses numbered questions with ABC options:
+    1. Question?
+    A) Option 1
+    #B) Correct Option
+    C) Option 3
+    """
+    questions = []
+    errors = []
+    current_question = None
+    current_question_start_line = 0
+    
+    # Matches "1." or "1)" at start of line
+    re_q = re.compile(r'^(\d+)[\.\)]\s*(.*)')
+    # Matches "A)" or "A." or "#A)" or "# A)"
+    re_opt = re.compile(r'^#?\s*([A-Z])[\.\)]\s*(.*)', re.IGNORECASE)
+
+    for i, text in enumerate(lines, 1):
+        clean_text = text.strip()
+        if not clean_text:
+            continue
+            
+        m_q = re_q.match(clean_text)
+        m_opt = re_opt.match(clean_text)
+        
+        if m_q:
+            # New question starts
+            if current_question:
+                try:
+                    validate_question(current_question, current_question_start_line, lang)
+                    questions.append(current_question)
+                except ParserError as e:
+                    errors.append(str(e))
+            
+            current_question = {
+                'question': m_q.group(2).strip(),
+                'options': [],
+                'correct_option_id': None,
+                'last_item_type': 'q'
+            }
+            current_question_start_line = i
+        elif m_opt:
+            if not current_question:
+                continue
+                
+            # Check if correct answer marker '#' is present at start or near the letter
+            is_correct = clean_text.startswith("#") or m_opt.group(2).strip().startswith("#")
+            letter = m_opt.group(1)
+            opt_text = m_opt.group(2).strip()
+            
+            # Clean up '#' if it was at the start of opt_text
+            if opt_text.startswith("#"):
+                opt_text = opt_text[1:].strip()
+            
+            if is_correct:
+                if current_question['correct_option_id'] is not None:
+                     # Already has a correct answer, possibly multiple correct
+                     pass
+                current_question['correct_option_id'] = len(current_question['options'])
+            
+            current_question['options'].append(opt_text)
+            current_question['last_item_type'] = 'o'
+        elif current_question:
+            # Multiline support
+            last_type = current_question.get('last_item_type')
+            if last_type == 'q':
+                current_question['question'] += " " + clean_text
+            elif last_type == 'o' and current_question['options']:
+                current_question['options'][-1] += " " + clean_text
+                
+    if current_question:
+        try:
+            validate_question(current_question, current_question_start_line, lang)
+            questions.append(current_question)
+        except ParserError as e:
+            errors.append(str(e))
+            
+    return questions, errors
+
 def validate_question(q: Dict, line_num: int, lang: str):
     """Ensures a question has text, options and a correct answer."""
     if '__error' in q:
@@ -354,11 +443,11 @@ def validate_question(q: Dict, line_num: int, lang: str):
         msg = Messages.get("PARSER_TOO_MANY_OPTIONS", lang).format(line=line_num, count=len(q['options']))
         raise ParserError(msg)
     
-    if len(q['question']) > 300:
+    if len(q['question']) > 500:
         msg = Messages.get("PARSER_QUESTION_TOO_LONG", lang).format(line=line_num, count=len(q['question']))
         raise ParserError(msg)
 
     for i, opt in enumerate(q['options']):
-        if len(opt) > 100:
+        if len(opt) > 500:
              msg = Messages.get("PARSER_OPTION_TOO_LONG", lang).format(line=line_num, text=opt[:20] + "...", count=len(opt))
              raise ParserError(msg)

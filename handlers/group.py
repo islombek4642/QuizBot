@@ -534,10 +534,13 @@ async def send_group_question(bot: Bot, chat_id: int, quiz_state: dict, redis, l
     if len(question_text) > 300:
         question_text = question_text[:297] + "..."
 
+    # Telegram limits: 10 options max, 100 characters each
+    safe_options = [opt[:97] + "..." if len(opt) > 100 else opt for opt in q['options'][:10]]
+
     poll_message = await bot.send_poll(
         chat_id=chat_id,
         question=question_text,
-        options=q['options'][:10],
+        options=safe_options,
         type='quiz',
         correct_option_id=q['correct_option_id'],
         is_anonymous=False,

@@ -835,10 +835,13 @@ async def send_next_question(bot: Bot, chat_id: int, session: Any, session_servi
     if len(question_text) > 300:
         question_text = question_text[:297] + "..."
 
+    # Telegram limit: 100 characters per option
+    safe_options = [opt[:97] + "..." if len(opt) > 100 else opt for opt in q['options']]
+
     poll_msg = await bot.send_poll(
         chat_id=chat_id,
         question=question_text,
-        options=q['options'],
+        options=safe_options,
         is_anonymous=False,
         type='quiz',
         correct_option_id=q['correct_option_id'],

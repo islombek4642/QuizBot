@@ -49,3 +49,12 @@ logs/
 
 # Temp files
 temp/
+test_*.py
+verify_*.py
+debug_*.py
+analyze_*.py
+test.txt
+*.docx
+*.pdf
+.gemini/
+brain/
