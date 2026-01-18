@@ -19,6 +19,16 @@ const editorActions = document.getElementById('editor-actions');
 const saveBtn = document.getElementById('save-btn');
 const searchInput = document.getElementById('search-input');
 
+// Helper to get initData with fallback
+function getInitData() {
+    if (tg.initData) return tg.initData;
+
+    // Fallback: try to parse manually from hash
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    return params.get('tgWebAppData') || "";
+}
+
 // Initialize
 async function init() {
     tg.expand();
@@ -33,17 +43,21 @@ async function init() {
 
 async function loadQuizzes() {
     try {
-        const initData = tg.initData || "";
+        const initData = getInitData();
         const res = await fetch(`${API_BASE}/quizzes`, {
             headers: { 'X-Telegram-Init-Data': initData }
         });
+
+        if (res.status === 401) {
+            throw new Error("Empty Auth Data. Please open via Bot.");
+        }
         if (!res.ok) throw new Error("Failed to load quizzes");
 
         currentQuizzes = await res.json();
         renderQuizList();
     } catch (err) {
         console.error(err);
-        tg.showAlert("Failed to load your quizzes. Please try again.");
+        tg.showAlert("Error: " + err.message);
     }
 }
 
