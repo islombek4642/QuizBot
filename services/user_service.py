@@ -14,11 +14,16 @@ class UserService:
         
         if not user:
             user = User(telegram_id=telegram_id, **kwargs)
+            user.is_active = True
             self.db.add(user)
             await self.db.commit()
             await self.db.refresh(user)
             is_new = True
             logger.info("New user created", telegram_id=telegram_id)
+        elif not user.is_active:
+            user.is_active = True
+            await self.db.commit()
+            logger.info("Inactive user became active", telegram_id=telegram_id)
         
         return user, is_new
 

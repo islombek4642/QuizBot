@@ -14,6 +14,7 @@ class GroupService:
         
         if not group:
             group = Group(telegram_id=telegram_id, **kwargs)
+            group.is_active = True
             self.db.add(group)
             await self.db.commit()
             await self.db.refresh(group)
@@ -22,6 +23,10 @@ class GroupService:
         else:
             # Update title or username if they changed
             changed = False
+            if not group.is_active:
+                group.is_active = True
+                changed = True
+            
             for key, value in kwargs.items():
                 if hasattr(group, key) and getattr(group, key) != value:
                     setattr(group, key, value)

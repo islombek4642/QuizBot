@@ -1,5 +1,11 @@
 import asyncio
+import os
+import sys
 from logging.config import fileConfig
+
+# Add project root to sys.path for model imports
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, PROJECT_ROOT)
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection

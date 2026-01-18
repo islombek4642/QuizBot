@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String
+from sqlalchemy import Column, BigInteger, String, Boolean
 from models.base import Base, TimestampMixin
 
 class Group(Base, TimestampMixin):
@@ -9,3 +9,4 @@ class Group(Base, TimestampMixin):
     title = Column(String(255), nullable=False)
     username = Column(String(255), nullable=True)
     language = Column(String(10), default="UZ", nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)

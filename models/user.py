@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String
+from sqlalchemy import Column, BigInteger, String, Boolean
 from models.base import Base, TimestampMixin
 
 class User(Base, TimestampMixin):
@@ -10,3 +10,4 @@ class User(Base, TimestampMixin):
     full_name = Column(String(255), nullable=True)
     phone_number = Column(String(50), nullable=True)
     language = Column(String(10), default="UZ", nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)

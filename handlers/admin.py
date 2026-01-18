@@ -32,12 +32,17 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
     limit = 10
     offset = page * limit
     
-    # Get total count (only users with phone numbers)
-    total_result = await db.execute(select(func.count(User.id)).filter(User.phone_number.isnot(None)))
+    # Get total count (only active users with phone numbers)
+    total_result = await db.execute(
+        select(func.count(User.id)).filter(User.phone_number.isnot(None), User.is_active == True)
+    )
     total_users = total_result.scalar()
     
-    # Get users for page (only users with phone numbers)
-    result = await db.execute(select(User).filter(User.phone_number.isnot(None)).offset(offset).limit(limit).order_by(User.id.desc()))
+    # Get users for page (only active users with phone numbers)
+    result = await db.execute(
+        select(User).filter(User.phone_number.isnot(None), User.is_active == True)
+        .offset(offset).limit(limit).order_by(User.id.desc())
+    )
     users = result.scalars().all()
     
     text = Messages.get("ADMIN_USERS_TITLE", lang).format(total=total_users) + "\n\n"
@@ -85,12 +90,15 @@ async def show_groups_page(message_or_query, db: AsyncSession, lang: str, page: 
     limit = 10
     offset = page * limit
     
-    # Get total count
-    total_result = await db.execute(select(func.count(Group.id)))
+    # Get total count (only active groups)
+    total_result = await db.execute(select(func.count(Group.id)).filter(Group.is_active == True))
     total_groups = total_result.scalar()
     
     # Get groups for page
-    result = await db.execute(select(Group).offset(offset).limit(limit).order_by(Group.id.desc()))
+    result = await db.execute(
+        select(Group).filter(Group.is_active == True)
+        .offset(offset).limit(limit).order_by(Group.id.desc())
+    )
     groups = result.scalars().all()
     
     text = Messages.get("ADMIN_GROUPS_TITLE", lang).format(total=total_groups) + "\n\n"
@@ -134,10 +142,13 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     # Today's date range
     today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     
-    # Users count (total and today)
+    # Users count (total and active)
     res_users = await db.execute(select(func.count(User.id)))
     total_users = res_users.scalar()
     
+    res_active_users = await db.execute(select(func.count(User.id)).filter(User.is_active == True))
+    active_users_count = res_active_users.scalar() or 0
+
     res_today_users = await db.execute(
         select(func.count(User.id)).filter(User.created_at >= today_start)
     )
@@ -146,6 +157,9 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     # Groups count
     res_groups = await db.execute(select(func.count(Group.id)))
     total_groups = res_groups.scalar()
+    
+    res_active_groups = await db.execute(select(func.count(Group.id)).filter(Group.is_active == True))
+    active_groups_count = res_active_groups.scalar() or 0
     
     # Quizzes count (total and today)
     res_quizzes = await db.execute(select(func.count(Quiz.id)))
@@ -199,9 +213,9 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
         uptime_str = "N/A"
     
     stats_msg = Messages.get("ADMIN_STATS_MSG", lang).format(
-        total_users=total_users,
+        total_users=f"{total_users} (Active: {active_users_count})",
         today_users=today_users,
-        total_groups=total_groups,
+        total_groups=f"{total_groups} (Active: {active_groups_count})",
         total_quizzes=total_quizzes,
         today_quizzes=today_quizzes,
         total_sessions=total_sessions,
@@ -328,15 +342,19 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
         )
         return
 
-    # Get all users and groups (telegram_id only)
-    user_result = await db.execute(select(User.telegram_id))
+    # Get all active users and groups (telegram_id only)
+    user_result = await db.execute(select(User.telegram_id).filter(User.is_active == True))
     user_ids = list(user_result.scalars().all())
     
-    group_result = await db.execute(select(Group.telegram_id))
+    group_result = await db.execute(select(Group.telegram_id).filter(Group.is_active == True))
     group_ids = list(group_result.scalars().all())
     
     all_targets = user_ids + group_ids
     user_ids_set = set(user_ids)
+    
+    # Track dead IDs to update DB later
+    dead_user_ids = []
+    dead_group_ids = []
     
     count = 0
     user_success = 0
@@ -359,7 +377,15 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
             else:
                 group_success += 1
         except Exception as e:
-            logger.warning(f"Failed to send broadcast to {target_id}: {e}")
+            err_msg = str(e)
+            logger.warning(f"Failed to send broadcast to {target_id}: {err_msg}")
+            
+            # If forbidden or chat not found, mark as inactive
+            if "Forbidden" in err_msg or "chat not found" in err_msg.lower():
+                if target_id in user_ids_set:
+                    dead_user_ids.append(target_id)
+                else:
+                    dead_group_ids.append(target_id)
         
         # Update progress every 20 targets
         if i % 20 == 0:
@@ -367,6 +393,24 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
                 await progress_msg.edit_text(f"🚀 Broadcasting... {i}/{len(all_targets)}")
             except:
                 pass
+
+    # Batch update inactive targets
+    if dead_user_ids:
+        from sqlalchemy import update
+        await db.execute(
+            update(User).where(User.telegram_id.in_(dead_user_ids)).values(is_active=False)
+        )
+        logger.info(f"Marked {len(dead_user_ids)} users as inactive after broadcast failure.")
+        
+    if dead_group_ids:
+        from sqlalchemy import update
+        await db.execute(
+            update(Group).where(Group.telegram_id.in_(dead_group_ids)).values(is_active=False)
+        )
+        logger.info(f"Marked {len(dead_group_ids)} groups as inactive after broadcast failure.")
+    
+    if dead_user_ids or dead_group_ids:
+        await db.commit()
     
     # Save as last broadcast for new users
     await redis.set("global_settings:last_broadcast", json.dumps({
@@ -397,7 +441,16 @@ async def admin_maintenance_notify(message: types.Message, bot: Bot, db: AsyncSe
     
     # 2. Get all active group quizzes from Redis
     group_keys = await redis.keys("group_quiz:*")
-    group_ids = [int(key.split(":")[1]) for key in group_keys]
+    group_ids_from_redis = [int(key.split(":")[1]) for key in group_keys]
+    
+    # 3. Verify only active groups from DB
+    if group_ids_from_redis:
+        active_group_res = await db.execute(
+            select(Group.telegram_id).filter(Group.telegram_id.in_(group_ids_from_redis), Group.is_active == True)
+        )
+        group_ids = list(active_group_res.scalars().all())
+    else:
+        group_ids = []
     
     all_targets = list(set(user_ids + group_ids))
     
@@ -436,3 +489,69 @@ async def admin_maintenance_notify(message: types.Message, bot: Bot, db: AsyncSe
             total=total_count
         )
     )
+
+@router.message(F.text == "/cleanup_db")
+async def admin_silent_cleanup(message: types.Message, bot: Bot, db: AsyncSession, lang: str):
+    """
+    Check all active users and groups via get_chat (silent) 
+    and mark as inactive if inaccessible.
+    """
+    await message.answer("🔍 Bazani sokin tozalash boshlandi (faqat get_chat orqali). Bu biroz vaqt olishi mumkin...\nNatija tayyor bo'lgach xabar beraman.")
+    
+    # Run in background to not block the bot
+    asyncio.create_task(run_silent_cleanup_task(message.chat.id, bot, db, lang))
+
+async def run_silent_cleanup_task(admin_chat_id, bot: Bot, db: AsyncSession, lang: str):
+    from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest, TelegramRetryAfter
+    from sqlalchemy import select, update
+    
+    # We need a new session for the background task
+    from db.session import AsyncSessionLocal
+    async with AsyncSessionLocal() as session:
+        # 1. Get all active IDs
+        users = await session.execute(select(User.telegram_id).filter(User.is_active == True))
+        user_ids = list(users.scalars().all())
+        
+        groups = await session.execute(select(Group.telegram_id).filter(Group.is_active == True))
+        group_ids = list(groups.scalars().all())
+        
+        all_targets = user_ids + group_ids
+        user_ids_set = set(user_ids)
+        
+        dead_user_ids = []
+        dead_group_ids = []
+        
+        for i, target_id in enumerate(all_targets, 1):
+            try:
+                await bot.get_chat(target_id)
+                await asyncio.sleep(0.1) # Be gentle
+            except TelegramForbiddenError:
+                if target_id in user_ids_set: dead_user_ids.append(target_id)
+                else: dead_group_ids.append(target_id)
+            except TelegramBadRequest as e:
+                if "chat not found" in str(e).lower():
+                    if target_id in user_ids_set: dead_user_ids.append(target_id)
+                    else: dead_group_ids.append(target_id)
+            except TelegramRetryAfter as e:
+                await asyncio.sleep(e.retry_after + 1)
+            except Exception:
+                pass
+            
+            # Periodic commit to save progress and avoid long transactions
+            if i % 50 == 0:
+                if dead_user_ids:
+                    await session.execute(update(User).where(User.telegram_id.in_(dead_user_ids)).values(is_active=False))
+                    dead_user_ids = []
+                if dead_group_ids:
+                    await session.execute(update(Group).where(Group.telegram_id.in_(dead_group_ids)).values(is_active=False))
+                    dead_group_ids = []
+                await session.commit()
+
+        # Final commit
+        if dead_user_ids:
+            await session.execute(update(User).where(User.telegram_id.in_(dead_user_ids)).values(is_active=False))
+        if dead_group_ids:
+            await session.execute(update(Group).where(Group.telegram_id.in_(dead_group_ids)).values(is_active=False))
+        await session.commit()
+        
+        await bot.send_message(admin_chat_id, "✅ Bazani sokin tozalash yakunlandi! Endi statistika va ro'yxatlar faqat real foydalanuvchilarni ko'rsatadi.")
