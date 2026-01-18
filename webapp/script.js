@@ -244,9 +244,23 @@ async function saveChanges() {
         });
     });
 
+
+
     if (hasError) {
         tg.MainButton.hideProgress();
-        tg.showAlert("Please fix errors: ensure all fields are filled and within character limits (Question: 300, Option: 100).");
+
+        // Fix: If items are hidden by search, user won't see errors. 
+        // Reset search to show all.
+        searchInput.value = '';
+        items.forEach(item => item.style.display = 'flex');
+
+        // Scroll to first error
+        const firstError = questionsContainer.querySelector('.input-error');
+        if (firstError) {
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        tg.showAlert("Cannot save: Some fields are empty or too long. See red highlighted fields.");
         return;
     }
 

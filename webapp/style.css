@@ -235,6 +235,8 @@ input[type="text"].option-input {
     border-radius: 8px;
     color: var(--text-color);
     padding: 10px;
+    padding-right: 45px;
+    /* Space for char counter */
     font-family: inherit;
     font-size: 0.95rem;
     outline: none;
