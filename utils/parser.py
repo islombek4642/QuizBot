@@ -80,8 +80,8 @@ def parse_lines_to_json(lines: List[str], lang: str = "UZ") -> Tuple[List[Dict],
     current_question_start_line = 0
 
     for i, text in enumerate(lines, 1):
-        if "++++++" in text:
-            # Detected new format separator, switch strategy
+        if "++++" in text:
+            # Detected new format separator (min 4 pluses), switch strategy
             return _parse_custom_format(lines, lang)
 
     for i, text in enumerate(lines, 1):
