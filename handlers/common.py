@@ -1,8 +1,9 @@
 from aiogram import types, Bot
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from aiogram.fsm.state import State, StatesGroup
 from constants.messages import Messages
+from core.config import settings
 import os
 import logging
 
@@ -30,6 +31,11 @@ def get_main_keyboard(lang: str, user_id: int = None):
     builder.button(text=Messages.get("CONVERT_BTN", lang))
     builder.button(text=Messages.get("UPLOAD_WORD_BTN", lang))
     builder.button(text=Messages.get("MY_QUIZZES_BTN", lang))
+    
+    # Add WebApp Editor button
+    if settings.WEBAPP_URL:
+        builder.button(text=Messages.get("WEBAPP_EDITOR_BTN", lang), web_app=WebAppInfo(url=settings.WEBAPP_URL))
+        
     builder.button(text=Messages.get("ADD_TO_GROUP_BTN", lang))
     builder.button(text=Messages.get("SHARE_BOT_BTN", lang))
     builder.button(text=Messages.get("SET_LANGUAGE_BTN", lang))

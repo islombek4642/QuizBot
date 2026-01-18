@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>QuizBot Editor</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="loading">
+    <div id="loader" class="loader-container">
+        <div class="spinner"></div>
+    </div>
+
+    <div id="app" style="display: none;">
+        <!-- Header -->
+        <header>
+            <div class="header-content">
+                <h1 id="page-title">My Quizzes</h1>
+                <button id="back-btn" class="icon-btn" style="display: none;">
+                    <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" /></svg>
+                </button>
+            </div>
+        </header>
+
+        <main>
+            <!-- Dashboard View -->
+            <section id="dashboard" class="view">
+                <div id="quiz-list" class="quiz-grid">
+                    <!-- Quizzes will be loaded here -->
+                </div>
+                <div id="no-quizzes" style="display: none;" class="empty-state">
+                    <p>No quizzes found. Go to the bot to create one!</p>
+                </div>
+            </section>
+
+            <!-- Editor View -->
+            <section id="editor" class="view" style="display: none;">
+                <div class="sticky-controls">
+                    <div class="search-bar">
+                        <input type="text" id="search-input" placeholder="Search questions...">
+                    </div>
+                </div>
+                <div id="questions-container" class="questions-list">
+                    <!-- Questions will be loaded here -->
+                </div>
+            </section>
+        </main>
+
+        <!-- Fixed Footer Actions (Mobile style) -->
+        <div id="editor-actions" class="footer-actions" style="display: none;">
+            <button id="save-btn" class="primary-btn">Save Changes</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

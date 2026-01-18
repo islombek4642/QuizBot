@@ -79,3 +79,22 @@ class QuizService:
         await self.db.refresh(new_quiz)
         logger.info("Quiz cloned", from_id=quiz.id, to_id=new_quiz.id, user_id=new_user_id)
         return new_quiz
+
+    async def get_quiz_by_id_and_user(self, quiz_id: int, user_id: int) -> Optional[Quiz]:
+        """Get a specific quiz ensuring it belongs to the user."""
+        result = await self.db.execute(
+            select(Quiz).filter(Quiz.id == quiz_id, Quiz.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def update_quiz(self, quiz_id: int, user_id: int, title: str, questions: list) -> bool:
+        """Update an existing quiz title and questions."""
+        quiz = await self.get_quiz_by_id_and_user(quiz_id, user_id)
+        if not quiz:
+            return False
+            
+        quiz.title = title
+        quiz.questions_json = questions
+        await self.db.commit()
+        logger.info("Quiz updated", quiz_id=quiz_id, user_id=user_id)
+        return True

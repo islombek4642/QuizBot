@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     AI_CONVERSION_COOLDOWN_HOURS: int = 6
     
     # Environment
+    WEBAPP_URL: str = Field("", description="URL for the Telegram WebApp Editor")
     ENV: str = "production"  # development, staging, production
     DEBUG: bool = False
 

@@ -8,6 +8,13 @@ from core.logger import setup_logging, logger
 from handlers import start, quiz, settings as settings_handlers, group, admin
 from utils.middleware import DbSessionMiddleware, RedisMiddleware, AuthMiddleware
 
+async def start_api():
+    import uvicorn
+    from api.main import app
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
+
 async def main():
     # Setup structured logging
     setup_logging()
@@ -44,7 +51,7 @@ async def main():
     dp.include_router(start.router)
     dp.include_router(settings_handlers.router)
     dp.include_router(group.router)
-    dp.include_router(quiz.router)  # Move to last to avoid blocking other routers with catch-all text handler
+    dp.include_router(quiz.router)  
 
     # Set bot commands
     try:
@@ -67,10 +74,14 @@ async def main():
     except Exception as e:
         logger.error("Failed to set bot commands", error=str(e))
 
-    # Start polling
-    logger.info("Starting QuizBot (Production Refactored)...", env=settings.ENV)
+    # Start polling and API concurrently
+    logger.info("Starting QuizBot & API (Production Refactored)...", env=settings.ENV)
+    
     try:
-        await dp.start_polling(bot)
+        await asyncio.gather(
+            dp.start_polling(bot),
+            start_api()
+        )
     finally:
         await redis.aclose()
 
@@ -78,4 +89,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        logger.info("Bot stopped.")
+        logger.info("Application stopped.")
