@@ -356,8 +356,9 @@ def _parse_abc_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[str
     current_question = None
     current_question_start_line = 0
     
-    # Matches "1." or "1)" at start of line
-    re_q = re.compile(r'^(\d+)[\.\)]\s*(.*)')
+    # Matches "1." or "1)" or "1 " or "1Question" (if followed by capital)
+    # Allows optional dot/bracket, or space, or immediate capital letter
+    re_q = re.compile(r'^(\d+)(?:[\.\)\s]+|(?=[A-ZА-Я]))(.*)')
     # Matches "A)" or "A." or "#A)" or "# A)"
     re_opt = re.compile(r'^#?\s*([A-Z])[\.\)]\s*(.*)', re.IGNORECASE)
 
