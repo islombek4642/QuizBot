@@ -544,6 +544,8 @@ async def send_group_question(bot: Bot, chat_id: int, quiz_state: dict, redis, l
         type='quiz',
         correct_option_id=q['correct_option_id'],
         is_anonymous=False,
+        explanation=q.get('explanation'),
+        explanation_parse_mode="HTML",
         open_period=settings.POLL_DURATION_SECONDS,
         reply_markup=types.ReplyKeyboardRemove() # Ensure no keyboard appears
     )

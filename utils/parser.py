@@ -140,11 +140,16 @@ def _parse_legacy_format(lines: List[str], lang: str) -> Tuple[List[Dict[str, An
                 current_question['options'].append(text[1:].strip())
                 current_question['last_item_type'] = 'c'
                 
-            elif text.startswith('='):
-                if not current_question:
-                    continue
                 current_question['options'].append(text[1:].strip())
                 current_question['last_item_type'] = 'w'
+                
+            elif text.startswith('!') or text.lower().startswith('izoh:'):
+                if not current_question:
+                    continue
+                
+                expl = text[1:].strip() if text.startswith('!') else text[5:].strip()
+                current_question['explanation'] = expl
+                current_question['last_item_type'] = 'e'
                 
             else:
                 if text.startswith(('-', '*', '•', 'A)', 'B)', '1.')):
@@ -368,6 +373,13 @@ def _parse_abc_format(lines: List[str], lang: str) -> Tuple[List[Dict[str, Any]]
                 current_question['correct_option_id'] = len(current_question['options'])
             current_question['options'].append(opt_text)
             current_question['last_item_type'] = 'o'
+            
+        elif clean_text.startswith('!') or clean_text.lower().startswith('izoh:'):
+            if current_question:
+                expl = clean_text[1:].strip() if clean_text.startswith('!') else clean_text[5:].strip()
+                current_question['explanation'] = expl
+                current_question['last_item_type'] = 'e'
+                
         elif current_question:
             last_type = current_question.get('last_item_type')
             if last_type == 'q':
@@ -412,3 +424,10 @@ def validate_question(q: Dict[str, Any], line_num: int, lang: str):
         if len(opt) > 500:
              msg = Messages.get("PARSER_OPTION_TOO_LONG", lang).format(line=line_num, text=opt[:30] + "...", count=len(opt))
              raise ParserError(msg)
+
+    if q.get('explanation') and len(q['explanation']) > 200:
+        msg = Messages.get("PARSER_EXPLANATION_TOO_LONG", lang).format(
+            line=line_num, 
+            count=len(q['explanation'])
+        )
+        raise ParserError(msg)

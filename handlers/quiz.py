@@ -907,6 +907,8 @@ async def send_next_question(bot: Bot, chat_id: int, session: Any, session_servi
         is_anonymous=False,
         type='quiz',
         correct_option_id=q['correct_option_id'],
+        explanation=q.get('explanation'),
+        explanation_parse_mode="HTML",
         open_period=settings.POLL_DURATION_SECONDS
     )
     
