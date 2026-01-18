@@ -276,18 +276,26 @@ async function saveChanges() {
 }
 
 // Search Logic
+// Search Logic
 searchInput.oninput = (e) => {
-    const query = e.target.value.toLowerCase();
+    const query = e.target.value.toLowerCase().trim();
     const items = questionsContainer.querySelectorAll('.question-item');
+    const isNumber = /^\d+$/.test(query);
 
     items.forEach(item => {
-        const text = item.innerText.toLowerCase();
-        const index = item.dataset.index;
-        if (text.includes(query) || (index + 1).toString() === query) {
-            item.style.display = 'flex';
+        const index = parseInt(item.dataset.index) + 1; // 1-based index
+
+        let match = false;
+        if (isNumber) {
+            // Strict match for numbers (User request: "aniq usha savolni topadigan qil")
+            match = (index.toString() === query);
         } else {
-            item.style.display = 'none';
+            // Normal text match
+            const text = item.innerText.toLowerCase();
+            match = text.includes(query);
         }
+
+        item.style.display = match ? 'flex' : 'none';
     });
 };
 

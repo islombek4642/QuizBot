@@ -315,3 +315,45 @@ textarea {
     padding: 40px 20px;
     color: var(--text-muted);
 }
+
+/* Desktop Responsiveness */
+@media (min-width: 768px) {
+    body {
+        background-color: #0f172a;
+        /* Ensure dark bg on sides */
+    }
+
+    #app {
+        max-width: 800px;
+        margin: 0 auto;
+        border-left: 1px solid var(--border-color);
+        border-right: 1px solid var(--border-color);
+        min-height: 100vh;
+        background-color: var(--bg-color);
+        position: relative;
+    }
+
+    /* Fix fixed elements width on desktop */
+    header {
+        max-width: 800px;
+        margin: 0 auto;
+        left: 0;
+        right: 0;
+    }
+
+    .footer-actions {
+        max-width: 800px;
+        margin: 0 auto;
+        left: 0;
+        right: 0;
+        border-left: 1px solid var(--border-color);
+        border-right: 1px solid var(--border-color);
+    }
+
+    .loader-container {
+        max-width: 800px;
+        margin: 0 auto;
+        left: 0;
+        right: 0;
+    }
+}
