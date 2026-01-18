@@ -42,6 +42,57 @@ function getAuthHeaders() {
     return headers;
 }
 
+// Localization
+const urlParams = new URLSearchParams(window.location.search);
+const lang = (urlParams.get('lang') || 'uz').toUpperCase(); // default UZ
+
+const TRANSLATIONS = {
+    UZ: {
+        my_quizzes: "Mening Testlarim",
+        editing_test: "Tahrirlash",
+        no_quizzes: "Testlar topilmadi. Bot orqali yangi test yarating!",
+        save_changes: "Saqlash",
+        search_placeholder: "Savollarni izlash...",
+        question_label: "Savol #",
+        question_placeholder: "Savol matni...",
+        option_placeholder: "Variant",
+        error_auth: "Autentifikatsiya xatosi. Iltimos, bot orqali qaytadan kiring.",
+        error_load: "Testlarni yuklashda xatolik.",
+        error_empty: "Xatolik: Ba'zi maydonlar bo'sh. Iltimos, to'ldiring.",
+        error_limit: "Xatolik: Ba'zi maydonlar belgi limitidan oshdi.",
+        success_save: "O'zgarishlar saqlandi! ✅",
+        error_save: "Saqlashda xatolik. Internetni tekshiring.",
+        retry: "Qayta urinish",
+        error_title: "Xatolik",
+        questions_count: "savol",
+        date_format: "uz-UZ"
+    },
+    EN: {
+        my_quizzes: "My Quizzes",
+        editing_test: "Editing Test",
+        no_quizzes: "No quizzes found. Go to the bot to create one!",
+        save_changes: "Save Changes",
+        search_placeholder: "Search questions...",
+        question_label: "Question #",
+        question_placeholder: "Question text...",
+        option_placeholder: "Option",
+        error_auth: "Authentication Failed. Please retry via the Bot link.",
+        error_load: "Failed to load quizzes",
+        error_empty: "Error: Some fields are empty. Please fill them.",
+        error_limit: "Error: Some fields exceed the character limit.",
+        success_save: "Changes saved successfully! ✅",
+        error_save: "Failed to save changes. Check your connection.",
+        retry: "Retry",
+        error_title: "Error",
+        questions_count: "questions",
+        date_format: "en-US"
+    }
+};
+
+function t(key) {
+    return TRANSLATIONS[lang]?.[key] || TRANSLATIONS['EN'][key] || key;
+}
+
 // Initialize
 async function init() {
     tg.expand();
@@ -49,6 +100,15 @@ async function init() {
 
     // Set theme colors
     document.documentElement.style.setProperty('--bg-color', tg.backgroundColor || '#0f172a');
+
+    // Set static texts
+    document.getElementById('save-btn').innerText = t('save_changes');
+    document.getElementById('search-input').placeholder = t('search_placeholder');
+    document.querySelector('#no-quizzes p').innerText = t('no_quizzes');
+    pageTitle.innerText = t('my_quizzes');
+
+    // Update Main Button text if needed (though we use custom button)
+    tg.MainButton.setText(t('save_changes'));
 
     await loadQuizzes();
     hideLoader();
@@ -60,7 +120,6 @@ async function loadQuizzes() {
 
         // Validation: Must have at least one auth method
         if (!headers['X-Auth-Token'] && !headers['X-Telegram-Init-Data']) {
-            // Try manual parsing as last resort for initData
             try {
                 const hash = window.location.hash.slice(1);
                 const params = new URLSearchParams(hash);
@@ -71,10 +130,10 @@ async function loadQuizzes() {
         const res = await fetch(`${API_BASE}/quizzes`, { headers });
 
         if (res.status === 401) {
-            showError("Authentication Failed. Please retry via the Bot link.");
+            showError(t('error_auth'));
             return;
         }
-        if (!res.ok) throw new Error("Failed to load quizzes");
+        if (!res.ok) throw new Error(t('error_load'));
 
         currentQuizzes = await res.json();
         renderQuizList();
@@ -87,10 +146,10 @@ async function loadQuizzes() {
 function showError(msg) {
     const debugHTML = `
         <div style="background: var(--bg-color); color: var(--text-color); padding: 20px; text-align: center;">
-            <h3>Error</h3>
+            <h3>${t('error_title')}</h3>
             <p>${msg}</p>
             <br>
-            <button onclick="window.location.reload()" style="padding: 10px 20px;">Retry</button>
+            <button onclick="window.location.reload()" style="padding: 10px 20px;">${t('retry')}</button>
         </div>
     `;
     appContainer.innerHTML = debugHTML;
@@ -108,7 +167,7 @@ function renderQuizList() {
         card.className = 'quiz-card glass';
         card.innerHTML = `
             <h3>${quiz.title}</h3>
-            <p>${quiz.questions_count} questions • ${new Date(quiz.created_at).toLocaleDateString()}</p>
+            <p>${quiz.questions_count} ${t('questions_count')} • ${new Date(quiz.created_at).toLocaleDateString(t('date_format'))}</p>
         `;
         card.onclick = () => openEditor(quiz.id);
         quizList.appendChild(card);
@@ -122,7 +181,7 @@ async function openEditor(quizId) {
         const res = await fetch(`${API_BASE}/quizzes/${quizId}`, {
             headers: headers
         });
-        if (!res.ok) throw new Error("Failed to load quiz");
+        if (!res.ok) throw new Error(t('error_load'));
 
         currentQuizData = await res.json();
         renderEditor();
@@ -173,7 +232,7 @@ function validateInput(el, limit) {
 
 function renderEditor() {
     questionsContainer.innerHTML = '';
-    pageTitle.innerText = "Editing Test";
+    pageTitle.innerText = t('editing_test');
 
     currentQuizData.questions.forEach((q, index) => {
         const item = document.createElement('div');
@@ -185,10 +244,10 @@ function renderEditor() {
 
         item.innerHTML = `
             <div class="q-header">
-                <span class="q-label">Question #${index + 1}</span>
+                <span class="q-label">${t('question_label')}${index + 1}</span>
             </div>
             <div class="input-group">
-                <textarea class="q-text" placeholder="Question text...">${safeQuestion}</textarea>
+                <textarea class="q-text" placeholder="${t('question_placeholder')}">${safeQuestion}</textarea>
                 <small class="char-count">${q.question.length}/300</small>
             </div>
             <div class="options-grid">
@@ -198,7 +257,7 @@ function renderEditor() {
                     <div class="option-row ${optIndex === q.correct_option_id ? 'correct' : 'wrong'}">
                         <div class="indicator">${optIndex === 0 ? '✓' : '✗'}</div>
                         <div class="input-group">
-                            <input type="text" class="option-input" value="${safeOpt}" placeholder="Option ${optIndex + 1}">
+                            <input type="text" class="option-input" value="${safeOpt}" placeholder="${t('option_placeholder')} ${optIndex + 1}">
                             <small class="char-count">${opt.length}/100</small>
                         </div>
                     </div>
@@ -268,8 +327,8 @@ async function saveChanges() {
             firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
             // More specific message based on the error
             const val = firstError.value.trim();
-            if (!val) tg.showAlert("Error: Some fields are empty. Please fill them.");
-            else tg.showAlert("Error: Some fields exceed the character limit.");
+            if (!val) tg.showAlert(t('error_empty'));
+            else tg.showAlert(t('error_limit'));
         }
         return;
     }
@@ -289,17 +348,16 @@ async function saveChanges() {
 
         if (!res.ok) throw new Error("Save failed");
 
-        tg.showAlert("Changes saved successfully! ✅");
+        tg.showAlert(t('success_save'));
         setTimeout(() => switchView('dashboard'), 1000);
     } catch (err) {
         console.error(err);
-        tg.showAlert("Failed to save changes. Check your connection.");
+        tg.showAlert(t('error_save'));
     } finally {
         tg.MainButton.hideProgress();
     }
 }
 
-// Search Logic
 // Search Logic
 searchInput.oninput = (e) => {
     const query = e.target.value.toLowerCase().trim();
@@ -342,7 +400,7 @@ function switchView(view) {
         editorView.style.display = 'none';
         backBtn.style.display = 'none';
         editorActions.style.display = 'none';
-        pageTitle.innerText = "My Quizzes";
+        pageTitle.innerText = t('my_quizzes');
         loadQuizzes(); // Refresh list
     } else {
         dashboardView.style.display = 'none';

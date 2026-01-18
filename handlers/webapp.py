@@ -29,7 +29,7 @@ async def cmd_webapp_editor(message: types.Message, user_service: UserService):
     # but usually URL params start with ? so it's fine.
     # Assuming WEBAPP_URL is like https://...
     base_url = settings.WEBAPP_URL.rstrip('/')
-    signed_url = f"{base_url}?token={token}"
+    signed_url = f"{base_url}?token={token}&lang={lang}"
     
     # Create Inline Keyboard with WebApp button
     markup = InlineKeyboardMarkup(inline_keyboard=[[
@@ -40,7 +40,6 @@ async def cmd_webapp_editor(message: types.Message, user_service: UserService):
     ]])
     
     await message.answer(
-        "Tahrirlash uchun quyidagi tugmani bosing:\n"
-        "Click the button below to edit:",
+        Messages.get("WEBAPP_PROMPT", lang),
         reply_markup=markup
     )
