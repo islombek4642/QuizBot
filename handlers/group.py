@@ -56,7 +56,8 @@ class IsGroupPoll(BaseFilter):
         if not exists:
             pass
             
-        logger.info("IsGroupPoll check", poll_id=poll_id, exists=exists, event_type=type(event).__name__)
+        if exists:
+            logger.info("IsGroupPoll check", poll_id=poll_id, exists=exists, event_type=type(event).__name__)
         return bool(exists)
 
 
