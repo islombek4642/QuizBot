@@ -238,8 +238,16 @@ function switchView(view) {
     }
 }
 
-function showLoader() { loader.style.display = 'flex'; appContainer.style.display = 'none'; }
-function hideLoader() { loader.style.display = 'none'; appContainer.style.display = 'block'; }
+function showLoader() {
+    loader.style.display = 'flex';
+    appContainer.style.display = 'none';
+    document.body.classList.add('loading');
+}
+function hideLoader() {
+    loader.style.display = 'none';
+    appContainer.style.display = 'block';
+    document.body.classList.remove('loading');
+}
 
 backBtn.onclick = () => switchView('dashboard');
 saveBtn.onclick = saveChanges;
