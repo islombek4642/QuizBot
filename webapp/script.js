@@ -129,9 +129,35 @@ async function openEditor(quizId) {
         switchView('editor');
     } catch (err) {
         console.error(err);
-        tg.showAlert("Could not open test for editing.");
     } finally {
         hideLoader();
+    }
+}
+
+// Validation Helpers
+function markError(el) {
+    el.classList.add('input-error');
+    const countEl = el.parentElement.querySelector('.char-count');
+    if (countEl) countEl.classList.add('error');
+}
+
+function clearError(el) {
+    el.classList.remove('input-error');
+    const countEl = el.parentElement.querySelector('.char-count');
+    if (countEl) countEl.classList.remove('error');
+}
+
+function validateInput(el, limit) {
+    const len = el.value.trim().length;
+    const countEl = el.parentElement.querySelector('.char-count');
+    if (countEl) countEl.innerText = `${len}/${limit}`;
+
+    if (len > limit || len === 0) {
+        markError(el);
+        return false;
+    } else {
+        clearError(el);
+        return true;
     }
 }
 
@@ -148,16 +174,31 @@ function renderEditor() {
             <div class="q-header">
                 <span class="q-label">Question #${index + 1}</span>
             </div>
-            <textarea class="q-text" placeholder="Question text...">${q.question}</textarea>
+            <div class="input-group">
+                <textarea class="q-text" placeholder="Question text...">${q.question}</textarea>
+                <small class="char-count">${q.question.length}/300</small>
+            </div>
             <div class="options-grid">
                 ${q.options.map((opt, optIndex) => `
                     <div class="option-row ${optIndex === q.correct_option_id ? 'correct' : 'wrong'}">
                         <div class="indicator">${optIndex === 0 ? '✓' : '✗'}</div>
-                        <input type="text" class="option-input" value="${opt}" placeholder="Option ${optIndex + 1}">
+                        <div class="input-group">
+                            <input type="text" class="option-input" value="${opt}" placeholder="Option ${optIndex + 1}">
+                            <small class="char-count">${opt.length}/100</small>
+                        </div>
                     </div>
                 `).join('')}
             </div>
         `;
+
+        // Attach listeners
+        const qInput = item.querySelector('.q-text');
+        qInput.oninput = () => validateInput(qInput, 300);
+
+        item.querySelectorAll('.option-input').forEach(optInput => {
+            optInput.oninput = () => validateInput(optInput, 100);
+        });
+
         questionsContainer.appendChild(item);
     });
 }
@@ -166,19 +207,48 @@ async function saveChanges() {
     tg.MainButton.showProgress();
 
     // Collect data
+    // Collect data
     const updatedQuestions = [];
     const items = questionsContainer.querySelectorAll('.question-item');
+    let hasError = false;
 
     items.forEach(item => {
-        const qText = item.querySelector('.q-text').value;
-        const options = Array.from(item.querySelectorAll('.option-input')).map(i => i.value);
+        const qInput = item.querySelector('.q-text');
+        const qText = qInput.value.trim();
+
+        if (!qText || qText.length > 300) {
+            markError(qInput);
+            hasError = true;
+        } else {
+            clearError(qInput);
+        }
+
+        const options = [];
+        const optionInputs = item.querySelectorAll('.option-input');
+
+        optionInputs.forEach(optInput => {
+            const val = optInput.value.trim();
+            if (!val || val.length > 100) {
+                markError(optInput);
+                hasError = true;
+            } else {
+                clearError(optInput);
+                options.push(val);
+            }
+        });
 
         updatedQuestions.push({
             question: qText,
             options: options,
-            correct_option_id: 0 // In our bot, 0 is always correct
+            correct_option_id: 0
         });
     });
+
+    if (hasError) {
+        tg.MainButton.hideProgress();
+        tg.showAlert("Please fix errors: ensure all fields are filled and within character limits (Question: 300, Option: 100).");
+        return;
+    }
 
     try {
         const headers = getAuthHeaders();
