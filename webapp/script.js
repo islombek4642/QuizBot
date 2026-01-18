@@ -118,9 +118,9 @@ function renderQuizList() {
 async function openEditor(quizId) {
     showLoader();
     try {
-        const initData = tg.initData || "";
+        const headers = getAuthHeaders();
         const res = await fetch(`${API_BASE}/quizzes/${quizId}`, {
-            headers: { 'X-Telegram-Init-Data': initData }
+            headers: headers
         });
         if (!res.ok) throw new Error("Failed to load quiz");
 
