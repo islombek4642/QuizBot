@@ -50,9 +50,9 @@ async def main():
     dp.include_router(admin.router)
     dp.include_router(start.router)
     dp.include_router(settings_handlers.router)
-    dp.include_router(group.router)
-    dp.include_router(quiz.router)  
     dp.include_router(webapp.router)
+    dp.include_router(group.router)
+    dp.include_router(quiz.router)
 
     # Set bot commands
     try:
