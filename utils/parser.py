@@ -175,9 +175,9 @@ def _parse_custom_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[
     """
     full_text = "\n".join(lines)
     
-    # Split by question separator (at least 4 pluses)
+    # Split by question separator (at least 3 pluses, allow leading spaces)
     # Using filter to remove empty strings caused by leading/trailing separators
-    raw_blocks = [b for b in re.split(r'\n\+{4,}\s*\n?', full_text) if b.strip()]
+    raw_blocks = [b for b in re.split(r'\n\s*\+{3,}\s*\n?', full_text) if b.strip()]
     
     # 2. Rescuing merged blocks (Missing +++++ separator)
     # The user's file has instances where the "++++++" separator is missing, 
@@ -187,8 +187,8 @@ def _parse_custom_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[
     # and the answer of Q2.
 
     def rescue_merged_blocks(blk_text: str) -> List[str]:
-        # Parse into components to locate markers reliably
-        parts = [p.strip() for p in re.split(r'\n={4,}\s*\n?', blk_text)]
+        # Parse into components to locate markers reliably (at least 3 equals, allow spaces)
+        parts = [p.strip() for p in re.split(r'\n\s*={3,}\s*\n?', blk_text)]
         # Use simple string checks to locate markers in the parts list
         correct_indices = [idx for idx, p in enumerate(parts) if p.startswith("#")]
         
@@ -242,8 +242,8 @@ def _parse_custom_format(lines: List[str], lang: str) -> Tuple[List[Dict], List[
             continue
             
         try:
-            # Split by part separator (at least 4 equals)
-            parts = [p.strip() for p in re.split(r'\n={4,}\s*\n?', block) if p.strip()]
+            # Split by part separator (at least 3 equals, allow leading spaces)
+            parts = [p.strip() for p in re.split(r'\n\s*={3,}\s*\n?', block) if p.strip()]
             
             if len(parts) < 3: 
                 # Strict check: Must have Question + at least 2 Options
