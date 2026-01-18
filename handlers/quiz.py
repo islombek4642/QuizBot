@@ -562,7 +562,10 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
              if len(errors) > 15:
                  error_list += f"\n... va yana {len(errors)-15} ta xatolik."
                  
-             await message.answer(Messages.get("QUIZ_ALL_FAILED", lang).format(errors=error_list))
+             await message.answer(
+                 Messages.get("QUIZ_ALL_FAILED", lang).format(errors=error_list),
+                 parse_mode="HTML"
+             )
              return
 
         await state.update_data(questions=questions)
@@ -579,12 +582,14 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
                     count=len(questions),
                     errors_count=len(errors),
                     errors=error_list
-                )
+                ),
+                parse_mode="HTML"
              )
         else:
              # Full success
              await message.answer(
-                Messages.get("QUIZ_UPLOADED", lang).format(count=len(questions))
+                Messages.get("QUIZ_UPLOADED", lang).format(count=len(questions)),
+                parse_mode="HTML"
              )
 
     except ParserError as e:
