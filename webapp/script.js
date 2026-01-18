@@ -20,9 +20,6 @@ const saveBtn = document.getElementById('save-btn');
 const searchInput = document.getElementById('search-input');
 
 // Initialize
-// In local dev, we might not have tg.initData. For testing, you can mock it.
-const initData = tg.initData || "";
-
 async function init() {
     tg.expand();
     tg.ready();
@@ -36,6 +33,7 @@ async function init() {
 
 async function loadQuizzes() {
     try {
+        const initData = tg.initData || "";
         const res = await fetch(`${API_BASE}/quizzes`, {
             headers: { 'X-Telegram-Init-Data': initData }
         });
@@ -71,6 +69,7 @@ function renderQuizList() {
 async function openEditor(quizId) {
     showLoader();
     try {
+        const initData = tg.initData || "";
         const res = await fetch(`${API_BASE}/quizzes/${quizId}`, {
             headers: { 'X-Telegram-Init-Data': initData }
         });
@@ -133,6 +132,7 @@ async function saveChanges() {
     });
 
     try {
+        const initData = tg.initData || "";
         const res = await fetch(`${API_BASE}/quizzes/${currentQuizData.id}`, {
             method: 'PUT',
             headers: {

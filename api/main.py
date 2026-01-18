@@ -66,8 +66,9 @@ def verify_telegram_data(init_data: str) -> Optional[int]:
         logger.error("Error verifying telegram data", error=str(e))
         return None
 
-async def get_current_user(x_telegram_init_data: str = Header(None)):
+async def get_current_user(request: Request, x_telegram_init_data: str = Header(None)):
     if not x_telegram_init_data:
+        logger.warning("Missing Telegram initData header", headers=dict(request.headers))
         raise HTTPException(status_code=401, detail="Missing Telegram initData")
     
     user_id = verify_telegram_data(x_telegram_init_data)
