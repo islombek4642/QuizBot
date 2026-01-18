@@ -210,7 +210,7 @@ STRICT RULES:
 2. AUTO-FILL OPTIONS: If a question/topic has no options provided, CREATE 4 high-quality, academic-level options (1 correct + 3 plausible distractors).
 3. JSON FORMAT: You MUST return a JSON object with a "questions" array.
 4. Correct answer MUST ALWAYS be at index 0 of the "options" array.
-5. Language: Use the same language as the input text.
+5. LANGUAGE PRESERVATION: Use the SAME language as the input text (e.g., if input is Russian, output MUST be Russian). DO NOT translate to English or any other language.
 
 JSON STRUCTURE:
 {
@@ -411,8 +411,9 @@ def generate_docx_from_questions(questions: List[Dict], title: str) -> bytes:
     # Save to bytes
     buffer = BytesIO()
     doc.save(buffer)
-    buffer.seek(0)
-    return buffer.getvalue()
+    content = buffer.getvalue()
+    logger.info("Generated DOCX", questions_count=len(questions), size_bytes=len(content))
+    return content
 
 
 async def extract_text_from_pdf(pdf_bytes: bytes, on_progress: Optional[Callable] = None) -> str:

@@ -455,9 +455,15 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
         docx_bytes = generate_docx_from_questions(questions, quiz_title)
         
         # Send result Word file
+        # Use a more robust filename sanitization
+        safe_name = "".join([c if c.isalnum() or c in (' ', '.', '_', '-') else '_' for c in quiz_title])
+        result_filename = f"quiz_{safe_name[:50]}.docx"
+        
+        logger.info("Sending converted file", filename=result_filename, size=len(docx_bytes))
+        
         result_file = BufferedInputFile(
             docx_bytes,
-            filename=f"converted_{doc.file_name.replace('.pdf', '.docx')}"
+            filename=result_filename
         )
         await message.answer_document(
             result_file,
