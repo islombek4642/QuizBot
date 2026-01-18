@@ -19,14 +19,24 @@ const editorActions = document.getElementById('editor-actions');
 const saveBtn = document.getElementById('save-btn');
 const searchInput = document.getElementById('search-input');
 
-// Helper to get initData with fallback
+// Helper to get initData with fallback and debug
 function getInitData() {
     if (tg.initData) return tg.initData;
 
-    // Fallback: try to parse manually from hash
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    return params.get('tgWebAppData') || "";
+    const hash = window.location.hash.slice(1);
+    const search = window.location.search.slice(1);
+
+    const hashParams = new URLSearchParams(hash);
+    const searchParams = new URLSearchParams(search);
+
+    const data = hashParams.get('tgWebAppData') ||
+        searchParams.get('tgWebAppData') ||
+        (hash.includes('hash=') ? hash : "");
+
+    if (!data) {
+        console.warn("No initData found in SDK, Hash or Search.");
+    }
+    return data;
 }
 
 // Initialize
@@ -49,7 +59,12 @@ async function loadQuizzes() {
         });
 
         if (res.status === 401) {
-            throw new Error("Empty Auth Data. Please open via Bot.");
+            const debugInfo = `
+SDK Data: ${tg.initData ? 'Yes' : 'No'}
+Hash: ${window.location.hash.substring(0, 30)}...
+Version: ${tg.version}
+            `;
+            throw new Error("Empty Auth Data.\n" + debugInfo);
         }
         if (!res.ok) throw new Error("Failed to load quizzes");
 
