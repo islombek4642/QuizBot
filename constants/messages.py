@@ -140,7 +140,7 @@ class Messages:
             "REFERRAL_SELF_ERROR": "🚫 <b>Xatolik!</b>\n\nSiz o'zingizni taklif qila olmaysiz.",
             "QUIZ_UPLOADED": "✅ <b>Test yuklandi!</b>\n\n📊 Topilgan savollar: {count}\n\n📝 Endi test sarlavhasini kiriting.\nMasalan: \"Informatika bo'yicha sinov 1\"",
             "QUIZ_PARTIAL_SUCCESS": "✅ <b>Test qisman yuklandi!</b>\n\n📊 Muvaffaqiyatli: {count}\n⚠️ Xatoliklar: {errors_count}\n\n📝 <b>Xatoliklar ro'yxati:</b>\n{errors}\n\n📝 Davom etish uchun test sarlavhasini kiriting:",
-            "QUIZ_ALL_FAILED": "❌ <b>Testni o'qib bo'lmadi!</b>\n\nBarcha savollarda xatolik aniqlandi:\n{errors}\n\nIltimos, formatni tekshirib qaytadan urinib ko'ring.",
+            "QUIZ_ALL_FAILED": "❌ <b>Testni o'qib bo'lmadi!</b>\n\nBarcha savollarda xatolik aniqlandi:\n{errors}\n\nIltimos, formatni tekshiring. Agar javoblar belgilanmagan bo'lsa, <b>AI Konvertatsiya</b> xizmatidan foydalanib ko'ring (u javoblarni o'zi topadi).",
             "AI_LIMIT_REACHED": "⚠️ <b>Limitga yetdingiz!</b>\n\nSiz juda tez-tez foydalanyapsiz. Keyingi urinish: {time}\n\n💳 <b>AI Kreditlar:</b> {credits} ta\n\n💡 <b>Bonus:</b> Do'stingizni taklif qiling va darhol limitni o'chiring!\n\n👇 \"Botni ulashish\" tugmasini bosing:",
             "AI_CREDITS_INFO": "💳 <b>AI Kreditlar:</b> {count} ta",
             "AI_ENTER_TOPIC": "📝 <b>Test yaratish</b>\n\nMavzuni kiriting (masalan: 'Python asoslari'):\n\n💳 <b>AI Kreditlar:</b> {credits} ta",
@@ -321,7 +321,7 @@ class Messages:
              "INVALID_COUNT": "⚠️ Invalid number entered.",
              "QUIZ_UPLOADED": "✅ <b>Test uploaded!</b>\n\n📊 Questions found: {count}\n\n📝 Now enter the quiz title.\nExample: 'Informatics Quiz 1'",
              "QUIZ_PARTIAL_SUCCESS": "✅ <b>Test partially uploaded!</b>\n\n📊 Successful: {count}\n⚠️ Errors: {errors_count}\n\n📝 <b>Error list:</b>\n{errors}\n\n📝 Enter a title to continue with valid questions:",
-             "QUIZ_ALL_FAILED": "❌ <b>Failed to parse quiz!</b>\n\nErrors found in all questions:\n{errors}\n\nPlease check the format and try again.",
+             "QUIZ_ALL_FAILED": "❌ <b>Failed to parse quiz!</b>\n\nErrors found in all questions:\n{errors}\n\nPlease check the format. If answers are not marked, try the <b>AI Conversion</b> service (it will find answers automatically).",
         }
     }
 
