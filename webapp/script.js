@@ -135,6 +135,16 @@ async function openEditor(quizId) {
 }
 
 // Validation Helpers
+function escapeHtml(text) {
+    if (!text) return "";
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 function markError(el) {
     el.classList.add('input-error');
     const countEl = el.parentElement.querySelector('.char-count');
@@ -170,24 +180,29 @@ function renderEditor() {
         item.className = 'question-item glass';
         item.dataset.index = index;
 
+        // Escape values to prevent HTML attribute breakage
+        const safeQuestion = escapeHtml(q.question);
+
         item.innerHTML = `
             <div class="q-header">
                 <span class="q-label">Question #${index + 1}</span>
             </div>
             <div class="input-group">
-                <textarea class="q-text" placeholder="Question text...">${q.question}</textarea>
+                <textarea class="q-text" placeholder="Question text...">${safeQuestion}</textarea>
                 <small class="char-count">${q.question.length}/300</small>
             </div>
             <div class="options-grid">
-                ${q.options.map((opt, optIndex) => `
+                ${q.options.map((opt, optIndex) => {
+            const safeOpt = escapeHtml(opt);
+            return `
                     <div class="option-row ${optIndex === q.correct_option_id ? 'correct' : 'wrong'}">
                         <div class="indicator">${optIndex === 0 ? '✓' : '✗'}</div>
                         <div class="input-group">
-                            <input type="text" class="option-input" value="${opt}" placeholder="Option ${optIndex + 1}">
+                            <input type="text" class="option-input" value="${safeOpt}" placeholder="Option ${optIndex + 1}">
                             <small class="char-count">${opt.length}/100</small>
                         </div>
                     </div>
-                `).join('')}
+                `}).join('')}
             </div>
         `;
 
@@ -207,38 +222,30 @@ async function saveChanges() {
     tg.MainButton.showProgress();
 
     // Collect data
-    // Collect data
     const updatedQuestions = [];
     const items = questionsContainer.querySelectorAll('.question-item');
     let hasError = false;
 
     items.forEach(item => {
         const qInput = item.querySelector('.q-text');
-        const qText = qInput.value.trim();
 
-        if (!qText || qText.length > 300) {
-            markError(qInput);
+        // Use shared validation logic
+        if (!validateInput(qInput, 300)) {
             hasError = true;
-        } else {
-            clearError(qInput);
         }
 
         const options = [];
         const optionInputs = item.querySelectorAll('.option-input');
 
         optionInputs.forEach(optInput => {
-            const val = optInput.value.trim();
-            if (!val || val.length > 100) {
-                markError(optInput);
+            if (!validateInput(optInput, 100)) {
                 hasError = true;
-            } else {
-                clearError(optInput);
-                options.push(val);
             }
+            options.push(optInput.value.trim());
         });
 
         updatedQuestions.push({
-            question: qText,
+            question: qInput.value.trim(),
             options: options,
             correct_option_id: 0
         });
