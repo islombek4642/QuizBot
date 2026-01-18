@@ -5,7 +5,7 @@ import os
 from typing import List, Optional
 from urllib.parse import parse_qsl
 
-from fastapi import FastAPI, HTTPException, Depends, Header, Request
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -168,6 +168,10 @@ async def update_quiz(
         raise HTTPException(status_code=404, detail="Quiz not found or unauthorized")
         
     return {"status": "success"}
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
 
 # Serve the static files from /webapp folder
 # In production, Nginx should serve this, but for simplicity we mount it here
