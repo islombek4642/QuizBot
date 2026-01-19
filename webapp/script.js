@@ -184,6 +184,25 @@ async function init() {
     // Set theme colors
     document.documentElement.style.setProperty('--bg-color', tg.backgroundColor || '#0f172a');
 
+    // If opened outside Telegram / without auth, show landing immediately (avoid dashboard flash)
+    try {
+        const headers = getAuthHeaders();
+        if (!headers['X-Auth-Token'] && !headers['X-Telegram-Init-Data']) {
+            const hash = window.location.hash.slice(1);
+            const params = new URLSearchParams(hash);
+            if (params.get('tgWebAppData')) headers['X-Telegram-Init-Data'] = params.get('tgWebAppData');
+        }
+        if (!headers['X-Auth-Token'] && !headers['X-Telegram-Init-Data']) {
+            await showAuthRedirect();
+            hideLoader();
+            return;
+        }
+    } catch (e) {
+        await showAuthRedirect();
+        hideLoader();
+        return;
+    }
+
     // Set static texts
     document.getElementById('save-btn').innerText = t('save_changes');
     document.getElementById('search-input').placeholder = t('search_placeholder');
@@ -213,7 +232,7 @@ async function loadQuizzes() {
         // Guard: If still no auth, show redirect message
         if (!headers['X-Auth-Token'] && !headers['X-Telegram-Init-Data']) {
             console.warn("No auth credentials found, skipping fetch.");
-            showAuthRedirect();
+            await showAuthRedirect();
             return;
         }
 
