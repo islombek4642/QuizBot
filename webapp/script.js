@@ -24,51 +24,63 @@ const searchInput = document.getElementById('search-input');
 function getAuthHeaders() {
     const headers = {};
     let debugSource = "none";
+    let initData = "";
 
-    // 1. Check for initData from Telegram Object (Standard)
+    // 1. Try initData from Telegram Object (Standard)
     if (tg.initData) {
-        headers['X-Telegram-Init-Data'] = tg.initData;
+        initData = tg.initData;
         debugSource = "tg.initData";
     }
-    // 2. Fallback: Parse from Hash (Manual)
+    // 2. Fallback: Parse from Hash
     else {
         try {
             const hash = window.location.hash.slice(1);
 
-            // Try decoding the hash (in case it's fully URL encoded)
-            let decodedHash = hash;
-            try {
-                decodedHash = decodeURIComponent(hash);
-            } catch (e) { console.error("Decode error", e); }
-
-            // Method A: URLSearchParams (on original hash)
+            // Strategy A: URLSearchParams (Standard key)
             const params = new URLSearchParams(hash);
             if (params.get('tgWebAppData')) {
-                headers['X-Telegram-Init-Data'] = params.get('tgWebAppData');
+                initData = params.get('tgWebAppData');
                 debugSource = "hash_params";
             }
 
-            // Method B: Regex (on original or decoded)
-            if (!headers['X-Telegram-Init-Data']) {
-                const target = hash.includes('tgWebAppData=') ? hash : decodedHash;
-                if (target.includes('tgWebAppData=')) {
-                    const match = target.match(/tgWebAppData=([^&]+)/);
-                    if (match && match[1]) {
-                        headers['X-Telegram-Init-Data'] = decodeURIComponent(match[1]);
-                        debugSource = "hash_regex";
-                    }
+            // Strategy B: Regex for tgWebAppData param
+            if (!initData) {
+                // Look for tgWebAppData=...& or end of string
+                const match = hash.match(/tgWebAppData=([^&]+)/);
+                if (match && match[1]) {
+                    initData = decodeURIComponent(match[1]);
+                    debugSource = "hash_regex";
                 }
             }
 
-            // Method C: Raw Hash (on decoded)
-            // If decoded string looks like "user={...}&hash=..."
-            if (!headers['X-Telegram-Init-Data'] && decodedHash.includes('user=') && decodedHash.includes('hash=')) {
-                headers['X-Telegram-Init-Data'] = decodedHash;
-                debugSource = "hash_raw_decoded";
+            // Strategy C: Look for the data pattern directly (user=... or query_id=...)
+            // This handles cases where the hash IS the data or the param name is missing
+            if (!initData) {
+                // Decode hash just in case
+                let decoded = hash;
+                try { decoded = decodeURIComponent(hash); } catch (e) { }
+
+                if (decoded.includes('user=') && decoded.includes('hash=')) {
+                    // It's possible the hash IS the data
+                    // But if it has other params (like tgWebAppVersion), we need to extract the data part.
+                    // The data part usually starts with query_id=... or user=...
+                    // We can try to assume the whole string is data if it fails the specific structure check
+                    // But better to be careful.
+
+                    // If the string starts with tgWebApp... we probably don't want the whole string.
+                    if (!decoded.startsWith('tgWebApp')) {
+                        initData = decoded;
+                        debugSource = "hash_raw_decoded";
+                    }
+                }
             }
         } catch (e) {
             console.error("Hash parse error", e);
         }
+    }
+
+    if (initData) {
+        headers['X-Telegram-Init-Data'] = initData;
     }
 
     // 3. Check for token (Legacy)
@@ -79,12 +91,14 @@ function getAuthHeaders() {
         if (debugSource === "none") debugSource = "token";
     }
 
-    // Store debug info globally for error screen
+    // Store debug info globally
     window.lastAuthDebug = {
         source: debugSource,
         hasHeader: !!headers['X-Telegram-Init-Data'],
         dataLen: headers['X-Telegram-Init-Data'] ? headers['X-Telegram-Init-Data'].length : 0,
-        hashPreview: window.location.hash.slice(1, 50)
+        // Show more of the hash in debug
+        hashPreview: window.location.hash.slice(1, 150),
+        fullHashLen: window.location.hash.length
     };
 
     return headers;
