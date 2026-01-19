@@ -867,7 +867,7 @@ async def process_start_quiz(message: types.Message, quiz_id: int, quiz_service:
     # Clear any lingering stop signals from previous abandoned sessions
     await session_service.clear_stop_signal(telegram_id)
     if quiz.shuffle_options:
-        random.shuffle(questions)
+        # random.shuffle(questions)  <-- REMOVED: User only asked to shuffle OPTIONS, not question order
         for q in questions:
             options = list(q['options'])
             correct_answer = options[q['correct_option_id']]
