@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException, Depends, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func
+from sqlalchemy import select
 from contextlib import asynccontextmanager
 import os
 import hmac
@@ -176,15 +178,34 @@ async def update_quiz(
     return {"status": "success"}
 
 @app.get("/api/bot-info")
-async def get_bot_info():
+async def get_bot_info(db: AsyncSession = Depends(get_db)):
     """Return bot information for redirect links"""
     bot_username = (settings.BOT_USERNAME or "quizbot_example_bot").strip()
     if bot_username.startswith("@"): 
         bot_username = bot_username[1:]
     logger.info(f"Bot username from settings: {bot_username}")
+
+    users_count = 0
+    quizzes_count = 0
+    questions_count = 0
+    try:
+        users_count = int((await db.execute(select(func.count(User.telegram_id)))).scalar() or 0)
+        quizzes_count = int((await db.execute(select(func.count(Quiz.id)))).scalar() or 0)
+
+        result = await db.execute(select(Quiz.questions_json))
+        questions_count = sum(len(q or []) for q in result.scalars().all())
+    except Exception as e:
+        logger.warning("Failed to compute public stats", error=str(e))
+
     return {
         "bot_username": bot_username,
         "bot_link": f"https://t.me/{bot_username}"
+        ,
+        "stats": {
+            "users": users_count,
+            "quizzes": quizzes_count,
+            "questions": questions_count,
+        },
     }
 
 @app.get("/favicon.ico", include_in_schema=False)

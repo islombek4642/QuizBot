@@ -31,13 +31,15 @@ body {
     color: var(--text-color);
     line-height: 1.5;
     overflow-x: hidden;
-    overflow-y: auto;
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
     height: 100%;
     min-height: 100vh;
 }
 
 body.loading {
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: scroll;
 }
 
 /* Glassmorphism Effect */

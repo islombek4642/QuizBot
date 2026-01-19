@@ -283,6 +283,7 @@ async function showAuthRedirect() {
     appContainer.classList.add('landing');
     let botLink = "https://t.me/comfortquizbot";
     let botUsername = "comfortquizbot";
+    let stats = { users: null, quizzes: null, questions: null };
 
     function normalizeBotLink(rawBotLink, rawBotUsername) {
         const cleanUsername = (rawBotUsername || "").replace("@", "").trim();
@@ -310,10 +311,30 @@ async function showAuthRedirect() {
             const data = await res.json();
             botUsername = (data.bot_username ?? botUsername).replace("@", "").trim();
             botLink = normalizeBotLink(data.bot_link ?? botLink, botUsername);
+            if (data.stats && typeof data.stats === 'object') {
+                stats = {
+                    users: typeof data.stats.users === 'number' ? data.stats.users : null,
+                    quizzes: typeof data.stats.quizzes === 'number' ? data.stats.quizzes : null,
+                    questions: typeof data.stats.questions === 'number' ? data.stats.questions : null,
+                };
+            }
         }
     } catch (e) {
         console.warn("Failed to fetch bot info:", e);
     }
+
+    const fmtCompact = (n) => {
+        if (typeof n !== 'number' || !Number.isFinite(n)) return null;
+        try {
+            return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+        } catch (_) {
+            return String(n);
+        }
+    };
+
+    const usersLabel = fmtCompact(stats.users) || '—';
+    const quizzesLabel = fmtCompact(stats.quizzes) || '—';
+    const questionsLabel = fmtCompact(stats.questions) || '—';
 
     window.__openBotLink = function (e) {
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
@@ -332,6 +353,17 @@ async function showAuthRedirect() {
             @keyframes float {
                 0%, 100% { transform: translateY(0px) rotate(0deg); }
                 50% { transform: translateY(-20px) rotate(5deg); }
+            }
+
+            @keyframes pageEnter {
+                from {
+                    opacity: 0;
+                    transform: translateY(16px) scale(0.98);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0) scale(1);
+                }
             }
             
             @keyframes fadeInUp {
@@ -595,7 +627,7 @@ async function showAuthRedirect() {
             }
         </style>
         
-        <div style="background: transparent; color: white; padding: 0; text-align: center; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; position: relative; overflow-x: hidden; width: 100%;">
+        <div style="background: transparent; color: white; padding: 0; text-align: center; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; position: relative; overflow-x: hidden; width: 100%; animation: pageEnter 520ms ease-out both;">
             <!-- Animated Background Particles -->
             <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;">
                 <div style="position: absolute; top: 10%; left: 5%; width: 80px; height: 80px; background: radial-gradient(circle, rgba(102, 126, 234, 0.3) 0%, transparent 70%); border-radius: 50%; animation: float 6s ease-in-out infinite;"></div>
@@ -625,16 +657,16 @@ async function showAuthRedirect() {
                 <!-- Stats Section -->
                 <div class="fade-in-up" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 40px; margin-bottom: 60px; animation-delay: 0.4s; width: 100%; max-width: 1200px;">
                     <div class="stat-card" style="text-align: center; padding: 35px; background: linear-gradient(135deg, rgba(102, 126, 234, 0.15), rgba(118, 75, 162, 0.1)); border-radius: 25px; backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.2); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); animation: slideInUp 0.8s ease-out 0.4s both;">
-                        <div class="stat-number" style="font-size: clamp(2rem, 5vw, 3.5rem); margin-bottom: 15px; font-weight: 800; background: linear-gradient(45deg, #fff, #e0e7ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-shadow: 0 0 20px rgba(255,255,255,0.3); animation: numberPulse 2s ease-in-out infinite;">10K+</div>
+                        <div class="stat-number" style="font-size: clamp(2rem, 5vw, 3.5rem); margin-bottom: 15px; font-weight: 800; background: linear-gradient(45deg, #fff, #e0e7ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-shadow: 0 0 20px rgba(255,255,255,0.3); animation: numberPulse 2s ease-in-out infinite;">${usersLabel}</div>
                         <p style="margin: 0; opacity: 0.9; font-size: clamp(0.9rem, 2vw, 1.2rem); font-weight: 600;">Foydalanuvchi</p>
                     </div>
                     <div class="stat-card" style="text-align: center; padding: 35px; background: linear-gradient(135deg, rgba(118, 75, 162, 0.15), rgba(240, 147, 251, 0.1)); border-radius: 25px; backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.2); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); animation: slideInUp 0.8s ease-out 0.6s both;">
-                        <div class="stat-number" style="font-size: clamp(2rem, 5vw, 3.5rem); margin-bottom: 15px; font-weight: 800; background: linear-gradient(45deg, #fff, #e0e7ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-shadow: 0 0 20px rgba(255,255,255,0.3); animation: numberPulse 2s ease-in-out infinite 0.3s;">50K+</div>
-                        <p style="margin: 0; opacity: 0.9; font-size: clamp(0.9rem, 2vw, 1.2rem); font-weight: 600;">Test yaratildi</p>
+                        <div class="stat-number" style="font-size: clamp(2rem, 5vw, 3.5rem); margin-bottom: 15px; font-weight: 800; background: linear-gradient(45deg, #fff, #e0e7ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-shadow: 0 0 20px rgba(255,255,255,0.3); animation: numberPulse 2s ease-in-out infinite 0.3s;">${quizzesLabel}</div>
+                        <p style="margin: 0; opacity: 0.9; font-size: clamp(0.9rem, 2vw, 1.2rem); font-weight: 600;">Testlar</p>
                     </div>
                     <div class="stat-card" style="text-align: center; padding: 35px; background: linear-gradient(135deg, rgba(240, 147, 251, 0.15), rgba(102, 126, 234, 0.1)); border-radius: 25px; backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.2); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); animation: slideInUp 0.8s ease-out 0.8s both;">
-                        <div class="stat-number" style="font-size: clamp(2rem, 5vw, 3.5rem); margin-bottom: 15px; font-weight: 800; background: linear-gradient(45deg, #fff, #e0e7ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-shadow: 0 0 20px rgba(255,255,255,0.3); animation: numberPulse 2s ease-in-out infinite 0.6s;">99.9%</div>
-                        <p style="margin: 0; opacity: 0.9; font-size: clamp(0.9rem, 2vw, 1.2rem); font-weight: 600;">Uptime</p>
+                        <div class="stat-number" style="font-size: clamp(2rem, 5vw, 3.5rem); margin-bottom: 15px; font-weight: 800; background: linear-gradient(45deg, #fff, #e0e7ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-shadow: 0 0 20px rgba(255,255,255,0.3); animation: numberPulse 2s ease-in-out infinite 0.6s;">${questionsLabel}</div>
+                        <p style="margin: 0; opacity: 0.9; font-size: clamp(0.9rem, 2vw, 1.2rem); font-weight: 600;">Savollar</p>
                     </div>
                 </div>
                 
