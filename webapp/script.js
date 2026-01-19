@@ -262,7 +262,7 @@ function showError(msg) {
 
 async function showAuthRedirect() {
     let botLink = "https://t.me/comfortquizbot";
-    let botUsername = "comfortquizbot";
+    let botUsername = "@comfortquizbot";
     
     try {
         const res = await fetch(`${API_BASE}/bot-info`);
