@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, JSON, Boolean, BigInteger, ForeignKey
 from sqlalchemy.orm import relationship
 from models.base import Base, TimestampMixin
+from models.user import User
 
 class Quiz(Base, TimestampMixin):
     __tablename__ = "quizzes"
@@ -11,4 +12,4 @@ class Quiz(Base, TimestampMixin):
     questions_json = Column(JSON, nullable=False)
     shuffle_options = Column(Boolean, default=True, nullable=False)
 
-    user = relationship("User", backref="quizzes")
+    user = relationship(User, backref="quizzes")
