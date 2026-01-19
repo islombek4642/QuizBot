@@ -355,8 +355,8 @@ textarea {
     position: relative;
 
     /* remove side lines */
-    border-left: none;
-    border-right: none;
+    border-left: 0 !important;
+    border-right: 0 !important;
   }
 
   /* Fixed elements should also be full width */
@@ -369,8 +369,8 @@ textarea {
     left: 0;
     right: 0;
 
-    border-left: none;
-    border-right: none;
+    border-left: 0 !important;
+    border-right: 0 !important;
   }
 }
 
