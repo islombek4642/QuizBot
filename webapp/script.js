@@ -281,8 +281,8 @@ function showError(msg) {
 
 async function showAuthRedirect() {
     appContainer.classList.add('landing');
-    let botLink = "https://t.me/comfortquiz_bot";
-    let botUsername = "comfortquiz_bot";
+    let botLink = "https://t.me/comfortquizbot";
+    let botUsername = "comfortquizbot";
 
     function normalizeBotLink(rawBotLink, rawBotUsername) {
         const cleanUsername = (rawBotUsername || "").replace("@", "").trim();
