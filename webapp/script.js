@@ -142,7 +142,10 @@ const TRANSLATIONS = {
         retry: "Qayta urinish",
         error_title: "Xatolik",
         questions_count: "savol",
-        date_format: "uz-UZ"
+        date_format: "uz-UZ",
+        delete_question: "O'chirish",
+        add_question: "➕ Savol qo'shish",
+        confirm_delete: "Rostdan ham bu savolni o'chirmoqchimisiz?"
     },
     EN: {
         my_quizzes: "My Quizzes",
@@ -162,7 +165,10 @@ const TRANSLATIONS = {
         retry: "Retry",
         error_title: "Error",
         questions_count: "questions",
-        date_format: "en-US"
+        date_format: "en-US",
+        delete_question: "Delete",
+        add_question: "➕ Add Question",
+        confirm_delete: "Are you sure you want to delete this question?"
     }
 };
 
@@ -202,6 +208,13 @@ async function loadQuizzes() {
                 const params = new URLSearchParams(hash);
                 if (params.get('tgWebAppData')) headers['X-Telegram-Init-Data'] = params.get('tgWebAppData');
             } catch (e) { }
+        }
+
+        // Guard: If still no auth, do not attempt fetch (prevents 401 logs)
+        if (!headers['X-Auth-Token'] && !headers['X-Telegram-Init-Data']) {
+            console.warn("No auth credentials found, skipping fetch.");
+            showError(t('error_auth'));
+            return;
         }
 
         const res = await fetch(`${API_BASE}/quizzes`, { headers });
@@ -322,9 +335,58 @@ function validateInput(el, limit) {
     }
 }
 
+// New Helper: Collect current state from DOM to memory
+function collectCurrentState() {
+    const updatedQuestions = [];
+    const items = questionsContainer.querySelectorAll('.question-item');
+    items.forEach(item => {
+        const qInput = item.querySelector('.q-text');
+        const options = [];
+        const optionInputs = item.querySelectorAll('.option-input');
+
+        optionInputs.forEach(optInput => {
+            options.push(optInput.value);
+        });
+
+        // Although inputs might be empty, we save them as is. Validation happens on Save.
+        updatedQuestions.push({
+            question: qInput.value,
+            options: options,
+            // Keep existing ID or default to 0. 
+            // NOTE: In this UI, 1st option is ALWAYS correct.
+            correct_option_id: 0
+        });
+    });
+    currentQuizData.questions = updatedQuestions;
+}
+
+function deleteQuestion(index) {
+    if (!confirm(t('confirm_delete'))) return;
+    collectCurrentState();
+    currentQuizData.questions.splice(index, 1);
+    renderEditor();
+}
+
+function addQuestion() {
+    collectCurrentState();
+    currentQuizData.questions.push({
+        question: "",
+        options: ["", "", "", ""], // Default 4 empty options
+        correct_option_id: 0
+    });
+    renderEditor();
+
+    // Scroll to bottom after render
+    setTimeout(() => {
+        window.scrollTo(0, document.body.scrollHeight);
+    }, 100);
+}
+
 function renderEditor() {
     questionsContainer.innerHTML = '';
     pageTitle.innerText = t('editing_test');
+
+    if (!currentQuizData || !currentQuizData.questions) return;
 
     currentQuizData.questions.forEach((q, index) => {
         const item = document.createElement('div');
@@ -335,8 +397,11 @@ function renderEditor() {
         const safeQuestion = escapeHtml(q.question);
 
         item.innerHTML = `
-            <div class="q-header">
+            <div class="q-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                 <span class="q-label">${t('question_label')}${index + 1}</span>
+                <button class="delete-btn" style="background: #ef4444; border: none; padding: 5px 10px; border-radius: 5px; color: white; cursor: pointer; font-size: 12px;" onclick="deleteQuestion(${index})">
+                    🗑 ${t('delete_question')}
+                </button>
             </div>
             <div class="input-group">
                 <textarea class="q-text" placeholder="${t('question_placeholder')}">${safeQuestion}</textarea>
@@ -367,14 +432,29 @@ function renderEditor() {
 
         questionsContainer.appendChild(item);
     });
+
+    // Add "Add Question" button at the end
+    const addBtnContainer = document.createElement('div');
+    addBtnContainer.style.textAlign = 'center';
+    addBtnContainer.style.marginTop = '20px';
+    addBtnContainer.style.marginBottom = '40px'; // Space for fixed footer
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'add-btn';
+    addBtn.innerHTML = t('add_question');
+    addBtn.style.cssText = "background: var(--button-color); border: none; padding: 12px 24px; border-radius: 8px; color: white; cursor: pointer; font-size: 14px; font-weight: bold; width: 100%; max-width: 300px;";
+    addBtn.onclick = addQuestion;
+
+    addBtnContainer.appendChild(addBtn);
+    questionsContainer.appendChild(addBtnContainer);
 }
 
 async function saveChanges() {
     tg.MainButton.showProgress();
 
-    // Collect data
-    const updatedQuestions = [];
+    // Collect data (Validation happens here now)
     const items = questionsContainer.querySelectorAll('.question-item');
+    const updatedQuestions = [];
     let hasError = false;
 
     items.forEach(item => {
@@ -392,7 +472,7 @@ async function saveChanges() {
             if (!validateInput(optInput, 100)) {
                 hasError = true;
             }
-            options.push(optInput.value.trim());
+            options.push(optInput.value.trim()); // Trim on save
         });
 
         updatedQuestions.push({
@@ -401,8 +481,6 @@ async function saveChanges() {
             correct_option_id: 0
         });
     });
-
-
 
     if (hasError) {
         tg.MainButton.hideProgress();
@@ -441,6 +519,8 @@ async function saveChanges() {
         if (!res.ok) throw new Error("Save failed");
 
         tg.showAlert(t('success_save'));
+        // Update local data
+        currentQuizData.questions = updatedQuestions;
         setTimeout(() => switchView('dashboard'), 1000);
     } catch (err) {
         console.error(err);
