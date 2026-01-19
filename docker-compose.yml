@@ -9,6 +9,7 @@ services:
       POSTGRES_DB: ${DB_NAME:-quizbot}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    command: postgres -c 'max_connections=200'
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 10s
@@ -29,10 +30,33 @@ services:
       timeout: 5s
       retries: 5
 
+  # Service 1: Bot Poller (Handles Telegram Updates)
   bot:
     build: .
-    container_name: quizbot_app
+    container_name: quizbot_poller
     restart: always
+    command: python main.py bot
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-quizbot}
+      - REDIS_URL=redis://redis:6379/0
+      - GROQ_SERVICE_TIER=${GROQ_SERVICE_TIER:-on_demand}
+
+  # Service 2: Web API (Handles Editors & High Load)
+  api:
+    build: .
+    container_name: quizbot_api
+    restart: always
+    # Run Uvicorn directly with 4 workers for Multi-Core performance
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 4
     depends_on:
       db:
         condition: service_healthy
@@ -47,7 +71,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - GROQ_SERVICE_TIER=${GROQ_SERVICE_TIER:-on_demand}
     ports:
-      - "127.0.0.1:8000:8000"
+      - "0.0.0.0:8000:8000"
 
 volumes:
   postgres_data:

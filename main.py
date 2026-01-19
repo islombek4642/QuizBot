@@ -15,30 +15,34 @@ async def start_api():
     server = uvicorn.Server(config)
     await server.serve()
 
-async def main():
+    # Parse mode from CLI args first
+    import sys
+    mode = "all"
+    if len(sys.argv) > 1:
+        if "api" in sys.argv: mode = "api"
+        elif "bot" in sys.argv: mode = "bot"
+
     # Setup structured logging
     setup_logging()
     
+    if mode == "api":
+        # API is run by Uvicorn externally (command: uvicorn main:app ...)
+        # But if this script is called directly with 'api', we start uvicorn programmatically
+        # However, for scaling we usually run 'uvicorn api.main:app' directly.
+        # This block is just a safeguard or for single-node simple run.
+        logger.info("Starting API Only Mode...")
+        await start_api()
+        return
+
     # Initialize Redis
     redis = Redis.from_url(settings.REDIS_URL, decode_responses=True)
     
-    # Initialize bot and dispatcher with Redis storage
+    # Initialize bot and dispatcher
     bot = Bot(token=settings.BOT_TOKEN)
     dp = Dispatcher(storage=RedisStorage(redis=redis))
     
-    # Store redis in dispatcher for access in handlers
+    # Store redis in dispatcher
     dp["redis"] = redis
-
-
-    # Set bot descriptions
-    try:
-        await bot.set_my_description(
-            "Assalomu alaykum! Bu bot Word (.docx) faylidagi testlarni Telegram poll (quiz) ko'rinishiga o'tkazib beradi.\n\n"
-            "Hello! This bot converts tests from Word (.docx) files into Telegram polls (quiz mode)."
-        )
-        await bot.set_my_short_description("Word (.docx) testlarini Poll ga aylantiruvchi bot.")
-    except Exception as e:
-        logger.error("Failed to set bot description", error=str(e))
 
     # Register Middlewares
     dp.update.outer_middleware(DbSessionMiddleware())
@@ -54,17 +58,15 @@ async def main():
     dp.include_router(group.router)
     dp.include_router(quiz.router)
 
-    # Set bot commands
+    # Set commands only if running bot (or all)
     try:
         from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeAllGroupChats
-        # Default commands (Private)
         await bot.set_my_commands([
             BotCommand(command="start", description="Botni ishga tushirish / Start bot"),
             BotCommand(command="help", description="Yordam / Help"),
             BotCommand(command="set_language", description="Tilni o'zgartirish / Set language"),
         ], scope=BotCommandScopeDefault())
         
-        # Group commands
         await bot.set_my_commands([
             BotCommand(command="quiz_stats", description="Natijalar / Leaderboard"),
             BotCommand(command="stop_quiz", description="Testni to'xtatish / Stop quiz"),
@@ -75,16 +77,25 @@ async def main():
     except Exception as e:
         logger.error("Failed to set bot commands", error=str(e))
 
-    # Start polling and API concurrently
-    logger.info("Starting QuizBot & API (Production Refactored)...", env=settings.ENV)
-    
-    try:
-        await asyncio.gather(
-            dp.start_polling(bot),
-            start_api()
-        )
-    finally:
-        await redis.aclose()
+    # Start based on mode
+    if mode == "bot":
+        logger.info("Starting Bot Polling Mode...", env=settings.ENV)
+        try:
+            await dp.start_polling(bot)
+        finally:
+            await redis.aclose()
+            await bot.session.close()
+
+    else: # mode == "all"
+        logger.info("Starting All (Bot + API)...", env=settings.ENV)
+        try:
+            await asyncio.gather(
+                dp.start_polling(bot),
+                start_api()
+            )
+        finally:
+            await redis.aclose()
+            await bot.session.close()
 
 if __name__ == "__main__":
     try:

@@ -4,9 +4,12 @@ from core.config import settings
 # PostgreSQL driver for async operations is asyncpg
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,
+    echo=False, # Disable echo in prod for performance
     pool_pre_ping=True,
     pool_recycle=3600,
+    pool_size=20,       # Base connections
+    max_overflow=10,    # Burst connections
+    future=True
 )
 
 AsyncSessionLocal = async_sessionmaker(
