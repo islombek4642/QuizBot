@@ -340,54 +340,42 @@ textarea {
     border-color: var(--accent-color);
 }
 
-/* Desktop Responsiveness */
+/* Desktop Responsiveness - FULL WIDTH */
 @media (min-width: 768px) {
-    body {
-        background-color: #0f172a;
-        /* Ensure dark bg on sides */
-    }
+  body {
+    background-color: var(--bg-color); /* yon qora fon bo'lmasin */
+  }
 
-    #app {
-        max-width: 800px;
-        margin: 0 auto;
-        border-left: 1px solid var(--border-color);
-        border-right: 1px solid var(--border-color);
-        min-height: 100vh;
-        background-color: var(--bg-color);
-        position: relative;
-    }
+  #app {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--bg-color);
+    position: relative;
 
-    #app.landing {
-        border-left: none;
-        border-right: none;
-    }
+    /* remove side lines */
+    border-left: none;
+    border-right: none;
+  }
 
-    /* Fix fixed elements width on desktop */
-    header {
-        max-width: 800px;
-        margin: 0 auto;
-        left: 0;
-        right: 0;
-    }
+  /* Fixed elements should also be full width */
+  header,
+  .footer-actions,
+  .loader-container {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    left: 0;
+    right: 0;
 
-    .footer-actions {
-        max-width: 800px;
-        margin: 0 auto;
-        left: 0;
-        right: 0;
-        border-left: 1px solid var(--border-color);
-        border-right: 1px solid var(--border-color);
-    }
+    border-left: none;
+    border-right: none;
+  }
+}
 
-    #app.landing .footer-actions {
-        border-left: none;
-        border-right: none;
-    }
-
-    .loader-container {
-        max-width: 800px;
-        margin: 0 auto;
-        left: 0;
-        right: 0;
-    }
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
 }
