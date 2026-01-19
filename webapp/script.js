@@ -24,13 +24,15 @@ const searchInput = document.getElementById('search-input');
 function getAuthHeaders() {
     const headers = {};
 
-    // 1. Check for token in URL (Priority)
+    // 1. Check for initData (Primary for WebApp)
+    if (tg.initData) {
+        headers['X-Telegram-Init-Data'] = tg.initData;
+    }
+
+    // 2. Check for token in URL (Legacy/Fallback)
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('token')) {
         authToken = urlParams.get('token');
-    }
-
-    if (authToken) {
         headers['X-Auth-Token'] = authToken;
     }
 
