@@ -675,7 +675,7 @@ async function showAuthRedirect() {
                     <div class="feature-card" style="background: linear-gradient(135deg, rgba(118, 75, 162, 0.12), rgba(240, 147, 251, 0.08)); padding: 45px; border-radius: 30px; backdrop-filter: blur(15px); animation-delay: 1s; min-height: 250px; border: 1px solid rgba(255,255,255,0.15); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); animation: slideInUp 0.8s ease-out 1.2s both;">
                         <div style="font-size: 4rem; margin-bottom: 25px; animation: iconBounce 2s ease-in-out infinite 0.2s;">🤖</div>
                         <h3 style="margin: 0 0 20px 0; font-size: clamp(1.2rem, 3vw, 1.6rem); font-weight: 700;">AI Yordam</h3>
-                        <p style="margin: 0; font-size: clamp(0.9rem, 2vw, 1.1rem); opacity: 0.85; line-height: 1.7; font-weight: 300;">Groq AI bilan avtomatik savollar generatsiyasi</p>
+                        <p style="margin: 0; font-size: clamp(0.9rem, 2vw, 1.1rem); opacity: 0.85; line-height: 1.7; font-weight: 300;">AI bilan avtomatik savollar generatsiyasi</p>
                     </div>
                     <div class="feature-card slide-in-right" style="background: linear-gradient(135deg, rgba(240, 147, 251, 0.12), rgba(102, 126, 234, 0.08)); padding: 45px; border-radius: 30px; backdrop-filter: blur(15px); animation-delay: 1.2s; min-height: 250px; border: 1px solid rgba(255,255,255,0.15); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); animation: slideInUp 0.8s ease-out 1.4s both;">
                         <div style="font-size: 4rem; margin-bottom: 25px; animation: iconBounce 2s ease-in-out infinite 0.4s;">📊</div>
