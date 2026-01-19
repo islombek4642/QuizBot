@@ -154,12 +154,22 @@ async function loadQuizzes() {
 }
 
 function showError(msg) {
+    const debugInfo = `
+        <div style="font-size: 10px; text-align: left; margin-top: 10px; opacity: 0.7; overflow-wrap: break-word;">
+            <p><strong>Debug Info:</strong></p>
+            <p>initData len: ${tg.initData ? tg.initData.length : 0}</p>
+            <p>App Platform: ${tg.platform || 'unknown'}</p>
+            <p>URL Hash len: ${window.location.hash.length}</p>
+        </div>
+    `;
+
     const debugHTML = `
         <div style="background: var(--bg-color); color: var(--text-color); padding: 20px; text-align: center;">
             <h3>${t('error_title')}</h3>
             <p>${msg}</p>
             <br>
             <button onclick="window.location.reload()" style="padding: 10px 20px;">${t('retry')}</button>
+            ${debugInfo}
         </div>
     `;
     appContainer.innerHTML = debugHTML;
