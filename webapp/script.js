@@ -385,9 +385,20 @@ async function showAuthRedirect() {
                 background-clip: text;
             }
             
+            @media (max-width: 1200px) {
+                .landing-container {
+                    max-width: 900px !important;
+                }
+                
+                .features-grid {
+                    grid-template-columns: repeat(2, 1fr) !important;
+                }
+            }
+            
             @media (max-width: 768px) {
                 .landing-container {
                     padding: 20px 15px !important;
+                    max-width: 100% !important;
                 }
                 
                 .main-title {
@@ -407,6 +418,10 @@ async function showAuthRedirect() {
                     padding: 14px 28px !important;
                     font-size: 1rem !important;
                 }
+                
+                .stat-number {
+                    font-size: 2rem !important;
+                }
             }
             
             @media (max-width: 480px) {
@@ -418,6 +433,10 @@ async function showAuthRedirect() {
                     width: 60px !important;
                     height: 60px !important;
                     font-size: 30px !important;
+                }
+                
+                .stat-number {
+                    font-size: 1.8rem !important;
                 }
             }
         </style>

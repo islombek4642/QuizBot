@@ -179,6 +179,7 @@ async def update_quiz(
 async def get_bot_info():
     """Return bot information for redirect links"""
     bot_username = settings.BOT_USERNAME or "quizbot_example_bot"
+    logger.info(f"Bot username from settings: {bot_username}")
     return {
         "bot_username": bot_username,
         "bot_link": f"https://t.me/{bot_username}"
