@@ -323,15 +323,6 @@ async function showAuthRedirect() {
         console.warn("Failed to fetch bot info:", e);
     }
 
-    const fmtCompact = (n) => {
-        if (typeof n !== 'number' || !Number.isFinite(n)) return null;
-        try {
-            return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
-        } catch (_) {
-            return String(n);
-        }
-    };
-
     const usersTarget = (typeof stats.users === 'number' && Number.isFinite(stats.users)) ? stats.users : null;
     const quizzesTarget = (typeof stats.quizzes === 'number' && Number.isFinite(stats.quizzes)) ? stats.quizzes : null;
     const questionsTarget = (typeof stats.questions === 'number' && Number.isFinite(stats.questions)) ? stats.questions : null;
@@ -732,22 +723,42 @@ async function showAuthRedirect() {
 
     // Count-up animation for landing stats
     const animateCount = (el, target) => {
-        const duration = 900;
-        const start = performance.now();
-        const format = (n) => {
+        const duration = 1400;
+        const startAt = performance.now() + 180;
+
+        const formatDuring = (n) => {
+            try {
+                return new Intl.NumberFormat('en').format(n);
+            } catch (_) {
+                return String(n);
+            }
+        };
+
+        const formatFinal = (n) => {
             try {
                 return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
             } catch (_) {
                 return String(n);
             }
         };
+
         const step = (now) => {
-            const t = Math.min(1, (now - start) / duration);
+            if (now < startAt) {
+                requestAnimationFrame(step);
+                return;
+            }
+
+            const t = Math.min(1, (now - startAt) / duration);
             const eased = 1 - Math.pow(1 - t, 3);
             const value = Math.round(target * eased);
-            el.textContent = format(value);
-            if (t < 1) requestAnimationFrame(step);
+            el.textContent = formatDuring(value);
+            if (t < 1) {
+                requestAnimationFrame(step);
+            } else {
+                el.textContent = formatFinal(target);
+            }
         };
+
         requestAnimationFrame(step);
     };
 
