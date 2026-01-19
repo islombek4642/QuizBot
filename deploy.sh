@@ -44,7 +44,7 @@ echo -e "${GREEN}Backup created: backups/${BACKUP_NAME}${NC}"
 # Step 3: Pull latest code
 echo -e "${YELLOW}[3/7] Pulling latest code...${NC}"
 git stash
-git pull origin main
+git pull origin master
 git stash pop 2>/dev/null || true
 
 # Step 4: Validate .env
