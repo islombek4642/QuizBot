@@ -263,14 +263,34 @@ function showError(msg) {
 async function showAuthRedirect() {
     appContainer.classList.add('landing');
     let botLink = "https://t.me/comfortquizbot";
-    let botUsername = "@comfortquizbot";
+    let botUsername = "comfortquizbot";
+
+    function normalizeBotLink(rawBotLink, rawBotUsername) {
+        const cleanUsername = (rawBotUsername || "").replace("@", "").trim();
+
+        if (!rawBotLink || typeof rawBotLink !== "string") {
+            return cleanUsername ? `https://t.me/${cleanUsername}` : "https://t.me";
+        }
+
+        let link = rawBotLink.trim();
+
+        // @username yoki username bo'lib kelsa
+        if (!link.startsWith("http")) {
+            link = link.replace("@", "").trim();
+            return `https://t.me/${link}`;
+        }
+
+        // https://t.me/@username xato bo'ladi
+        link = link.replace("t.me/@", "t.me/");
+        return link;
+    }
     
     try {
         const res = await fetch(`${API_BASE}/bot-info`);
         if (res.ok) {
             const data = await res.json();
-            botLink = data.bot_link;
-            botUsername = data.bot_username;
+            botUsername = (data.bot_username ?? botUsername).replace("@", "").trim();
+            botLink = normalizeBotLink(data.bot_link ?? botLink, botUsername);
         }
     } catch (e) {
         console.warn("Failed to fetch bot info:", e);
@@ -616,7 +636,7 @@ async function showAuthRedirect() {
                 <!-- Additional Info -->
                 <div class="fade-in-up" style="animation-delay: 1.8s; max-width: 800px; margin-left: auto; margin-right: auto;">
                     <p style="opacity: 0.9; font-size: clamp(1rem, 2.5vw, 1.3rem); margin-bottom: 30px; font-weight: 300; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                        💡 <strong>${botUsername}</strong> orqali to'liq imkoniyatlardan foydalaning
+                        💡 <strong>@${botUsername}</strong> orqali to'liq imkoniyatlardan foydalaning
                     </p>
                     
                     <!-- Trust Badges -->
