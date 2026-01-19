@@ -26,6 +26,9 @@ function getAuthHeaders() {
     let debugSource = "none";
     let initData = "";
 
+    // Debug collection
+    const debugKeys = [];
+
     // 1. Try initData from Telegram Object (Standard)
     if (tg.initData) {
         initData = tg.initData;
@@ -35,47 +38,59 @@ function getAuthHeaders() {
     else {
         try {
             const hash = window.location.hash.slice(1);
+            let decoded = hash;
+            try { decoded = decodeURIComponent(hash); } catch (e) { }
 
-            // Strategy A: URLSearchParams (Standard key)
+            // Strategy A: Standard tgWebAppData param
             const params = new URLSearchParams(hash);
             if (params.get('tgWebAppData')) {
                 initData = params.get('tgWebAppData');
                 debugSource = "hash_params";
             }
 
-            // Strategy B: Regex for tgWebAppData param
+            // Strategy B: Aggressive "Filtration"
+            // If we don't have explicit data, maybe the hash IS the data mixed with meta params.
+            // We'll extract everything that looks like an auth param.
             if (!initData) {
-                // Look for tgWebAppData=...& or end of string
+                const searchParams = new URLSearchParams(decoded);
+                const authParams = [];
+
+                // Known meta params to IGNORE
+                const metaKeys = [
+                    'tgWebAppVersion',
+                    'tgWebAppPlatform',
+                    'tgWebAppThemeParams',
+                    'tgWebAppBotInline'
+                ];
+
+                searchParams.forEach((val, key) => {
+                    debugKeys.push(key);
+                    if (!metaKeys.includes(key)) {
+                        // This implies it's a data param (user, auth_date, hash, query_id, etc)
+                        authParams.push(`${key}=${val}`);
+                    }
+                });
+
+                if (authParams.length > 0) {
+                    // Reconstruct into a standard initData string
+                    // We join with & but do NOT re-encode, as we want the raw data string format expected by backend
+                    initData = authParams.join('&');
+                    debugSource = "hash_filtered_reconstruction";
+                }
+            }
+
+            // Strategy C: Regex fallback (Last Resort)
+            if (!initData) {
                 const match = hash.match(/tgWebAppData=([^&]+)/);
                 if (match && match[1]) {
                     initData = decodeURIComponent(match[1]);
-                    debugSource = "hash_regex";
+                    debugSource = "hash_regex_fallback";
                 }
             }
 
-            // Strategy C: Look for the data pattern directly (user=... or query_id=...)
-            // This handles cases where the hash IS the data or the param name is missing
-            if (!initData) {
-                // Decode hash just in case
-                let decoded = hash;
-                try { decoded = decodeURIComponent(hash); } catch (e) { }
-
-                if (decoded.includes('user=') && decoded.includes('hash=')) {
-                    // It's possible the hash IS the data
-                    // But if it has other params (like tgWebAppVersion), we need to extract the data part.
-                    // The data part usually starts with query_id=... or user=...
-                    // We can try to assume the whole string is data if it fails the specific structure check
-                    // But better to be careful.
-
-                    // If the string starts with tgWebApp... we probably don't want the whole string.
-                    if (!decoded.startsWith('tgWebApp')) {
-                        initData = decoded;
-                        debugSource = "hash_raw_decoded";
-                    }
-                }
-            }
         } catch (e) {
             console.error("Hash parse error", e);
+            window.lastAuthError = e.message;
         }
     }
 
@@ -96,8 +111,8 @@ function getAuthHeaders() {
         source: debugSource,
         hasHeader: !!headers['X-Telegram-Init-Data'],
         dataLen: headers['X-Telegram-Init-Data'] ? headers['X-Telegram-Init-Data'].length : 0,
-        // Show more of the hash in debug
-        hashPreview: window.location.hash.slice(1, 150),
+        keysFound: debugKeys.join(', '),
+        hashPreview: window.location.hash.slice(1, 100) + "...",
         fullHashLen: window.location.hash.length
     };
 
@@ -208,23 +223,24 @@ async function loadQuizzes() {
 function showError(msg) {
     const authStats = window.lastAuthDebug || {};
     const debugInfo = `
-        <div style="font-size: 10px; text-align: left; margin-top: 10px; opacity: 0.7; overflow-wrap: break-word;">
-            <p><strong>Debug Info (v5):</strong></p>
+        <div style="font-size: 10px; text-align: left; margin-top: 10px; opacity: 0.8; overflow-wrap: break-word; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 5px;">
+            <p><strong>Debug Info (v6):</strong></p>
             <p>Source: ${authStats.source}</p>
-            <p>Header Present: ${authStats.hasHeader}</p>
+            <p>Keys Found: ${authStats.keysFound || 'none'}</p>
             <p>Extracted Len: ${authStats.dataLen}</p>
-            <p>Hash Preview: ${authStats.hashPreview || 'N/A'}</p>
-            <p>Raw Hash Len: ${window.location.hash.length}</p>
+            <p>Hash Preview: ${authStats.hashPreview}</p>
             <p>Platform: ${tg.platform}</p>
+            <p style="margin-top:5px; color:#ffaaaa;">Raw Hash (First 200):</p>
+            <code style="display:block; font-size:9px; word-break:break-all;">${window.location.hash.slice(1, 201)}</code>
         </div>
     `;
 
     const debugHTML = `
-        <div style="background: var(--bg-color); color: var(--text-color); padding: 20px; text-align: center;">
-            <h3>${t('error_title')}</h3>
+        <div style="background: var(--bg-color); color: var(--text-color); padding: 20px; text-align: center; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+            <h3 style="margin-bottom: 10px;">${t('error_title')}</h3>
             <p>${msg}</p>
             <br>
-            <button onclick="window.location.reload()" style="padding: 10px 20px;">${t('retry')}</button>
+            <button onclick="window.location.reload()" style="padding: 10px 20px; background: var(--button-color); border: none; border-radius: 8px; color: white;">${t('retry')}</button>
             ${debugInfo}
         </div>
     `;
