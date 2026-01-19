@@ -262,68 +262,278 @@ function showError(msg) {
 
 async function showAuthRedirect() {
     let botLink = "https://t.me/quizbot_example_bot";
+    let botUsername = "quizbot_example_bot";
     
     try {
         const res = await fetch(`${API_BASE}/bot-info`);
         if (res.ok) {
             const data = await res.json();
             botLink = data.bot_link;
+            botUsername = data.bot_username;
         }
     } catch (e) {
         console.warn("Failed to fetch bot info:", e);
     }
     
     const landingHTML = `
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px 20px; text-align: center; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-            <div style="max-width: 600px; margin: 0 auto;">
+        <style>
+            @keyframes float {
+                0%, 100% { transform: translateY(0px); }
+                50% { transform: translateY(-20px); }
+            }
+            
+            @keyframes fadeInUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(30px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            
+            @keyframes pulse {
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.05); }
+            }
+            
+            @keyframes slideInLeft {
+                from {
+                    opacity: 0;
+                    transform: translateX(-50px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+            
+            @keyframes slideInRight {
+                from {
+                    opacity: 0;
+                    transform: translateX(50px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+            
+            .floating {
+                animation: float 3s ease-in-out infinite;
+            }
+            
+            .fade-in-up {
+                animation: fadeInUp 0.8s ease-out;
+            }
+            
+            .pulse {
+                animation: pulse 2s ease-in-out infinite;
+            }
+            
+            .slide-in-left {
+                animation: slideInLeft 0.6s ease-out;
+            }
+            
+            .slide-in-right {
+                animation: slideInRight 0.6s ease-out;
+            }
+            
+            .feature-card {
+                transition: all 0.3s ease;
+                cursor: pointer;
+            }
+            
+            .feature-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            }
+            
+            .cta-button {
+                transition: all 0.3s ease;
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .cta-button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            }
+            
+            .cta-button::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+                transition: left 0.5s;
+            }
+            
+            .cta-button:hover::before {
+                left: 100%;
+            }
+            
+            .stat-number {
+                font-size: 2.5rem;
+                font-weight: bold;
+                background: linear-gradient(45deg, #fff, #f0f0f0);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+            
+            @media (max-width: 768px) {
+                .landing-container {
+                    padding: 20px 15px !important;
+                }
+                
+                .main-title {
+                    font-size: 2rem !important;
+                }
+                
+                .subtitle {
+                    font-size: 1.1rem !important;
+                }
+                
+                .features-grid {
+                    grid-template-columns: 1fr !important;
+                    gap: 15px !important;
+                }
+                
+                .cta-button {
+                    padding: 14px 28px !important;
+                    font-size: 1rem !important;
+                }
+            }
+            
+            @media (max-width: 480px) {
+                .main-title {
+                    font-size: 1.8rem !important;
+                }
+                
+                .logo-container {
+                    width: 60px !important;
+                    height: 60px !important;
+                    font-size: 30px !important;
+                }
+            }
+        </style>
+        
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%); color: white; padding: 40px 20px; text-align: center; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; position: relative; overflow: hidden;">
+            <!-- Background Animation Elements -->
+            <div style="position: absolute; top: 10%; left: 10%; width: 100px; height: 100px; background: rgba(255,255,255,0.1); border-radius: 50%; animation: float 4s ease-in-out infinite;"></div>
+            <div style="position: absolute; top: 70%; right: 10%; width: 80px; height: 80px; background: rgba(255,255,255,0.08); border-radius: 50%; animation: float 3s ease-in-out infinite 1s;"></div>
+            <div style="position: absolute; bottom: 20%; left: 20%; width: 60px; height: 60px; background: rgba(255,255,255,0.06); border-radius: 50%; animation: float 5s ease-in-out infinite 2s;"></div>
+            
+            <div class="landing-container" style="max-width: 800px; margin: 0 auto; position: relative; z-index: 1;">
                 <!-- Logo/Icon -->
-                <div style="width: 80px; height: 80px; background: rgba(255,255,255,0.2); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 30px; font-size: 40px;">
+                <div class="logo-container floating" style="width: 80px; height: 80px; background: rgba(255,255,255,0.2); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 30px; font-size: 40px; backdrop-filter: blur(10px); box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
                     🎯
                 </div>
                 
                 <!-- Main Title -->
-                <h1 style="font-size: 2.5rem; margin-bottom: 20px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <h1 class="main-title fade-in-up" style="font-size: 2.5rem; margin-bottom: 20px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                     QuizBot
                 </h1>
                 
                 <!-- Subtitle -->
-                <p style="font-size: 1.3rem; margin-bottom: 30px; opacity: 0.9; line-height: 1.6;">
+                <p class="subtitle fade-in-up" style="font-size: 1.3rem; margin-bottom: 30px; opacity: 0.9; line-height: 1.6; animation-delay: 0.2s;">
                     Telegram'da interaktiv testlar yarating va boshqaring
                 </p>
                 
+                <!-- Stats Section -->
+                <div class="fade-in-up" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 20px; margin-bottom: 40px; animation-delay: 0.4s;">
+                    <div style="text-align: center;">
+                        <div class="stat-number">10K+</div>
+                        <p style="margin: 5px 0 0 0; opacity: 0.8; font-size: 0.9rem;">Foydalanuvchi</p>
+                    </div>
+                    <div style="text-align: center;">
+                        <div class="stat-number">50K+</div>
+                        <p style="margin: 5px 0 0 0; opacity: 0.8; font-size: 0.9rem;">Test yaratildi</p>
+                    </div>
+                    <div style="text-align: center;">
+                        <div class="stat-number">99.9%</div>
+                        <p style="margin: 5px 0 0 0; opacity: 0.8; font-size: 0.9rem;">Uptime</p>
+                    </div>
+                </div>
+                
                 <!-- Features -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; margin-bottom: 40px;">
-                    <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; backdrop-filter: blur(10px);">
-                        <div style="font-size: 2rem; margin-bottom: 10px;">📝</div>
-                        <h3 style="margin: 0 0 5px 0; font-size: 1rem;">Test Yaratish</h3>
-                        <p style="margin: 0; font-size: 0.9rem; opacity: 0.8;">Oson test tuzish</p>
+                <div class="features-grid fade-in-up" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 40px; animation-delay: 0.6s;">
+                    <div class="feature-card slide-in-left" style="background: rgba(255,255,255,0.1); padding: 25px; border-radius: 15px; backdrop-filter: blur(10px); animation-delay: 0.8s;">
+                        <div style="font-size: 2.5rem; margin-bottom: 15px;">📝</div>
+                        <h3 style="margin: 0 0 10px 0; font-size: 1.1rem;">Test Yaratish</h3>
+                        <p style="margin: 0; font-size: 0.9rem; opacity: 0.8; line-height: 1.4;">Intuitiv interfeys bilan oson va tez test tuzish</p>
                     </div>
-                    <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; backdrop-filter: blur(10px);">
-                        <div style="font-size: 2rem; margin-bottom: 10px;">🤖</div>
-                        <h3 style="margin: 0 0 5px 0; font-size: 1rem;">AI Yordam</h3>
-                        <p style="margin: 0; font-size: 0.9rem; opacity: 0.8;">Avtomatik savollar</p>
+                    <div class="feature-card" style="background: rgba(255,255,255,0.1); padding: 25px; border-radius: 15px; backdrop-filter: blur(10px); animation-delay: 1s;">
+                        <div style="font-size: 2.5rem; margin-bottom: 15px;">🤖</div>
+                        <h3 style="margin: 0 0 10px 0; font-size: 1.1rem;">AI Yordam</h3>
+                        <p style="margin: 0; font-size: 0.9rem; opacity: 0.8; line-height: 1.4;">Groq AI bilan avtomatik savollar generatsiyasi</p>
                     </div>
-                    <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; backdrop-filter: blur(10px);">
-                        <div style="font-size: 2rem; margin-bottom: 10px;">📊</div>
-                        <h3 style="margin: 0 0 5px 0; font-size: 1rem;">Analitika</h3>
-                        <p style="margin: 0; font-size: 0.9rem; opacity: 0.8;">Natijalarni kuzatish</p>
+                    <div class="feature-card slide-in-right" style="background: rgba(255,255,255,0.1); padding: 25px; border-radius: 15px; backdrop-filter: blur(10px); animation-delay: 1.2s;">
+                        <div style="font-size: 2.5rem; margin-bottom: 15px;">📊</div>
+                        <h3 style="margin: 0 0 10px 0; font-size: 1.1rem;">Analitika</h3>
+                        <p style="margin: 0; font-size: 0.9rem; opacity: 0.8; line-height: 1.4;">Test natijalarini batafsil tahlil qilish</p>
+                    </div>
+                </div>
+                
+                <!-- Additional Features -->
+                <div class="fade-in-up" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 40px; animation-delay: 1.4s;">
+                    <div style="background: rgba(255,255,255,0.08); padding: 15px; border-radius: 10px; backdrop-filter: blur(5px);">
+                        <div style="font-size: 1.5rem; margin-bottom: 8px;">🌍</div>
+                        <h4 style="margin: 0 0 5px 0; font-size: 0.9rem;">Multi-til</h4>
+                        <p style="margin: 0; font-size: 0.8rem; opacity: 0.7;">UZ, EN tillarida</p>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.08); padding: 15px; border-radius: 10px; backdrop-filter: blur(5px);">
+                        <div style="font-size: 1.5rem; margin-bottom: 8px;">📱</div>
+                        <h4 style="margin: 0 0 5px 0; font-size: 0.9rem;">Mobil</h4>
+                        <p style="margin: 0; font-size: 0.8rem; opacity: 0.7;">Barcha qurilmalar</p>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.08); padding: 15px; border-radius: 10px; backdrop-filter: blur(5px);">
+                        <div style="font-size: 1.5rem; margin-bottom: 8px;">🔒</div>
+                        <h4 style="margin: 0 0 5px 0; font-size: 0.9rem;">Xavfsiz</h4>
+                        <p style="margin: 0; font-size: 0.8rem; opacity: 0.7;">Ma'lumotlarni himoya</p>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.08); padding: 15px; border-radius: 10px; backdrop-filter: blur(5px);">
+                        <div style="font-size: 1.5rem; margin-bottom: 8px;">⚡</div>
+                        <h4 style="margin: 0 0 5px 0; font-size: 0.9rem;">Tez</h4>
+                        <p style="margin: 0; font-size: 0.8rem; opacity: 0.7;">Soniylangan ishlash</p>
                     </div>
                 </div>
                 
                 <!-- CTA Button -->
-                <a href="${botLink}" target="_blank" style="display: inline-block; padding: 16px 32px; background: white; color: #667eea; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 1.1rem; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); transition: transform 0.2s, box-shadow 0.2s;">
-                    🚀 Botga o'tish
-                </a>
+                <div class="fade-in-up pulse" style="animation-delay: 1.6s;">
+                    <a href="${botLink}" target="_blank" class="cta-button" style="display: inline-block; padding: 18px 40px; background: white; color: #667eea; text-decoration: none; border-radius: 15px; font-weight: 600; font-size: 1.2rem; margin-bottom: 25px; box-shadow: 0 8px 25px rgba(0,0,0,0.2); position: relative; overflow: hidden;">
+                        🚀 Botga o'tish
+                    </a>
+                </div>
                 
                 <!-- Additional Info -->
-                <p style="opacity: 0.7; font-size: 0.9rem; margin-bottom: 10px;">
-                    💡 Telegram orqali to'liq imkoniyatlardan foydalaning
-                </p>
-                
-                <!-- Telegram Badge -->
-                <div style="background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 20px; display: inline-block; backdrop-filter: blur(10px);">
-                    <span style="opacity: 0.8;">Powered by</span> 
-                    <strong style="margin-left: 5px;">Telegram</strong>
+                <div class="fade-in-up" style="animation-delay: 1.8s;">
+                    <p style="opacity: 0.8; font-size: 1rem; margin-bottom: 15px;">
+                        💡 <strong>${botUsername}</strong> orqali to'liq imkoniyatlardan foydalaning
+                    </p>
+                    
+                    <!-- Trust Badges -->
+                    <div style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-bottom: 20px;">
+                        <div style="background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 20px; backdrop-filter: blur(10px); font-size: 0.9rem;">
+                            ✅ 24/7 Ishlaydi
+                        </div>
+                        <div style="background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 20px; backdrop-filter: blur(10px); font-size: 0.9rem;">
+                            🆓 Bepul
+                        </div>
+                        <div style="background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 20px; backdrop-filter: blur(10px); font-size: 0.9rem;">
+                            📈 1000+ Test/kun
+                        </div>
+                    </div>
+                    
+                    <!-- Telegram Badge -->
+                    <div style="background: rgba(255,255,255,0.15); padding: 12px 24px; border-radius: 25px; display: inline-block; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2);">
+                        <span style="opacity: 0.9;">Powered by</span> 
+                        <strong style="margin-left: 8px; font-size: 1.1rem;">Telegram</strong>
+                    </div>
                 </div>
             </div>
         </div>
