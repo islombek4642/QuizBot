@@ -261,8 +261,8 @@ function showError(msg) {
 }
 
 async function showAuthRedirect() {
-    let botLink = "https://t.me/quizbot_example_bot";
-    let botUsername = "quizbot_example_bot";
+    let botLink = "https://t.me/comfortquizbot";
+    let botUsername = "comfortquizbot";
     
     try {
         const res = await fetch(`${API_BASE}/bot-info`);
@@ -385,7 +385,25 @@ async function showAuthRedirect() {
                 background-clip: text;
             }
             
-            @media (min-width: 1201px) {
+            @media (min-width: 1401px) {
+                .landing-container {
+                    max-width: 1400px !important;
+                }
+                
+                .features-grid {
+                    grid-template-columns: repeat(3, 1fr) !important;
+                }
+                
+                .main-title {
+                    font-size: 4rem !important;
+                }
+                
+                .subtitle {
+                    font-size: 1.8rem !important;
+                }
+            }
+            
+            @media (min-width: 1201px) and (max-width: 1400px) {
                 .landing-container {
                     max-width: 1200px !important;
                 }
@@ -393,11 +411,19 @@ async function showAuthRedirect() {
                 .features-grid {
                     grid-template-columns: repeat(3, 1fr) !important;
                 }
+                
+                .main-title {
+                    font-size: 3.8rem !important;
+                }
+                
+                .subtitle {
+                    font-size: 1.6rem !important;
+                }
             }
             
             @media (max-width: 1200px) {
                 .landing-container {
-                    max-width: 900px !important;
+                    max-width: 1000px !important;
                 }
                 
                 .features-grid {
@@ -405,7 +431,11 @@ async function showAuthRedirect() {
                 }
                 
                 .main-title {
-                    font-size: 3rem !important;
+                    font-size: 3.2rem !important;
+                }
+                
+                .subtitle {
+                    font-size: 1.4rem !important;
                 }
             }
             
@@ -416,7 +446,7 @@ async function showAuthRedirect() {
                 }
                 
                 .main-title {
-                    font-size: 2.5rem !important;
+                    font-size: 2.8rem !important;
                 }
                 
                 .subtitle {
@@ -425,15 +455,27 @@ async function showAuthRedirect() {
                 
                 .features-grid {
                     grid-template-columns: 1fr !important;
-                    gap: 20px !important;
+                    gap: 30px !important;
                 }
                 
                 .cta-button {
-                    padding: 16px 35px !important;
-                    font-size: 1.1rem !important;
+                    padding: 20px 45px !important;
+                    font-size: 1.2rem !important;
                 }
                 
                 .stat-number {
+                    font-size: 2.5rem !important;
+                }
+                
+                .logo-container {
+                    width: 100px !important;
+                    height: 100px !important;
+                    font-size: 50px !important;
+                }
+            }
+            
+            @media (max-width: 480px) {
+                .main-title {
                     font-size: 2.2rem !important;
                 }
                 
@@ -442,21 +484,9 @@ async function showAuthRedirect() {
                     height: 80px !important;
                     font-size: 40px !important;
                 }
-            }
-            
-            @media (max-width: 480px) {
-                .main-title {
-                    font-size: 2rem !important;
-                }
-                
-                .logo-container {
-                    width: 70px !important;
-                    height: 70px !important;
-                    font-size: 35px !important;
-                }
                 
                 .stat-number {
-                    font-size: 2rem !important;
+                    font-size: 2.2rem !important;
                 }
                 
                 .subtitle {
@@ -465,117 +495,115 @@ async function showAuthRedirect() {
             }
         </style>
         
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%); color: white; padding: 40px 20px; text-align: center; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; position: relative; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch;">
-            <!-- Background Animation Elements -->
-            <div style="position: fixed; top: 10%; left: 10%; width: 100px; height: 100px; background: rgba(255,255,255,0.1); border-radius: 50%; animation: float 4s ease-in-out infinite; z-index: 0;"></div>
-            <div style="position: fixed; top: 70%; right: 10%; width: 80px; height: 80px; background: rgba(255,255,255,0.08); border-radius: 50%; animation: float 3s ease-in-out infinite 1s; z-index: 0;"></div>
-            <div style="position: fixed; bottom: 20%; left: 20%; width: 60px; height: 60px; background: rgba(255,255,255,0.06); border-radius: 50%; animation: float 5s ease-in-out infinite 2s; z-index: 0;"></div>
+        <div style="background: #667eea; color: white; padding: 40px 20px; text-align: center; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; position: relative; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch;">
+            <!-- Background Pattern -->
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-image: radial-gradient(circle at 20% 50%, rgba(255,255,255,0.05) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255,255,255,0.03) 0%, transparent 50%), radial-gradient(circle at 40% 20%, rgba(255,255,255,0.04) 0%, transparent 50%); z-index: 0;"></div>
             
-            <div class="landing-container" style="max-width: 1200px; width: 100%; margin: 0 auto; position: relative; z-index: 1; padding: 20px; box-sizing: border-box;">
+            <div class="landing-container" style="max-width: 1400px; width: 100%; margin: 0 auto; position: relative; z-index: 1; padding: 30px; box-sizing: border-box;">
                 <!-- Logo/Icon -->
-                <div class="logo-container floating" style="width: 100px; height: 100px; background: rgba(255,255,255,0.2); border-radius: 25px; display: flex; align-items: center; justify-content: center; margin: 0 auto 40px; font-size: 50px; backdrop-filter: blur(10px); box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
+                <div class="logo-container floating" style="width: 120px; height: 120px; background: rgba(255,255,255,0.15); border-radius: 30px; display: flex; align-items: center; justify-content: center; margin: 0 auto 50px; font-size: 60px; backdrop-filter: blur(10px); box-shadow: 0 10px 40px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.1);">
                     🎯
                 </div>
                 
                 <!-- Main Title -->
-                <h1 class="main-title fade-in-up" style="font-size: 3.5rem; margin-bottom: 25px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <h1 class="main-title fade-in-up" style="font-size: 4rem; margin-bottom: 30px; font-weight: 700; text-shadow: 0 3px 6px rgba(0,0,0,0.1); letter-spacing: -0.02em;">
                     QuizBot
                 </h1>
                 
                 <!-- Subtitle -->
-                <p class="subtitle fade-in-up" style="font-size: 1.5rem; margin-bottom: 40px; opacity: 0.9; line-height: 1.6; animation-delay: 0.2s; max-width: 600px; margin-left: auto; margin-right: auto;">
+                <p class="subtitle fade-in-up" style="font-size: 1.8rem; margin-bottom: 50px; opacity: 0.9; line-height: 1.6; animation-delay: 0.2s; max-width: 700px; margin-left: auto; margin-right: auto; font-weight: 300;">
                     Telegram'da interaktiv testlar yarating va boshqaring
                 </p>
                 
                 <!-- Stats Section -->
-                <div class="fade-in-up" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 30px; margin-bottom: 50px; animation-delay: 0.4s; max-width: 800px; margin-left: auto; margin-right: auto;">
-                    <div style="text-align: center; padding: 20px; background: rgba(255,255,255,0.1); border-radius: 15px; backdrop-filter: blur(10px);">
-                        <div class="stat-number">10K+</div>
-                        <p style="margin: 10px 0 0 0; opacity: 0.8; font-size: 1rem;">Foydalanuvchi</p>
+                <div class="fade-in-up" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 40px; margin-bottom: 60px; animation-delay: 0.4s; max-width: 900px; margin-left: auto; margin-right: auto;">
+                    <div style="text-align: center; padding: 30px; background: rgba(255,255,255,0.1); border-radius: 20px; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); transition: transform 0.3s ease, box-shadow 0.3s ease;">
+                        <div class="stat-number" style="font-size: 3rem; margin-bottom: 15px;">10K+</div>
+                        <p style="margin: 0; opacity: 0.9; font-size: 1.1rem; font-weight: 500;">Foydalanuvchi</p>
                     </div>
-                    <div style="text-align: center; padding: 20px; background: rgba(255,255,255,0.1); border-radius: 15px; backdrop-filter: blur(10px);">
-                        <div class="stat-number">50K+</div>
-                        <p style="margin: 10px 0 0 0; opacity: 0.8; font-size: 1rem;">Test yaratildi</p>
+                    <div style="text-align: center; padding: 30px; background: rgba(255,255,255,0.1); border-radius: 20px; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); transition: transform 0.3s ease, box-shadow 0.3s ease;">
+                        <div class="stat-number" style="font-size: 3rem; margin-bottom: 15px;">50K+</div>
+                        <p style="margin: 0; opacity: 0.9; font-size: 1.1rem; font-weight: 500;">Test yaratildi</p>
                     </div>
-                    <div style="text-align: center; padding: 20px; background: rgba(255,255,255,0.1); border-radius: 15px; backdrop-filter: blur(10px);">
-                        <div class="stat-number">99.9%</div>
-                        <p style="margin: 10px 0 0 0; opacity: 0.8; font-size: 1rem;">Uptime</p>
+                    <div style="text-align: center; padding: 30px; background: rgba(255,255,255,0.1); border-radius: 20px; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); transition: transform 0.3s ease, box-shadow 0.3s ease;">
+                        <div class="stat-number" style="font-size: 3rem; margin-bottom: 15px;">99.9%</div>
+                        <p style="margin: 0; opacity: 0.9; font-size: 1.1rem; font-weight: 500;">Uptime</p>
                     </div>
                 </div>
                 
                 <!-- Features -->
-                <div class="features-grid fade-in-up" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 30px; margin-bottom: 50px; animation-delay: 0.6s; max-width: 900px; margin-left: auto; margin-right: auto;">
-                    <div class="feature-card slide-in-left" style="background: rgba(255,255,255,0.1); padding: 35px; border-radius: 20px; backdrop-filter: blur(10px); animation-delay: 0.8s; min-height: 200px;">
-                        <div style="font-size: 3rem; margin-bottom: 20px;">📝</div>
-                        <h3 style="margin: 0 0 15px 0; font-size: 1.3rem;">Test Yaratish</h3>
-                        <p style="margin: 0; font-size: 1rem; opacity: 0.8; line-height: 1.5;">Intuitiv interfeys bilan oson va tez test tuzish</p>
+                <div class="features-grid fade-in-up" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 40px; margin-bottom: 60px; animation-delay: 0.6s; max-width: 1000px; margin-left: auto; margin-right: auto;">
+                    <div class="feature-card slide-in-left" style="background: rgba(255,255,255,0.1); padding: 40px; border-radius: 25px; backdrop-filter: blur(10px); animation-delay: 0.8s; min-height: 220px; border: 1px solid rgba(255,255,255,0.1); transition: transform 0.3s ease, box-shadow 0.3s ease;">
+                        <div style="font-size: 3.5rem; margin-bottom: 25px;">📝</div>
+                        <h3 style="margin: 0 0 20px 0; font-size: 1.5rem; font-weight: 600;">Test Yaratish</h3>
+                        <p style="margin: 0; font-size: 1.1rem; opacity: 0.8; line-height: 1.6; font-weight: 300;">Intuitiv interfeys bilan oson va tez test tuzish</p>
                     </div>
-                    <div class="feature-card" style="background: rgba(255,255,255,0.1); padding: 35px; border-radius: 20px; backdrop-filter: blur(10px); animation-delay: 1s; min-height: 200px;">
-                        <div style="font-size: 3rem; margin-bottom: 20px;">🤖</div>
-                        <h3 style="margin: 0 0 15px 0; font-size: 1.3rem;">AI Yordam</h3>
-                        <p style="margin: 0; font-size: 1rem; opacity: 0.8; line-height: 1.5;">Groq AI bilan avtomatik savollar generatsiyasi</p>
+                    <div class="feature-card" style="background: rgba(255,255,255,0.1); padding: 40px; border-radius: 25px; backdrop-filter: blur(10px); animation-delay: 1s; min-height: 220px; border: 1px solid rgba(255,255,255,0.1); transition: transform 0.3s ease, box-shadow 0.3s ease;">
+                        <div style="font-size: 3.5rem; margin-bottom: 25px;">🤖</div>
+                        <h3 style="margin: 0 0 20px 0; font-size: 1.5rem; font-weight: 600;">AI Yordam</h3>
+                        <p style="margin: 0; font-size: 1.1rem; opacity: 0.8; line-height: 1.6; font-weight: 300;">Groq AI bilan avtomatik savollar generatsiyasi</p>
                     </div>
-                    <div class="feature-card slide-in-right" style="background: rgba(255,255,255,0.1); padding: 35px; border-radius: 20px; backdrop-filter: blur(10px); animation-delay: 1.2s; min-height: 200px;">
-                        <div style="font-size: 3rem; margin-bottom: 20px;">📊</div>
-                        <h3 style="margin: 0 0 15px 0; font-size: 1.3rem;">Analitika</h3>
-                        <p style="margin: 0; font-size: 1rem; opacity: 0.8; line-height: 1.5;">Test natijalarini batafsil tahlil qilish</p>
+                    <div class="feature-card slide-in-right" style="background: rgba(255,255,255,0.1); padding: 40px; border-radius: 25px; backdrop-filter: blur(10px); animation-delay: 1.2s; min-height: 220px; border: 1px solid rgba(255,255,255,0.1); transition: transform 0.3s ease, box-shadow 0.3s ease;">
+                        <div style="font-size: 3.5rem; margin-bottom: 25px;">📊</div>
+                        <h3 style="margin: 0 0 20px 0; font-size: 1.5rem; font-weight: 600;">Analitika</h3>
+                        <p style="margin: 0; font-size: 1.1rem; opacity: 0.8; line-height: 1.6; font-weight: 300;">Test natijalarini batafsil tahlil qilish</p>
                     </div>
                 </div>
                 
                 <!-- Additional Features -->
-                <div class="fade-in-up" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 50px; animation-delay: 1.4s; max-width: 1000px; margin-left: auto; margin-right: auto;">
-                    <div style="background: rgba(255,255,255,0.08); padding: 20px; border-radius: 15px; backdrop-filter: blur(5px); min-height: 120px;">
-                        <div style="font-size: 2rem; margin-bottom: 12px;">🌍</div>
-                        <h4 style="margin: 0 0 8px 0; font-size: 1.1rem;">Multi-til</h4>
-                        <p style="margin: 0; font-size: 0.95rem; opacity: 0.7;">UZ, EN tillarida</p>
+                <div class="fade-in-up" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 25px; margin-bottom: 60px; animation-delay: 1.4s; max-width: 1100px; margin-left: auto; margin-right: auto;">
+                    <div style="background: rgba(255,255,255,0.08); padding: 25px; border-radius: 18px; backdrop-filter: blur(5px); min-height: 140px; border: 1px solid rgba(255,255,255,0.08); transition: transform 0.3s ease;">
+                        <div style="font-size: 2.5rem; margin-bottom: 15px;">🌍</div>
+                        <h4 style="margin: 0 0 10px 0; font-size: 1.2rem; font-weight: 600;">Multi-til</h4>
+                        <p style="margin: 0; font-size: 1rem; opacity: 0.7; font-weight: 300;">UZ, EN tillarida</p>
                     </div>
-                    <div style="background: rgba(255,255,255,0.08); padding: 20px; border-radius: 15px; backdrop-filter: blur(5px); min-height: 120px;">
-                        <div style="font-size: 2rem; margin-bottom: 12px;">📱</div>
-                        <h4 style="margin: 0 0 8px 0; font-size: 1.1rem;">Mobil</h4>
-                        <p style="margin: 0; font-size: 0.95rem; opacity: 0.7;">Barcha qurilmalar</p>
+                    <div style="background: rgba(255,255,255,0.08); padding: 25px; border-radius: 18px; backdrop-filter: blur(5px); min-height: 140px; border: 1px solid rgba(255,255,255,0.08); transition: transform 0.3s ease;">
+                        <div style="font-size: 2.5rem; margin-bottom: 15px;">📱</div>
+                        <h4 style="margin: 0 0 10px 0; font-size: 1.2rem; font-weight: 600;">Mobil</h4>
+                        <p style="margin: 0; font-size: 1rem; opacity: 0.7; font-weight: 300;">Barcha qurilmalar</p>
                     </div>
-                    <div style="background: rgba(255,255,255,0.08); padding: 20px; border-radius: 15px; backdrop-filter: blur(5px); min-height: 120px;">
-                        <div style="font-size: 2rem; margin-bottom: 12px;">🔒</div>
-                        <h4 style="margin: 0 0 8px 0; font-size: 1.1rem;">Xavfsiz</h4>
-                        <p style="margin: 0; font-size: 0.95rem; opacity: 0.7;">Ma'lumotlarni himoya</p>
+                    <div style="background: rgba(255,255,255,0.08); padding: 25px; border-radius: 18px; backdrop-filter: blur(5px); min-height: 140px; border: 1px solid rgba(255,255,255,0.08); transition: transform 0.3s ease;">
+                        <div style="font-size: 2.5rem; margin-bottom: 15px;">🔒</div>
+                        <h4 style="margin: 0 0 10px 0; font-size: 1.2rem; font-weight: 600;">Xavfsiz</h4>
+                        <p style="margin: 0; font-size: 1rem; opacity: 0.7; font-weight: 300;">Ma'lumotlarni himoya</p>
                     </div>
-                    <div style="background: rgba(255,255,255,0.08); padding: 20px; border-radius: 15px; backdrop-filter: blur(5px); min-height: 120px;">
-                        <div style="font-size: 2rem; margin-bottom: 12px;">⚡</div>
-                        <h4 style="margin: 0 0 8px 0; font-size: 1.1rem;">Tez</h4>
-                        <p style="margin: 0; font-size: 0.95rem; opacity: 0.7;">Soniylangan ishlash</p>
+                    <div style="background: rgba(255,255,255,0.08); padding: 25px; border-radius: 18px; backdrop-filter: blur(5px); min-height: 140px; border: 1px solid rgba(255,255,255,0.08); transition: transform 0.3s ease;">
+                        <div style="font-size: 2.5rem; margin-bottom: 15px;">⚡</div>
+                        <h4 style="margin: 0 0 10px 0; font-size: 1.2rem; font-weight: 600;">Tez</h4>
+                        <p style="margin: 0; font-size: 1rem; opacity: 0.7; font-weight: 300;">Soniylangan ishlash</p>
                     </div>
                 </div>
                 
                 <!-- CTA Button -->
-                <div class="fade-in-up pulse" style="animation-delay: 1.6s; margin-bottom: 40px;">
-                    <a href="${botLink}" target="_blank" class="cta-button" style="display: inline-block; padding: 20px 50px; background: white; color: #667eea; text-decoration: none; border-radius: 20px; font-weight: 600; font-size: 1.3rem; box-shadow: 0 10px 30px rgba(0,0,0,0.2); position: relative; overflow: hidden;">
+                <div class="fade-in-up pulse" style="animation-delay: 1.6s; margin-bottom: 50px;">
+                    <a href="${botLink}" target="_blank" class="cta-button" style="display: inline-block; padding: 25px 60px; background: white; color: #667eea; text-decoration: none; border-radius: 25px; font-weight: 600; font-size: 1.4rem; box-shadow: 0 15px 40px rgba(0,0,0,0.15); position: relative; overflow: hidden; transition: transform 0.3s ease, box-shadow 0.3s ease;">
                         🚀 Botga o'tish
                     </a>
                 </div>
                 
                 <!-- Additional Info -->
-                <div class="fade-in-up" style="animation-delay: 1.8s; max-width: 600px; margin-left: auto; margin-right: auto;">
-                    <p style="opacity: 0.8; font-size: 1.1rem; margin-bottom: 25px;">
+                <div class="fade-in-up" style="animation-delay: 1.8s; max-width: 700px; margin-left: auto; margin-right: auto;">
+                    <p style="opacity: 0.9; font-size: 1.2rem; margin-bottom: 30px; font-weight: 300;">
                         💡 <strong>${botUsername}</strong> orqali to'liq imkoniyatlardan foydalaning
                     </p>
                     
                     <!-- Trust Badges -->
-                    <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
-                        <div style="background: rgba(255,255,255,0.1); padding: 12px 20px; border-radius: 25px; backdrop-filter: blur(10px); font-size: 1rem;">
+                    <div style="display: flex; justify-content: center; gap: 25px; flex-wrap: wrap; margin-bottom: 40px;">
+                        <div style="background: rgba(255,255,255,0.1); padding: 15px 25px; border-radius: 30px; backdrop-filter: blur(10px); font-size: 1.1rem; border: 1px solid rgba(255,255,255,0.1); transition: transform 0.3s ease;">
                             ✅ 24/7 Ishlaydi
                         </div>
-                        <div style="background: rgba(255,255,255,0.1); padding: 12px 20px; border-radius: 25px; backdrop-filter: blur(10px); font-size: 1rem;">
+                        <div style="background: rgba(255,255,255,0.1); padding: 15px 25px; border-radius: 30px; backdrop-filter: blur(10px); font-size: 1.1rem; border: 1px solid rgba(255,255,255,0.1); transition: transform 0.3s ease;">
                             🆓 Bepul
                         </div>
-                        <div style="background: rgba(255,255,255,0.1); padding: 12px 20px; border-radius: 25px; backdrop-filter: blur(10px); font-size: 1rem;">
+                        <div style="background: rgba(255,255,255,0.1); padding: 15px 25px; border-radius: 30px; backdrop-filter: blur(10px); font-size: 1.1rem; border: 1px solid rgba(255,255,255,0.1); transition: transform 0.3s ease;">
                             📈 1000+ Test/kun
                         </div>
                     </div>
                     
                     <!-- Telegram Badge -->
-                    <div style="background: rgba(255,255,255,0.15); padding: 15px 30px; border-radius: 30px; display: inline-block; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2);">
-                        <span style="opacity: 0.9;">Powered by</span> 
-                        <strong style="margin-left: 10px; font-size: 1.2rem;">Telegram</strong>
+                    <div style="background: rgba(255,255,255,0.12); padding: 18px 35px; border-radius: 35px; display: inline-block; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.15); transition: transform 0.3s ease;">
+                        <span style="opacity: 0.9; font-size: 1.1rem;">Powered by</span> 
+                        <strong style="margin-left: 12px; font-size: 1.3rem;">Telegram</strong>
                     </div>
                 </div>
             </div>
