@@ -23,31 +23,52 @@ const searchInput = document.getElementById('search-input');
 // Helper to get params
 function getAuthHeaders() {
     const headers = {};
+    let debugSource = "none";
 
-    // Debug info
-    console.log("tg.initData:", tg.initData);
-
-    // 1. Check for initData (Primary for WebApp)
+    // 1. Check for initData from Telegram Object (Standard)
     if (tg.initData) {
         headers['X-Telegram-Init-Data'] = tg.initData;
+        debugSource = "tg.initData";
     }
-    // Fallback: Try to get from hash if not in tg object (sometimes happens on direct open)
+    // 2. Fallback: Parse from Hash (Manual)
     else {
         try {
             const hash = window.location.hash.slice(1);
+
+            // Method A: URLSearchParams
             const params = new URLSearchParams(hash);
             if (params.get('tgWebAppData')) {
                 headers['X-Telegram-Init-Data'] = params.get('tgWebAppData');
+                debugSource = "hash_params";
             }
-        } catch (e) { }
+
+            // Method B: Regex (if Method A failed)
+            if (!headers['X-Telegram-Init-Data'] && hash.includes('tgWebAppData=')) {
+                const match = hash.match(/tgWebAppData=([^&]+)/);
+                if (match && match[1]) {
+                    headers['X-Telegram-Init-Data'] = decodeURIComponent(match[1]);
+                    debugSource = "hash_regex";
+                }
+            }
+        } catch (e) {
+            console.error("Hash parse error", e);
+        }
     }
 
-    // 2. Check for token in URL (Legacy/Fallback)
+    // 3. Check for token (Legacy)
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('token')) {
-        authToken = urlParams.get('token');
-        headers['X-Auth-Token'] = authToken;
+        const token = urlParams.get('token');
+        headers['X-Auth-Token'] = token;
+        if (debugSource === "none") debugSource = "token";
     }
+
+    // Store debug info globally for error screen
+    window.lastAuthDebug = {
+        source: debugSource,
+        hasHeader: !!headers['X-Telegram-Init-Data'],
+        dataLen: headers['X-Telegram-Init-Data'] ? headers['X-Telegram-Init-Data'].length : 0
+    };
 
     return headers;
 }
@@ -154,12 +175,15 @@ async function loadQuizzes() {
 }
 
 function showError(msg) {
+    const authStats = window.lastAuthDebug || {};
     const debugInfo = `
         <div style="font-size: 10px; text-align: left; margin-top: 10px; opacity: 0.7; overflow-wrap: break-word;">
-            <p><strong>Debug Info:</strong></p>
-            <p>initData len: ${tg.initData ? tg.initData.length : 0}</p>
-            <p>App Platform: ${tg.platform || 'unknown'}</p>
-            <p>URL Hash len: ${window.location.hash.length}</p>
+            <p><strong>Debug Info (v5):</strong></p>
+            <p>Source: ${authStats.source}</p>
+            <p>Header Present: ${authStats.hasHeader}</p>
+            <p>Extracted Len: ${authStats.dataLen}</p>
+            <p>Raw Hash Len: ${window.location.hash.length}</p>
+            <p>Platform: ${tg.platform}</p>
         </div>
     `;
 
