@@ -273,20 +273,62 @@ async function showAuthRedirect() {
         console.warn("Failed to fetch bot info:", e);
     }
     
-    const redirectHTML = `
-        <div style="background: var(--bg-color); color: var(--text-color); padding: 20px; text-align: center; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-            <h3 style="margin-bottom: 15px;">🔐 ${t('error_title')}</h3>
-            <p style="margin-bottom: 20px;">${t('error_auth')}</p>
-            <p style="margin-bottom: 25px; opacity: 0.8;">Iltimos, quyidagi tugma orqali botga o'ting:</p>
-            <a href="${botLink}" target="_blank" style="padding: 12px 24px; background: #0088cc; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; margin-bottom: 15px;">
-                🚀 Botga o'tish
-            </a>
-            <button onclick="window.location.reload()" style="padding: 8px 16px; background: var(--button-color); border: none; border-radius: 6px; color: white; font-size: 14px;">
-                ${t('retry')}
-            </button>
+    const landingHTML = `
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px 20px; text-align: center; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+            <div style="max-width: 600px; margin: 0 auto;">
+                <!-- Logo/Icon -->
+                <div style="width: 80px; height: 80px; background: rgba(255,255,255,0.2); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 30px; font-size: 40px;">
+                    🎯
+                </div>
+                
+                <!-- Main Title -->
+                <h1 style="font-size: 2.5rem; margin-bottom: 20px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    QuizBot
+                </h1>
+                
+                <!-- Subtitle -->
+                <p style="font-size: 1.3rem; margin-bottom: 30px; opacity: 0.9; line-height: 1.6;">
+                    Telegram'da interaktiv testlar yarating va boshqaring
+                </p>
+                
+                <!-- Features -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; margin-bottom: 40px;">
+                    <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; backdrop-filter: blur(10px);">
+                        <div style="font-size: 2rem; margin-bottom: 10px;">📝</div>
+                        <h3 style="margin: 0 0 5px 0; font-size: 1rem;">Test Yaratish</h3>
+                        <p style="margin: 0; font-size: 0.9rem; opacity: 0.8;">Oson test tuzish</p>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; backdrop-filter: blur(10px);">
+                        <div style="font-size: 2rem; margin-bottom: 10px;">🤖</div>
+                        <h3 style="margin: 0 0 5px 0; font-size: 1rem;">AI Yordam</h3>
+                        <p style="margin: 0; font-size: 0.9rem; opacity: 0.8;">Avtomatik savollar</p>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 15px; backdrop-filter: blur(10px);">
+                        <div style="font-size: 2rem; margin-bottom: 10px;">📊</div>
+                        <h3 style="margin: 0 0 5px 0; font-size: 1rem;">Analitika</h3>
+                        <p style="margin: 0; font-size: 0.9rem; opacity: 0.8;">Natijalarni kuzatish</p>
+                    </div>
+                </div>
+                
+                <!-- CTA Button -->
+                <a href="${botLink}" target="_blank" style="display: inline-block; padding: 16px 32px; background: white; color: #667eea; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 1.1rem; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); transition: transform 0.2s, box-shadow 0.2s;">
+                    🚀 Botga o'tish
+                </a>
+                
+                <!-- Additional Info -->
+                <p style="opacity: 0.7; font-size: 0.9rem; margin-bottom: 10px;">
+                    💡 Telegram orqali to'liq imkoniyatlardan foydalaning
+                </p>
+                
+                <!-- Telegram Badge -->
+                <div style="background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 20px; display: inline-block; backdrop-filter: blur(10px);">
+                    <span style="opacity: 0.8;">Powered by</span> 
+                    <strong style="margin-left: 5px;">Telegram</strong>
+                </div>
+            </div>
         </div>
     `;
-    appContainer.innerHTML = redirectHTML;
+    appContainer.innerHTML = landingHTML;
 }
 
 function renderQuizList() {
