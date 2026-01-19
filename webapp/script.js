@@ -24,9 +24,22 @@ const searchInput = document.getElementById('search-input');
 function getAuthHeaders() {
     const headers = {};
 
+    // Debug info
+    console.log("tg.initData:", tg.initData);
+
     // 1. Check for initData (Primary for WebApp)
     if (tg.initData) {
         headers['X-Telegram-Init-Data'] = tg.initData;
+    }
+    // Fallback: Try to get from hash if not in tg object (sometimes happens on direct open)
+    else {
+        try {
+            const hash = window.location.hash.slice(1);
+            const params = new URLSearchParams(hash);
+            if (params.get('tgWebAppData')) {
+                headers['X-Telegram-Init-Data'] = params.get('tgWebAppData');
+            }
+        } catch (e) { }
     }
 
     // 2. Check for token in URL (Legacy/Fallback)
@@ -34,11 +47,6 @@ function getAuthHeaders() {
     if (urlParams.get('token')) {
         authToken = urlParams.get('token');
         headers['X-Auth-Token'] = authToken;
-    }
-
-    // 2. Always send initData if available (Fallback)
-    if (tg.initData) {
-        headers['X-Telegram-Init-Data'] = tg.initData;
     }
 
     return headers;
