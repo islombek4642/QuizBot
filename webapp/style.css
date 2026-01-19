@@ -19,12 +19,20 @@
     -webkit-tap-highlight-color: transparent;
 }
 
+html {
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: hidden;
+}
+
 body {
     font-family: 'Inter', -apple-system, sans-serif;
     background-color: var(--bg-color);
     color: var(--text-color);
     line-height: 1.5;
     overflow-x: hidden;
+    overflow-y: auto;
+    height: 100%;
     min-height: 100vh;
 }
 

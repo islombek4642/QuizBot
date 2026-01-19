@@ -614,7 +614,7 @@ async function showAuthRedirect() {
                 
                 <!-- Main Title -->
                 <h1 class="main-title fade-in-up" style="font-size: clamp(2.5rem, 6vw, 5rem); margin-bottom: 30px; font-weight: 800; text-shadow: 0 4px 8px rgba(102, 126, 234, 0.3), 0 0 30px rgba(102, 126, 234, 0.2); letter-spacing: -0.02em; background: linear-gradient(45deg, #fff, #f0f4ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; animation: titleGlow 4s ease-in-out infinite alternate;">
-                    QuizBot
+                    Comfort Quiz - Bot
                 </h1>
                 
                 <!-- Subtitle -->
