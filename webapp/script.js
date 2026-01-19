@@ -564,7 +564,7 @@ async function showAuthRedirect() {
             }
         </style>
         
-        <div style="background: transparent; color: white; padding: 0; text-align: center; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; position: relative; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; width: 100%;">
+        <div style="background: transparent; color: white; padding: 0; text-align: center; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; position: relative; overflow-x: hidden; width: 100%;">
             <!-- Animated Background Particles -->
             <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;">
                 <div style="position: absolute; top: 10%; left: 5%; width: 80px; height: 80px; background: radial-gradient(circle, rgba(102, 126, 234, 0.3) 0%, transparent 70%); border-radius: 50%; animation: float 6s ease-in-out infinite;"></div>

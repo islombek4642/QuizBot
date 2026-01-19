@@ -178,7 +178,9 @@ async def update_quiz(
 @app.get("/api/bot-info")
 async def get_bot_info():
     """Return bot information for redirect links"""
-    bot_username = settings.BOT_USERNAME or "quizbot_example_bot"
+    bot_username = (settings.BOT_USERNAME or "quizbot_example_bot").strip()
+    if bot_username.startswith("@"): 
+        bot_username = bot_username[1:]
     logger.info(f"Bot username from settings: {bot_username}")
     return {
         "bot_username": bot_username,
