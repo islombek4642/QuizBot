@@ -50,6 +50,12 @@ function getAuthHeaders() {
                     debugSource = "hash_regex";
                 }
             }
+
+            // Method C: Raw Hash (if it looks like unwrapped initData containing user & hash)
+            if (!headers['X-Telegram-Init-Data'] && hash.includes('user=') && hash.includes('hash=')) {
+                headers['X-Telegram-Init-Data'] = hash;
+                debugSource = "hash_raw";
+            }
         } catch (e) {
             console.error("Hash parse error", e);
         }
