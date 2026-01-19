@@ -261,6 +261,7 @@ function showError(msg) {
 }
 
 async function showAuthRedirect() {
+    appContainer.classList.add('landing');
     let botLink = "https://t.me/comfortquizbot";
     let botUsername = "@comfortquizbot";
     
@@ -644,6 +645,7 @@ async function showAuthRedirect() {
 }
 
 function renderQuizList() {
+    appContainer.classList.remove('landing');
     quizList.innerHTML = '';
     if (currentQuizzes.length === 0) {
         document.getElementById('no-quizzes').style.display = 'block';
@@ -951,6 +953,7 @@ searchInput.oninput = (e) => {
 function switchView(view) {
     currentView = view;
     if (view === 'dashboard') {
+        appContainer.classList.remove('landing');
         dashboardView.style.display = 'grid';
         editorView.style.display = 'none';
         backBtn.style.display = 'none';
@@ -958,6 +961,7 @@ function switchView(view) {
         pageTitle.innerText = t('my_quizzes');
         loadQuizzes(); // Refresh list
     } else {
+        appContainer.classList.remove('landing');
         dashboardView.style.display = 'none';
         editorView.style.display = 'block';
         backBtn.style.display = 'block';
