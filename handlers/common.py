@@ -25,6 +25,21 @@ class QuizStates(StatesGroup):
     WAITING_FOR_RANGE = State()
     WAITING_FOR_RANDOM_COUNT = State()
 
+import hmac
+import hashlib
+import time
+
+def generate_webapp_token(user_id: int) -> str:
+    """
+    Generate a secure token for Web App authentication.
+    Format: {user_id}:{timestamp}:{signature}
+    """
+    timestamp = int(time.time())
+    data = f"{user_id}:{timestamp}"
+    secret = settings.BOT_TOKEN.encode()
+    signature = hmac.new(secret, data.encode(), hashlib.sha256).hexdigest()
+    return f"{user_id}:{timestamp}:{signature}"
+
 def get_main_keyboard(lang: str, user_id: int = None):
     builder = ReplyKeyboardBuilder()
     builder.button(text=Messages.get("AI_GENERATE_BTN", lang))
@@ -32,11 +47,16 @@ def get_main_keyboard(lang: str, user_id: int = None):
     builder.button(text=Messages.get("UPLOAD_WORD_BTN", lang))
     builder.button(text=Messages.get("MY_QUIZZES_BTN", lang))
     
-    # Add WebApp Editor button - now a regular button that triggers a signed link
     # Add WebApp Editor button - now opens WebApp directly
     if settings.WEBAPP_URL:
         # Properly append lang to URL
-        webapp_url = f"{settings.WEBAPP_URL.rstrip('/')}?lang={lang}"
+        base_url = settings.WEBAPP_URL.rstrip('/')
+        
+        # Generates a token so user can log in even if initData fails
+        token = generate_webapp_token(user_id) if user_id else ""
+        
+        webapp_url = f"{base_url}?lang={lang}&token={token}"
+        
         builder.button(
             text=Messages.get("WEBAPP_EDITOR_BTN", lang), 
             web_app=WebAppInfo(url=webapp_url)
