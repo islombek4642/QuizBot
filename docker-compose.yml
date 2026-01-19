@@ -47,7 +47,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - GROQ_SERVICE_TIER=${GROQ_SERVICE_TIER:-on_demand}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
 volumes:
   postgres_data:

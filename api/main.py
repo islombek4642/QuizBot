@@ -18,10 +18,13 @@ from core.logger import logger
 
 app = FastAPI(title="QuizBot Editor API")
 
-# Enable CORS for development
+# Enable CORS for production
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://xamidullayevi.uz",
+        "https://www.xamidullayevi.uz",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
