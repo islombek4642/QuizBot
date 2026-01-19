@@ -210,10 +210,10 @@ async function loadQuizzes() {
             } catch (e) { }
         }
 
-        // Guard: If still no auth, do not attempt fetch (prevents 401 logs)
+        // Guard: If still no auth, show redirect message
         if (!headers['X-Auth-Token'] && !headers['X-Telegram-Init-Data']) {
             console.warn("No auth credentials found, skipping fetch.");
-            showError(t('error_auth'));
+            showAuthRedirect();
             return;
         }
 
@@ -258,6 +258,35 @@ function showError(msg) {
         </div>
     `;
     appContainer.innerHTML = debugHTML;
+}
+
+async function showAuthRedirect() {
+    let botLink = "https://t.me/quizbot_example_bot";
+    
+    try {
+        const res = await fetch(`${API_BASE}/bot-info`);
+        if (res.ok) {
+            const data = await res.json();
+            botLink = data.bot_link;
+        }
+    } catch (e) {
+        console.warn("Failed to fetch bot info:", e);
+    }
+    
+    const redirectHTML = `
+        <div style="background: var(--bg-color); color: var(--text-color); padding: 20px; text-align: center; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+            <h3 style="margin-bottom: 15px;">🔐 ${t('error_title')}</h3>
+            <p style="margin-bottom: 20px;">${t('error_auth')}</p>
+            <p style="margin-bottom: 25px; opacity: 0.8;">Iltimos, quyidagi tugma orqali botga o'ting:</p>
+            <a href="${botLink}" target="_blank" style="padding: 12px 24px; background: #0088cc; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; margin-bottom: 15px;">
+                🚀 Botga o'tish
+            </a>
+            <button onclick="window.location.reload()" style="padding: 8px 16px; background: var(--button-color); border: none; border-radius: 6px; color: white; font-size: 14px;">
+                ${t('retry')}
+            </button>
+        </div>
+    `;
+    appContainer.innerHTML = redirectHTML;
 }
 
 function renderQuizList() {

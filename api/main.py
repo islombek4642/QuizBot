@@ -1,20 +1,25 @@
-import hmac
-import hashlib
-import json
-import os
-from typing import List, Optional
-from urllib.parse import parse_qsl
-
-from fastapi import FastAPI, HTTPException, Depends, Header, Request, Response
+from fastapi import FastAPI, HTTPException, Depends, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from core.config import settings
+from contextlib import asynccontextmanager
+import os
+import hmac
+import hashlib
+import structlog
+import json
+import time
+from urllib.parse import parse_qs, unquote, parse_qsl
 from db.session import get_db
+from models.user import User
+from models.quiz import Quiz
 from services.quiz_service import QuizService
-from core.logger import logger
+from pydantic import BaseModel
+from typing import List, Optional
+from fastapi import Header
+from core.config import settings
+
+logger = structlog.get_logger()
 
 app = FastAPI(title="QuizBot Editor API")
 
@@ -68,8 +73,6 @@ def verify_telegram_data(init_data: str) -> Optional[int]:
     except Exception as e:
         logger.error("Error verifying telegram data", error=str(e))
         return None
-
-import time
 
 def verify_token(token: str) -> Optional[int]:
     """
@@ -171,6 +174,15 @@ async def update_quiz(
         raise HTTPException(status_code=404, detail="Quiz not found or unauthorized")
         
     return {"status": "success"}
+
+@app.get("/api/bot-info")
+async def get_bot_info():
+    """Return bot information for redirect links"""
+    bot_username = settings.BOT_USERNAME or "quizbot_example_bot"
+    return {
+        "bot_username": bot_username,
+        "bot_link": f"https://t.me/{bot_username}"
+    }
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
