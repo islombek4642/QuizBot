@@ -35,26 +35,36 @@ function getAuthHeaders() {
         try {
             const hash = window.location.hash.slice(1);
 
-            // Method A: URLSearchParams
+            // Try decoding the hash (in case it's fully URL encoded)
+            let decodedHash = hash;
+            try {
+                decodedHash = decodeURIComponent(hash);
+            } catch (e) { console.error("Decode error", e); }
+
+            // Method A: URLSearchParams (on original hash)
             const params = new URLSearchParams(hash);
             if (params.get('tgWebAppData')) {
                 headers['X-Telegram-Init-Data'] = params.get('tgWebAppData');
                 debugSource = "hash_params";
             }
 
-            // Method B: Regex (if Method A failed)
-            if (!headers['X-Telegram-Init-Data'] && hash.includes('tgWebAppData=')) {
-                const match = hash.match(/tgWebAppData=([^&]+)/);
-                if (match && match[1]) {
-                    headers['X-Telegram-Init-Data'] = decodeURIComponent(match[1]);
-                    debugSource = "hash_regex";
+            // Method B: Regex (on original or decoded)
+            if (!headers['X-Telegram-Init-Data']) {
+                const target = hash.includes('tgWebAppData=') ? hash : decodedHash;
+                if (target.includes('tgWebAppData=')) {
+                    const match = target.match(/tgWebAppData=([^&]+)/);
+                    if (match && match[1]) {
+                        headers['X-Telegram-Init-Data'] = decodeURIComponent(match[1]);
+                        debugSource = "hash_regex";
+                    }
                 }
             }
 
-            // Method C: Raw Hash (if it looks like unwrapped initData containing user & hash)
-            if (!headers['X-Telegram-Init-Data'] && hash.includes('user=') && hash.includes('hash=')) {
-                headers['X-Telegram-Init-Data'] = hash;
-                debugSource = "hash_raw";
+            // Method C: Raw Hash (on decoded)
+            // If decoded string looks like "user={...}&hash=..."
+            if (!headers['X-Telegram-Init-Data'] && decodedHash.includes('user=') && decodedHash.includes('hash=')) {
+                headers['X-Telegram-Init-Data'] = decodedHash;
+                debugSource = "hash_raw_decoded";
             }
         } catch (e) {
             console.error("Hash parse error", e);
@@ -73,7 +83,8 @@ function getAuthHeaders() {
     window.lastAuthDebug = {
         source: debugSource,
         hasHeader: !!headers['X-Telegram-Init-Data'],
-        dataLen: headers['X-Telegram-Init-Data'] ? headers['X-Telegram-Init-Data'].length : 0
+        dataLen: headers['X-Telegram-Init-Data'] ? headers['X-Telegram-Init-Data'].length : 0,
+        hashPreview: window.location.hash.slice(1, 50)
     };
 
     return headers;
@@ -188,6 +199,7 @@ function showError(msg) {
             <p>Source: ${authStats.source}</p>
             <p>Header Present: ${authStats.hasHeader}</p>
             <p>Extracted Len: ${authStats.dataLen}</p>
+            <p>Hash Preview: ${authStats.hashPreview || 'N/A'}</p>
             <p>Raw Hash Len: ${window.location.hash.length}</p>
             <p>Platform: ${tg.platform}</p>
         </div>
