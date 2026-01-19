@@ -281,8 +281,8 @@ function showError(msg) {
 
 async function showAuthRedirect() {
     appContainer.classList.add('landing');
-    let botLink = "https://t.me/comfortquizbot";
-    let botUsername = "comfortquizbot";
+    let botLink = "https://t.me/comfortquiz_bot";
+    let botUsername = "comfortquiz_bot";
 
     function normalizeBotLink(rawBotLink, rawBotUsername) {
         const cleanUsername = (rawBotUsername || "").replace("@", "").trim();
@@ -314,6 +314,18 @@ async function showAuthRedirect() {
     } catch (e) {
         console.warn("Failed to fetch bot info:", e);
     }
+
+    window.__openBotLink = function (e) {
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        try {
+            if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.openTelegramLink === 'function') {
+                window.Telegram.WebApp.openTelegramLink(botLink);
+                return false;
+            }
+        } catch (_) {}
+        window.open(botLink, '_blank');
+        return false;
+    };
     
     const landingHTML = `
         <style>
@@ -647,7 +659,7 @@ async function showAuthRedirect() {
                 
                 <!-- CTA Button -->
                 <div class="fade-in-up pulse" style="animation-delay: 1.6s; margin-bottom: 50px;">
-                    <a href="${botLink}" target="_blank" class="cta-button" style="display: inline-block; padding: 30px 70px; background: linear-gradient(135deg, #fff, #f8faff); color: #667eea; text-decoration: none; border-radius: 30px; font-weight: 700; font-size: clamp(1.2rem, 3vw, 1.5rem); box-shadow: 0 20px 50px rgba(102, 126, 234, 0.4), 0 0 0 2px rgba(255,255,255,0.3); position: relative; overflow: hidden; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); animation: slideInUp 0.8s ease-out 1.6s both;">
+                    <a href="${botLink}" target="_blank" rel="noopener noreferrer" onclick="return window.__openBotLink(event)" class="cta-button" style="display: inline-block; padding: 30px 70px; background: linear-gradient(135deg, #fff, #f8faff); color: #667eea; text-decoration: none; border-radius: 30px; font-weight: 700; font-size: clamp(1.2rem, 3vw, 1.5rem); box-shadow: 0 20px 50px rgba(102, 126, 234, 0.4), 0 0 0 2px rgba(255,255,255,0.3); position: relative; overflow: hidden; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); animation: slideInUp 0.8s ease-out 1.6s both;">
                         🚀 Botga o'tish
                     </a>
                 </div>
