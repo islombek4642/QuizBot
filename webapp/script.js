@@ -332,9 +332,13 @@ async function showAuthRedirect() {
         }
     };
 
-    const usersLabel = fmtCompact(stats.users) || '—';
-    const quizzesLabel = fmtCompact(stats.quizzes) || '—';
-    const questionsLabel = fmtCompact(stats.questions) || '—';
+    const usersTarget = (typeof stats.users === 'number' && Number.isFinite(stats.users)) ? stats.users : null;
+    const quizzesTarget = (typeof stats.quizzes === 'number' && Number.isFinite(stats.quizzes)) ? stats.quizzes : null;
+    const questionsTarget = (typeof stats.questions === 'number' && Number.isFinite(stats.questions)) ? stats.questions : null;
+
+    const usersLabel = usersTarget === null ? '—' : '0';
+    const quizzesLabel = quizzesTarget === null ? '—' : '0';
+    const questionsLabel = questionsTarget === null ? '—' : '0';
 
     window.__openBotLink = function (e) {
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
@@ -657,15 +661,15 @@ async function showAuthRedirect() {
                 <!-- Stats Section -->
                 <div class="fade-in-up" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 40px; margin-bottom: 60px; animation-delay: 0.4s; width: 100%; max-width: 1200px;">
                     <div class="stat-card" style="text-align: center; padding: 35px; background: linear-gradient(135deg, rgba(102, 126, 234, 0.15), rgba(118, 75, 162, 0.1)); border-radius: 25px; backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.2); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); animation: slideInUp 0.8s ease-out 0.4s both;">
-                        <div class="stat-number" style="font-size: clamp(2rem, 5vw, 3.5rem); margin-bottom: 15px; font-weight: 800; background: linear-gradient(45deg, #fff, #e0e7ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-shadow: 0 0 20px rgba(255,255,255,0.3); animation: numberPulse 2s ease-in-out infinite;">${usersLabel}</div>
+                        <div class="stat-number js-count" data-target="${usersTarget ?? ''}" style="font-size: clamp(2rem, 5vw, 3.5rem); margin-bottom: 15px; font-weight: 800; background: linear-gradient(45deg, #fff, #e0e7ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-shadow: 0 0 20px rgba(255,255,255,0.3); animation: numberPulse 2s ease-in-out infinite;">${usersLabel}</div>
                         <p style="margin: 0; opacity: 0.9; font-size: clamp(0.9rem, 2vw, 1.2rem); font-weight: 600;">Foydalanuvchi</p>
                     </div>
                     <div class="stat-card" style="text-align: center; padding: 35px; background: linear-gradient(135deg, rgba(118, 75, 162, 0.15), rgba(240, 147, 251, 0.1)); border-radius: 25px; backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.2); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); animation: slideInUp 0.8s ease-out 0.6s both;">
-                        <div class="stat-number" style="font-size: clamp(2rem, 5vw, 3.5rem); margin-bottom: 15px; font-weight: 800; background: linear-gradient(45deg, #fff, #e0e7ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-shadow: 0 0 20px rgba(255,255,255,0.3); animation: numberPulse 2s ease-in-out infinite 0.3s;">${quizzesLabel}</div>
+                        <div class="stat-number js-count" data-target="${quizzesTarget ?? ''}" style="font-size: clamp(2rem, 5vw, 3.5rem); margin-bottom: 15px; font-weight: 800; background: linear-gradient(45deg, #fff, #e0e7ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-shadow: 0 0 20px rgba(255,255,255,0.3); animation: numberPulse 2s ease-in-out infinite 0.3s;">${quizzesLabel}</div>
                         <p style="margin: 0; opacity: 0.9; font-size: clamp(0.9rem, 2vw, 1.2rem); font-weight: 600;">Testlar</p>
                     </div>
                     <div class="stat-card" style="text-align: center; padding: 35px; background: linear-gradient(135deg, rgba(240, 147, 251, 0.15), rgba(102, 126, 234, 0.1)); border-radius: 25px; backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.2); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); animation: slideInUp 0.8s ease-out 0.8s both;">
-                        <div class="stat-number" style="font-size: clamp(2rem, 5vw, 3.5rem); margin-bottom: 15px; font-weight: 800; background: linear-gradient(45deg, #fff, #e0e7ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-shadow: 0 0 20px rgba(255,255,255,0.3); animation: numberPulse 2s ease-in-out infinite 0.6s;">${questionsLabel}</div>
+                        <div class="stat-number js-count" data-target="${questionsTarget ?? ''}" style="font-size: clamp(2rem, 5vw, 3.5rem); margin-bottom: 15px; font-weight: 800; background: linear-gradient(45deg, #fff, #e0e7ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-shadow: 0 0 20px rgba(255,255,255,0.3); animation: numberPulse 2s ease-in-out infinite 0.6s;">${questionsLabel}</div>
                         <p style="margin: 0; opacity: 0.9; font-size: clamp(0.9rem, 2vw, 1.2rem); font-weight: 600;">Savollar</p>
                     </div>
                 </div>
@@ -683,7 +687,7 @@ async function showAuthRedirect() {
                         <p style="margin: 0; font-size: clamp(0.9rem, 2vw, 1.1rem); opacity: 0.85; line-height: 1.7; font-weight: 300;">Groq AI bilan avtomatik savollar generatsiyasi</p>
                     </div>
                     <div class="feature-card slide-in-right" style="background: linear-gradient(135deg, rgba(240, 147, 251, 0.12), rgba(102, 126, 234, 0.08)); padding: 45px; border-radius: 30px; backdrop-filter: blur(15px); animation-delay: 1.2s; min-height: 250px; border: 1px solid rgba(255,255,255,0.15); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); animation: slideInUp 0.8s ease-out 1.4s both;">
-                        <div style="font-size: 4rem; margin-bottom: 25px; animation: iconBounce 2s ease-in-out infinite 0.4s;">�</div>
+                        <div style="font-size: 4rem; margin-bottom: 25px; animation: iconBounce 2s ease-in-out infinite 0.4s;">📊</div>
                         <h3 style="margin: 0 0 20px 0; font-size: clamp(1.2rem, 3vw, 1.6rem); font-weight: 700;">Analitika</h3>
                         <p style="margin: 0; font-size: clamp(0.9rem, 2vw, 1.1rem); opacity: 0.85; line-height: 1.7; font-weight: 300;">Test natijalarini batafsil tahlil qilish</p>
                     </div>
@@ -725,6 +729,35 @@ async function showAuthRedirect() {
         </div>
     `;
     appContainer.innerHTML = landingHTML;
+
+    // Count-up animation for landing stats
+    const animateCount = (el, target) => {
+        const duration = 900;
+        const start = performance.now();
+        const format = (n) => {
+            try {
+                return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+            } catch (_) {
+                return String(n);
+            }
+        };
+        const step = (now) => {
+            const t = Math.min(1, (now - start) / duration);
+            const eased = 1 - Math.pow(1 - t, 3);
+            const value = Math.round(target * eased);
+            el.textContent = format(value);
+            if (t < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+    };
+
+    const nodes = appContainer.querySelectorAll('.js-count');
+    nodes.forEach((el) => {
+        const raw = el.getAttribute('data-target');
+        const target = raw === null || raw === '' ? NaN : Number(raw);
+        if (!Number.isFinite(target) || target < 0) return;
+        animateCount(el, target);
+    });
 }
 
 function renderQuizList() {
