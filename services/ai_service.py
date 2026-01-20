@@ -209,8 +209,10 @@ STRICT RULES:
 1. EXHAUSTIVE EXTRACTION: Do not skip ANY question or topic found in the text. Every identifiable point must become a quiz question.
 2. AUTO-FILL OPTIONS: If a question/topic has no options provided, CREATE 4 high-quality, academic-level options (1 correct + 3 plausible distractors).
 3. JSON FORMAT: You MUST return a JSON object with a "questions" array.
-4. Correct answer MUST ALWAYS be at index 0 of the "options" array.
+4. If the source text explicitly marks the correct answer (examples: lines starting with '+' vs '=', or options prefixed with '#', or similar markers), you MUST use that marked option as the correct answer.
+5. Regardless of source format, the returned JSON MUST place the correct answer at index 0 of the "options" array and set correct_option_id to 0.
 5. LANGUAGE PRESERVATION: Use the SAME language as the input text (e.g., if input is Russian, output MUST be Russian). DO NOT translate to English or any other language.
+6. DO NOT invent extra questions beyond what exists in the text. Avoid duplicates.
 
 JSON STRUCTURE:
 {
@@ -250,7 +252,14 @@ CRITICAL: Return only the JSON object. Do not explain your work."""
                 
                 if chunk_questions:
                     validated = self._validate_questions(chunk_questions)
-                    all_questions.extend(validated)
+                    # Dedupe across chunks (AI may repeat questions)
+                    seen = {q.get("question", "").strip().lower() for q in all_questions if q.get("question")}
+                    for q in validated:
+                        key = q.get("question", "").strip().lower()
+                        if not key or key in seen:
+                            continue
+                        all_questions.append(q)
+                        seen.add(key)
                     
                 if on_progress:
                     await on_progress(i + 1, len(chunks), len(all_questions))

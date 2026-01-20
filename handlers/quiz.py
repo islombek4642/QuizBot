@@ -424,26 +424,40 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
             error_msg = Messages.get("PDF_NOT_TEXT", lang) if file_ext == "pdf" else Messages.get("CONVERT_ERROR", lang).format(error="Dastur fayldan matn ajratib ololmadi.")
             await message.answer(error_msg)
             return
-            
-        # AI Conversion (Batch processing is handled inside AIService)
-        ai_service = AIService()
-        
-        try:
-            async def on_progress(current_batch, total_batches, found_questions):
-                # Update processing message with progress
-                progress_text = Messages.get("CONVERT_PROCESSING", lang)
-                progress_text += f"\n\n⏳ <b>Jarayon:</b> {current_batch}/{total_batches} qism tahlil qilindi\n"
-                progress_text += f"📊 <b>Topilgan savollar:</b> {found_questions}"
-                
-                try:
-                    await processing_msg.edit_text(progress_text, parse_mode="HTML")
-                except Exception:
-                    # Ignore errors like "message is not modified"
-                    pass
 
-            questions, error = await ai_service.convert_quiz(raw_text, lang, on_progress=on_progress)
-        finally:
-            await ai_service.close()
+        # Fast path: if the text already contains our quiz markers, prefer deterministic parsing
+        try:
+            parsed_questions, parsed_errors = parse_lines_to_json(raw_text.splitlines(), lang)
+            if parsed_questions and not parsed_errors:
+                questions = parsed_questions
+                error = None
+            else:
+                questions = None
+                error = None
+        except Exception:
+            questions = None
+            error = None
+            
+        if questions is None:
+            # AI Conversion (Batch processing is handled inside AIService)
+            ai_service = AIService()
+            
+            try:
+                async def on_progress(current_batch, total_batches, found_questions):
+                    # Update processing message with progress
+                    progress_text = Messages.get("CONVERT_PROCESSING", lang)
+                    progress_text += f"\n\n⏳ <b>Jarayon:</b> {current_batch}/{total_batches} qism tahlil qilindi\n"
+                    progress_text += f"📊 <b>Topilgan savollar:</b> {found_questions}"
+                    
+                    try:
+                        await processing_msg.edit_text(progress_text, parse_mode="HTML")
+                    except Exception:
+                        # Ignore errors like "message is not modified"
+                        pass
+
+                questions, error = await ai_service.convert_quiz(raw_text, lang, on_progress=on_progress)
+            finally:
+                await ai_service.close()
         
         if error:
             await processing_msg.delete()

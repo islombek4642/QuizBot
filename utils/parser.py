@@ -139,7 +139,11 @@ def _parse_legacy_format(lines: List[str], lang: str) -> Tuple[List[Dict[str, An
                 current_question['correct_option_id'] = len(current_question['options'])
                 current_question['options'].append(text[1:].strip())
                 current_question['last_item_type'] = 'c'
-                
+
+            elif text.startswith('='):
+                if not current_question:
+                    continue
+
                 current_question['options'].append(text[1:].strip())
                 current_question['last_item_type'] = 'w'
                 
