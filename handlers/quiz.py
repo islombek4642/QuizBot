@@ -428,7 +428,7 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
         # Fast path: if the text already contains our quiz markers, prefer deterministic parsing
         try:
             parsed_questions, parsed_errors = parse_lines_to_json(raw_text.splitlines(), lang)
-            if parsed_questions and not parsed_errors:
+            if parsed_questions:
                 questions = parsed_questions
                 error = None
             else:

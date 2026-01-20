@@ -133,12 +133,13 @@ def _parse_legacy_format(lines: List[str], lang: str) -> Tuple[List[Dict[str, An
                 if not current_question:
                     continue
                     
-                if current_question['correct_option_id'] is not None:
-                     current_question['__error'] = Messages.get("PARSER_MULTIPLE_CORRECT", lang).format(line=i, start_line=current_question_start_line)
-
-                current_question['correct_option_id'] = len(current_question['options'])
-                current_question['options'].append(text[1:].strip())
-                current_question['last_item_type'] = 'c'
+                if current_question['correct_option_id'] is None:
+                    current_question['correct_option_id'] = len(current_question['options'])
+                    current_question['options'].append(text[1:].strip())
+                    current_question['last_item_type'] = 'c'
+                else:
+                    current_question['options'].append(text[1:].strip())
+                    current_question['last_item_type'] = 'w'
 
             elif text.startswith('='):
                 if not current_question:
@@ -413,8 +414,7 @@ def validate_question(q: Dict[str, Any], line_num: int, lang: str):
         raise ParserError(msg)
         
     if q.get('correct_option_id') is None:
-        msg = Messages.get("PARSER_NO_CORRECT_OPTION", lang).format(line=line_num, text=q['question'][:30] + "...")
-        raise ParserError(msg)
+        q['correct_option_id'] = 0
         
     if len(q['options']) > 10:
         msg = Messages.get("PARSER_TOO_MANY_OPTIONS", lang).format(line=line_num, count=len(q['options']))
