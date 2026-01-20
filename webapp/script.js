@@ -34,8 +34,17 @@ function getAuthHeaders() {
         initData = tg.initData;
         debugSource = "tg.initData";
     }
-    // 2. Fallback: Parse from Hash
+    // 2. Fallback: Parse from URL (search/hash)
     else {
+        // Strategy 0: URL query param (some environments provide tgWebAppData here)
+        try {
+            const sp = new URLSearchParams(window.location.search);
+            if (sp.get('tgWebAppData')) {
+                initData = sp.get('tgWebAppData');
+                debugSource = "search_params";
+            }
+        } catch (e) { }
+
         try {
             const hash = window.location.hash.slice(1);
             let decoded = hash;
@@ -96,11 +105,13 @@ function getAuthHeaders() {
 
     if (initData) {
         headers['X-Telegram-Init-Data'] = initData;
+        // Optional: docs-compatible auth header
+        headers['Authorization'] = `tma ${initData}`;
     }
 
     // 3. Check for token (Legacy)
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('token')) {
+    if (!headers['X-Telegram-Init-Data'] && urlParams.get('token')) {
         const token = urlParams.get('token');
         headers['X-Auth-Token'] = token;
         if (debugSource === "none") debugSource = "token";

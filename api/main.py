@@ -46,7 +46,7 @@ class QuizUpdate(BaseModel):
     title: str
     questions: List[Question]
 
-def verify_telegram_data(init_data: str) -> Optional[int]:
+def verify_telegram_data(init_data: str, max_age_seconds: int = 3600) -> Optional[int]:
     """
     Verify Telegram WebApp initData and return the user ID.
     See: https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
@@ -56,7 +56,20 @@ def verify_telegram_data(init_data: str) -> Optional[int]:
         
     try:
         vals = dict(parse_qsl(init_data))
-        hash_val = vals.pop('hash')
+        hash_val = vals.pop('hash', None)
+        if not hash_val:
+            return None
+
+        # TTL check via auth_date (recommended)
+        auth_date_raw = vals.get('auth_date')
+        if auth_date_raw:
+            try:
+                auth_date = int(auth_date_raw)
+                if int(time.time()) - auth_date > max_age_seconds:
+                    logger.warning("InitData expired", auth_date=auth_date)
+                    return None
+            except Exception:
+                return None
         
         # Data check string is alphabetically sorted keys
         data_check_string = "\n".join([f"{k}={v}" for k, v in sorted(vals.items())])
@@ -115,9 +128,17 @@ def verify_token(token: str) -> Optional[int]:
 async def get_current_user(
     request: Request, 
     x_telegram_init_data: str = Header(None),
-    x_auth_token: str = Header(None)
+    x_auth_token: str = Header(None),
+    authorization: str = Header(None),
 ):
     user_id = None
+
+    # 0. Docs-compatible: Authorization: tma <initData>
+    if authorization and authorization.lower().startswith('tma '):
+        tma_data = authorization.split(' ', 1)[1].strip()
+        user_id = verify_telegram_data(tma_data)
+        if user_id:
+            return user_id
     
     # 1. Try Token Auth (Priority for this fallback)
     if x_auth_token:
