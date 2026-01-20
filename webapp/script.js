@@ -250,7 +250,7 @@ async function loadQuizzes() {
         const res = await fetch(`${API_BASE}/quizzes`, { headers });
 
         if (res.status === 401) {
-            showError(t('error_auth'));
+            await showAuthRedirect();
             return;
         }
         if (!res.ok) throw new Error(t('error_load'));
@@ -809,6 +809,10 @@ async function openEditor(quizId) {
         const res = await fetch(`${API_BASE}/quizzes/${quizId}`, {
             headers: headers
         });
+        if (res.status === 401) {
+            await showAuthRedirect();
+            return;
+        }
         if (!res.ok) throw new Error(t('error_load'));
 
         currentQuizData = await res.json();
@@ -1039,7 +1043,12 @@ async function saveChanges() {
             })
         });
 
-        if (!res.ok) throw new Error("Save failed");
+        if (res.status === 401) {
+            await showAuthRedirect();
+            return;
+        }
+
+        if (!res.ok) throw new Error(t('error_save'));
 
         tg.showAlert(t('success_save'));
         // Update local data

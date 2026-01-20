@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     MAX_QUESTIONS_PER_QUIZ: int = 100
     POLL_DURATION_SECONDS: int = 30
     POLL_MAPPING_TTL_SECONDS: int = 14400  # 4 hours
+
+    # Auth
+    TOKEN_TTL_SECONDS: int = 2592000  # 30 days
+    INITDATA_TTL_SECONDS: int = 3600
     
     # AI Quiz Generation (Groq)
     GROQ_API_KEY: str = Field("", description="Groq API key for AI quiz generation")

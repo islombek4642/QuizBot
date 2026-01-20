@@ -104,8 +104,8 @@ def verify_token(token: str) -> Optional[int]:
             
         user_id_str, timestamp_str, signature = parts
         
-        # Check expiration (e.g., 1 hour)
-        if int(time.time()) - int(timestamp_str) > 3600:
+        # Check expiration
+        if int(time.time()) - int(timestamp_str) > int(getattr(settings, "TOKEN_TTL_SECONDS", 3600)):
             logger.warning("Token expired", user_id=user_id_str)
             return None
             
@@ -125,7 +125,7 @@ def verify_token(token: str) -> Optional[int]:
         logger.error("Error verifying token", error=str(e))
         return None
 
-async def get_current_user(
+def get_current_user(
     request: Request, 
     x_telegram_init_data: str = Header(None),
     x_auth_token: str = Header(None),
@@ -136,7 +136,7 @@ async def get_current_user(
     # 0. Docs-compatible: Authorization: tma <initData>
     if authorization and authorization.lower().startswith('tma '):
         tma_data = authorization.split(' ', 1)[1].strip()
-        user_id = verify_telegram_data(tma_data)
+        user_id = verify_telegram_data(tma_data, max_age_seconds=int(getattr(settings, "INITDATA_TTL_SECONDS", 3600)))
         if user_id:
             return user_id
     
@@ -148,7 +148,7 @@ async def get_current_user(
             
     # 2. Try InitData Auth
     if x_telegram_init_data:
-        user_id = verify_telegram_data(x_telegram_init_data)
+        user_id = verify_telegram_data(x_telegram_init_data, max_age_seconds=int(getattr(settings, "INITDATA_TTL_SECONDS", 3600)))
         if user_id:
             return user_id
 
