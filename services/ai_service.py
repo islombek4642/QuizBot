@@ -408,13 +408,39 @@ def _clean_xml_string(s: str) -> str:
 
 
 def _validate_docx_bytes(docx_bytes: bytes) -> bool:
-    """Quick sanity check: docx is a zip containing [Content_Types].xml"""
+    """Validate that the docx is a readable Office Open XML document.
+
+    We check:
+    - It is a zip
+    - Key parts exist
+    - Main XML parts are well-formed
+    - python-docx can open it
+    """
     import zipfile
+    import xml.etree.ElementTree as ET
+
     try:
         if not docx_bytes or not docx_bytes.startswith(b"PK"):
             return False
+
         with zipfile.ZipFile(BytesIO(docx_bytes)) as z:
-            return "[Content_Types].xml" in z.namelist()
+            names = set(z.namelist())
+            required = {
+                "[Content_Types].xml",
+                "_rels/.rels",
+                "word/document.xml",
+            }
+            if not required.issubset(names):
+                return False
+
+            # Ensure key XML parts are well-formed
+            for xml_name in ("[Content_Types].xml", "_rels/.rels", "word/document.xml"):
+                data = z.read(xml_name)
+                ET.fromstring(data)
+
+        # Ensure python-docx can open it
+        _ = DocxDocument(BytesIO(docx_bytes))
+        return True
     except Exception:
         return False
 
