@@ -234,15 +234,15 @@ STRICT RULES:
 8. DO NOT invent extra questions beyond what exists in the text. Avoid duplicates.
 
 JSON STRUCTURE:
-{
+{{
   "questions": [
-    {
+    {{
       "question": "Clear and concise question text",
       "options": ["Correct Answer", "Distractor 1", "Distractor 2", "Distractor 3"],
       "correct_option_id": 0
-    }
+    }}
   ]
-}
+}}
 
 CRITICAL: Return only the JSON object. Do not explain your work."""
 
