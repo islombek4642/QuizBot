@@ -115,6 +115,16 @@ function getAuthHeaders() {
         const token = urlParams.get('token');
         headers['X-Auth-Token'] = token;
         if (debugSource === "none") debugSource = "token";
+
+        // Prevent reusing a cached/expired token on reloads
+        try {
+            if (!window.__tokenStrippedFromUrl) {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('token');
+                window.history.replaceState({}, document.title, url.toString());
+                window.__tokenStrippedFromUrl = true;
+            }
+        } catch (e) { }
     }
 
     // Store debug info globally

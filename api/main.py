@@ -25,6 +25,19 @@ logger = structlog.get_logger()
 
 app = FastAPI(title="QuizBot Editor API")
 
+
+@app.middleware("http")
+async def add_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+
+    # Prevent caching of the HTML entrypoint (especially when it contains token in query)
+    if request.url.path == "/":
+        response.headers.setdefault("Cache-Control", "no-store")
+        response.headers.setdefault("Pragma", "no-cache")
+        response.headers.setdefault("Expires", "0")
+
+    return response
+
 # Enable CORS for production
 app.add_middleware(
     CORSMiddleware,
