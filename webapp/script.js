@@ -116,6 +116,11 @@ function getAuthHeaders() {
         headers['X-Auth-Token'] = token;
         if (debugSource === "none") debugSource = "token";
 
+        // Keep token for this session so navigation (e.g. Edit) keeps working even after we strip it from the URL
+        try {
+            sessionStorage.setItem('legacy_auth_token', token);
+        } catch (e) { }
+
         // Prevent reusing a cached/expired token on reloads
         try {
             if (!window.__tokenStrippedFromUrl) {
@@ -123,6 +128,17 @@ function getAuthHeaders() {
                 url.searchParams.delete('token');
                 window.history.replaceState({}, document.title, url.toString());
                 window.__tokenStrippedFromUrl = true;
+            }
+        } catch (e) { }
+    }
+
+    // 4. Legacy token fallback from sessionStorage (when initData is absent and token was stripped)
+    if (!headers['X-Telegram-Init-Data'] && !headers['X-Auth-Token']) {
+        try {
+            const stored = sessionStorage.getItem('legacy_auth_token');
+            if (stored) {
+                headers['X-Auth-Token'] = stored;
+                if (debugSource === "none") debugSource = "token_session";
             }
         } catch (e) { }
     }
