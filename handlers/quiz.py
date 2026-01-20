@@ -425,18 +425,32 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
             await message.answer(error_msg)
             return
 
-        # Fast path: if the text already contains our quiz markers, prefer deterministic parsing
-        try:
-            parsed_questions, parsed_errors = parse_lines_to_json(raw_text.splitlines(), lang)
-            if parsed_questions:
-                questions = parsed_questions
-                error = None
-            else:
+        # Fast path: only use deterministic parsing when the extracted text clearly contains our markers.
+        # PDFs often produce ABC/numbered formats without '?/+/-=' markers; for that we prefer AI.
+        def estimate_expected_questions(text: str) -> int:
+            import re
+            lines = text.splitlines()
+            q_marks = sum(1 for l in lines if l.strip().startswith('?'))
+            nums = sum(1 for l in lines if re.match(r'^\s*\d+[\.|\)]\s*\S+', l.strip()))
+            return max(q_marks, nums)
+
+        expected_questions = estimate_expected_questions(raw_text)
+
+        has_marker_format = any(l.strip().startswith('?') for l in raw_text.splitlines()) and (
+            any(l.strip().startswith('+') for l in raw_text.splitlines()) or any(l.strip().startswith('=') for l in raw_text.splitlines())
+        )
+
+        questions = None
+        error = None
+        if has_marker_format and file_ext != "pdf":
+            try:
+                parsed_questions, parsed_errors = parse_lines_to_json(raw_text.splitlines(), lang)
+                if parsed_questions:
+                    questions = parsed_questions
+                    error = None
+            except Exception:
                 questions = None
                 error = None
-        except Exception:
-            questions = None
-            error = None
             
         if questions is None:
             # AI Conversion (Batch processing is handled inside AIService)
@@ -455,7 +469,13 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
                         # Ignore errors like "message is not modified"
                         pass
 
-                questions, error = await ai_service.convert_quiz(raw_text, lang, on_progress=on_progress)
+                questions, error = await ai_service.convert_quiz(
+                    raw_text,
+                    lang,
+                    on_progress=on_progress,
+                    expected_questions=expected_questions if expected_questions > 0 else None,
+                    source_ext=file_ext,
+                )
             finally:
                 await ai_service.close()
         

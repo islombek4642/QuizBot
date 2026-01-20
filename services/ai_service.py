@@ -174,7 +174,14 @@ correct_option_id should always be 0. Question max 280 chars, options max 100 ch
         logger.info("AI quiz generated", topic=topic, total=len(all_questions))
         return all_questions[:count], None
 
-    async def convert_quiz(self, raw_text: str, lang: str = "UZ", on_progress: Optional[Callable[[int, int, int], Awaitable[None]]] = None) -> Tuple[List[Dict], Optional[str]]:
+    async def convert_quiz(
+        self,
+        raw_text: str,
+        lang: str = "UZ",
+        on_progress: Optional[Callable[[int, int, int], Awaitable[None]]] = None,
+        expected_questions: Optional[int] = None,
+        source_ext: Optional[str] = None,
+    ) -> Tuple[List[Dict], Optional[str]]:
         """
         Convert raw text from PDF/Word to our quiz format using AI.
         Uses line-aware chunking and exhaustive parsing.
@@ -202,8 +209,15 @@ correct_option_id should always be 0. Question max 280 chars, options max 100 ch
             
         all_questions = []
         
-        system_prompt = """You are a professional quiz extractor and educational content creator.
+        expected_hint = f"The document likely contains about {expected_questions} questions." if expected_questions else ""
+        source_hint = f"Source file type: {source_ext}." if source_ext else ""
+
+        system_prompt = f"""You are a professional quiz extractor and educational content creator.
 TASK: Extract ALL questions/topics from the provided text and convert them into a structured JSON quiz.
+
+CONTEXT:
+{source_hint}
+{expected_hint}
 
 STRICT RULES:
 1. EXHAUSTIVE EXTRACTION: Do not skip ANY question or topic found in the text. Every identifiable point must become a quiz question.
@@ -211,8 +225,13 @@ STRICT RULES:
 3. JSON FORMAT: You MUST return a JSON object with a "questions" array.
 4. If the source text explicitly marks the correct answer (examples: lines starting with '+' vs '=', or options prefixed with '#', or similar markers), you MUST use that marked option as the correct answer.
 5. Regardless of source format, the returned JSON MUST place the correct answer at index 0 of the "options" array and set correct_option_id to 0.
-5. LANGUAGE PRESERVATION: Use the SAME language as the input text (e.g., if input is Russian, output MUST be Russian). DO NOT translate to English or any other language.
-6. DO NOT invent extra questions beyond what exists in the text. Avoid duplicates.
+6. LANGUAGE PRESERVATION: Use the SAME language as the input text (e.g., if input is Russian, output MUST be Russian). DO NOT translate.
+7. SUPPORT MANY FORMATS:
+   - Numbered questions (e.g., "12.")
+   - ABCD options ("A.", "B)")
+   - Marker format ("? question", "+ correct", "= wrong")
+   - Mixed lines where question and options are on the same line
+8. DO NOT invent extra questions beyond what exists in the text. Avoid duplicates.
 
 JSON STRUCTURE:
 {
@@ -239,7 +258,7 @@ CRITICAL: Return only the JSON object. Do not explain your work."""
                     model=self.model,
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"Convert the following text segment into JSON. Extract every possible question:\n\n{chunk}"}
+                        {"role": "user", "content": f"Convert ONLY the questions present in the following text segment into JSON. Do not invent new questions. If some questions continue across lines, merge them.\n\n{chunk}"}
                     ],
                     response_format={"type": "json_object"},
                     temperature=0.1,
@@ -383,8 +402,21 @@ def _clean_xml_string(s: str) -> str:
     # Valid XML characters: #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
     import re
     # This regex matches characters NOT in the valid XML set
-    illegal_xml_re = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1F\uD800-\uDFFF\uFFFE\uFFFF]')
-    return illegal_xml_re.sub('', s)
+    # Also remove C1 control chars (0x7F-0x9F) which often break DOCX.
+    illegal_xml_re = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1F\x7F-\x9F\uD800-\uDFFF\uFFFE\uFFFF]')
+    return illegal_xml_re.sub('', str(s))
+
+
+def _validate_docx_bytes(docx_bytes: bytes) -> bool:
+    """Quick sanity check: docx is a zip containing [Content_Types].xml"""
+    import zipfile
+    try:
+        if not docx_bytes or not docx_bytes.startswith(b"PK"):
+            return False
+        with zipfile.ZipFile(BytesIO(docx_bytes)) as z:
+            return "[Content_Types].xml" in z.namelist()
+    except Exception:
+        return False
 
 
 def generate_docx_from_questions(questions: List[Dict], title: str) -> bytes:
@@ -392,9 +424,8 @@ def generate_docx_from_questions(questions: List[Dict], title: str) -> bytes:
     Generate a .docx file from questions in our format.
     """
     from docx import Document
-    from docx.shared import Pt
     from io import BytesIO
-    
+
     doc = Document()
     
     # Add title
@@ -403,11 +434,11 @@ def generate_docx_from_questions(questions: List[Dict], title: str) -> bytes:
     # Add each question in our format
     for i, q in enumerate(questions, 1):
         # Add question
-        doc.add_paragraph(f"?{_clean_xml_string(q['question'])}")
+        doc.add_paragraph(f"?{_clean_xml_string(q.get('question', ''))}")
         
         # Add options
-        correct_id = q['correct_option_id']
-        for j, opt in enumerate(q['options']):
+        correct_id = int(q.get('correct_option_id', 0) or 0)
+        for j, opt in enumerate(q.get('options', []) or []):
             cleaned_opt = _clean_xml_string(opt)
             if j == correct_id:
                 doc.add_paragraph(f"+{cleaned_opt}")
@@ -421,6 +452,29 @@ def generate_docx_from_questions(questions: List[Dict], title: str) -> bytes:
     buffer = BytesIO()
     doc.save(buffer)
     content = buffer.getvalue()
+
+    # Validate DOCX integrity; if broken, retry with aggressively cleaned content.
+    if not _validate_docx_bytes(content):
+        logger.warning("Generated DOCX failed validation; retrying with aggressive cleaning")
+        doc = Document()
+        doc.add_heading(_clean_xml_string(title), 0)
+        for i, q in enumerate(questions, 1):
+            doc.add_paragraph(f"?{_clean_xml_string(q.get('question', ''))}")
+            correct_id = int(q.get('correct_option_id', 0) or 0)
+            opts = q.get('options', []) or []
+            for j, opt in enumerate(opts):
+                cleaned_opt = _clean_xml_string(opt)
+                if j == correct_id:
+                    doc.add_paragraph(f"+{cleaned_opt}")
+                else:
+                    doc.add_paragraph(f"={cleaned_opt}")
+            doc.add_paragraph()
+        buffer = BytesIO()
+        doc.save(buffer)
+        content = buffer.getvalue()
+
+        if not _validate_docx_bytes(content):
+            raise ValueError("DOCX generation failed (invalid zip structure)")
     logger.info("Generated DOCX", questions_count=len(questions), size_bytes=len(content))
     return content
 
