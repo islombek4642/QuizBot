@@ -82,7 +82,8 @@ def parse_lines_to_json(lines: List[str], lang: str = "UZ") -> Tuple[List[Dict[s
         full_text = "\n".join(lines)
 
     # Detection logic for different formats
-    abc_markers = 0
+    abc_q_markers = 0
+    abc_opt_markers = 0
     # Scan first 100 lines for markers
     for line in lines[:100]:
         t = line.strip()
@@ -91,10 +92,14 @@ def parse_lines_to_json(lines: List[str], lang: str = "UZ") -> Tuple[List[Dict[s
             # Custom format detected (====== / ++++++)
             return _parse_custom_format(lines, full_text, lang)
         # Check for ABC patterns: "1. ", "A) ", "#A) "
-        if re.match(r'^\d+[\.\)]', t) or re.match(r'^#?[A-Z][\.\)]', t, re.I):
-            abc_markers += 1
-            
-    if abc_markers > 5:
+        if re.match(r'^\d+[\.\)]', t):
+            abc_q_markers += 1
+        if re.match(r'^#?\s*[A-Z][\.\)]', t, re.I):
+            abc_opt_markers += 1
+
+    # If we see at least one numbered question and at least two lettered options,
+    # treat it as ABC format (even for small quizzes).
+    if abc_q_markers >= 1 and abc_opt_markers >= 2:
         return _parse_abc_format(lines, lang)
 
     # Fallback to legacy format (?Savol, +To'g'ri, =Xato)
@@ -414,7 +419,8 @@ def validate_question(q: Dict[str, Any], line_num: int, lang: str):
         raise ParserError(msg)
         
     if q.get('correct_option_id') is None:
-        q['correct_option_id'] = 0
+        msg = Messages.get("PARSER_NO_CORRECT_OPTION", lang).format(line=line_num, text=q['question'][:30] + "...")
+        raise ParserError(msg)
         
     if len(q['options']) > 10:
         msg = Messages.get("PARSER_TOO_MANY_OPTIONS", lang).format(line=line_num, count=len(q['options']))

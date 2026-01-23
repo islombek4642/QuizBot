@@ -1,11 +1,17 @@
 import asyncio
-import httpx
 import time
 import os
 import hmac
 import hashlib
 import sys
 from dotenv import load_dotenv
+
+try:
+    import httpx
+except ModuleNotFoundError:  # pragma: no cover
+    import pytest
+
+    pytest.skip("Optional dependency 'httpx' is not installed", allow_module_level=True)
 
 # Load environment variables
 load_dotenv()
