@@ -37,7 +37,6 @@ from services.ai_service import (
     extract_text_from_docx
 )
 from core.config import settings
-from core.config import settings
 from core.logger import logger
 from services.ai_service import AIService, extract_text_from_doc
 from services.task_manager import task_manager

@@ -16,14 +16,64 @@ from db.session import get_db
 from models.user import User
 from models.quiz import Quiz
 from services.quiz_service import QuizService
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from fastapi import Header
 from core.config import settings
+from datetime import datetime
 
 logger = structlog.get_logger()
 
-app = FastAPI(title="QuizBot Editor API")
+# API Documentation
+API_DESCRIPTION = """
+## QuizBot Editor API
+
+REST API for managing quizzes in QuizBot Telegram application.
+
+### Authentication
+
+All endpoints require authentication via one of the following methods:
+
+1. **Telegram WebApp initData** (recommended):
+   - Header: `X-Telegram-Init-Data: <initData>`
+   - Or: `Authorization: tma <initData>`
+
+2. **Token Authentication** (legacy):
+   - Header: `X-Auth-Token: <token>`
+
+### Rate Limits
+
+- No explicit rate limits, but excessive usage may be throttled.
+- Telegram initData expires after 1 hour.
+- Auth tokens expire after 30 days.
+"""
+
+TAGS_METADATA = [
+    {
+        "name": "quizzes",
+        "description": "Quiz CRUD operations - create, read, update, delete quizzes.",
+    },
+    {
+        "name": "info",
+        "description": "Public information endpoints.",
+    },
+]
+
+app = FastAPI(
+    title="QuizBot Editor API",
+    description=API_DESCRIPTION,
+    version="1.0.0",
+    openapi_tags=TAGS_METADATA,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    contact={
+        "name": "QuizBot Support",
+        "url": "https://t.me/quizbot_support",
+    },
+    license_info={
+        "name": "MIT",
+    },
+)
 
 
 @app.middleware("http")
@@ -50,14 +100,62 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# === Pydantic Models with Documentation ===
+
 class Question(BaseModel):
-    question: str
-    options: List[str]
-    correct_option_id: int
+    """A single quiz question with options."""
+    question: str = Field(..., description="The question text", max_length=500, examples=["What is 2+2?"])
+    options: List[str] = Field(..., description="List of answer options (2-10 items)", min_length=2, max_length=10)
+    correct_option_id: int = Field(..., description="Index of the correct answer (0-based)", ge=0)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "question": "What is the capital of Uzbekistan?",
+                "options": ["Tashkent", "Samarkand", "Bukhara", "Khiva"],
+                "correct_option_id": 0
+            }
+        }
+
 
 class QuizUpdate(BaseModel):
-    title: str
-    questions: List[Question]
+    """Request body for updating a quiz."""
+    title: str = Field(..., description="Quiz title", max_length=255, examples=["Geography Quiz"])
+    questions: List[Question] = Field(..., description="List of quiz questions")
+
+
+class QuizListItem(BaseModel):
+    """Quiz item in list response."""
+    id: int = Field(..., description="Unique quiz ID")
+    title: str = Field(..., description="Quiz title")
+    questions_count: int = Field(..., description="Number of questions in the quiz")
+    created_at: datetime = Field(..., description="Quiz creation timestamp")
+
+
+class QuizDetail(BaseModel):
+    """Detailed quiz response with questions."""
+    id: int = Field(..., description="Unique quiz ID")
+    title: str = Field(..., description="Quiz title")
+    questions: List[Question] = Field(..., description="List of quiz questions")
+
+
+class BotStats(BaseModel):
+    """Bot statistics."""
+    users: int = Field(..., description="Total registered users")
+    quizzes: int = Field(..., description="Total quizzes created")
+    questions: int = Field(..., description="Total questions across all quizzes")
+
+
+class BotInfo(BaseModel):
+    """Bot information response."""
+    bot_username: str = Field(..., description="Bot username without @")
+    bot_link: str = Field(..., description="Direct link to the bot")
+    stats: BotStats = Field(..., description="Bot statistics")
+
+
+class SuccessResponse(BaseModel):
+    """Generic success response."""
+    status: str = Field(default="success", description="Operation status")
 
 def verify_telegram_data(init_data: str, max_age_seconds: int = 3600) -> Optional[int]:
     """
@@ -170,8 +268,19 @@ def get_current_user(
     logger.warning("Auth failed: Missing or invalid credentials", headers=headers)
     raise HTTPException(status_code=401, detail="Unauthorized")
 
-@app.get("/api/quizzes")
+@app.get(
+    "/api/quizzes",
+    response_model=List[QuizListItem],
+    tags=["quizzes"],
+    summary="List all quizzes",
+    description="Returns a list of all quizzes owned by the authenticated user.",
+    responses={
+        200: {"description": "List of quizzes"},
+        401: {"description": "Authentication required"},
+    },
+)
 async def list_quizzes(user_id: int = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Get all quizzes for the current user."""
     service = QuizService(db)
     quizzes = await service.get_user_quizzes(user_id)
     return [{
@@ -181,8 +290,21 @@ async def list_quizzes(user_id: int = Depends(get_current_user), db: AsyncSessio
         "created_at": q.created_at
     } for q in quizzes]
 
-@app.get("/api/quizzes/{quiz_id}")
+
+@app.get(
+    "/api/quizzes/{quiz_id}",
+    response_model=QuizDetail,
+    tags=["quizzes"],
+    summary="Get quiz details",
+    description="Returns detailed information about a specific quiz, including all questions.",
+    responses={
+        200: {"description": "Quiz details with questions"},
+        401: {"description": "Authentication required"},
+        404: {"description": "Quiz not found"},
+    },
+)
 async def get_quiz(quiz_id: int, user_id: int = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Get a specific quiz by ID."""
     service = QuizService(db)
     quiz = await service.get_quiz_by_id_and_user(quiz_id, user_id)
     if not quiz:
@@ -193,17 +315,30 @@ async def get_quiz(quiz_id: int, user_id: int = Depends(get_current_user), db: A
         "questions": quiz.questions_json
     }
 
-@app.put("/api/quizzes/{quiz_id}")
+
+@app.put(
+    "/api/quizzes/{quiz_id}",
+    response_model=SuccessResponse,
+    tags=["quizzes"],
+    summary="Update quiz",
+    description="Updates the title and questions of an existing quiz.",
+    responses={
+        200: {"description": "Quiz updated successfully"},
+        401: {"description": "Authentication required"},
+        404: {"description": "Quiz not found or not owned by user"},
+    },
+)
 async def update_quiz(
     quiz_id: int, 
     update: QuizUpdate, 
     user_id: int = Depends(get_current_user), 
     db: AsyncSession = Depends(get_db)
 ):
+    """Update an existing quiz."""
     service = QuizService(db)
     
     # Convert Question objects back to raw dicts for storage
-    questions_list = [q.dict() for q in update.questions]
+    questions_list = [q.model_dump() for q in update.questions]
     
     success = await service.update_quiz(quiz_id, user_id, update.title, questions_list)
     if not success:
@@ -211,7 +346,14 @@ async def update_quiz(
         
     return {"status": "success"}
 
-@app.get("/api/bot-info")
+
+@app.get(
+    "/api/bot-info",
+    response_model=BotInfo,
+    tags=["info"],
+    summary="Get bot information",
+    description="Returns public information about the bot including username, link, and statistics.",
+)
 async def get_bot_info(db: AsyncSession = Depends(get_db)):
     """Return bot information for redirect links"""
     bot_username = (settings.BOT_USERNAME or "quizbot_example_bot").strip()
