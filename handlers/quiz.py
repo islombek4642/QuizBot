@@ -932,12 +932,64 @@ async def send_next_question(bot: Bot, chat_id: int, session: Any, session_servi
         return
 
     q = questions[idx]
-    question_text = f"{idx+1}/{session.total_questions}. {q['question']}"
+
+    raw_question = (q.get('question') or "").strip()
+    raw_options = q.get('options') or []
+    raw_explanation = q.get('explanation')
+
+    # Telegram rejects empty poll text (question/explanation). Also, polls require at least 2 options.
+    # If we detect an invalid question payload, we skip it and move forward.
+    if not raw_question or not isinstance(raw_options, list):
+        logger.warning(
+            "Skipping invalid question payload (empty question or invalid options)",
+            user_id=chat_id,
+            session_id=getattr(session, "id", None),
+            quiz_id=getattr(session, "quiz_id", None),
+            index=idx,
+        )
+        updated_session = await session_service.advance_session(session.id, is_correct=False)
+        if not updated_session or not updated_session.is_active:
+            return
+        await send_next_question(bot, chat_id, updated_session, session_service, lang)
+        return
+
+    # Filter out empty/whitespace-only options and keep correct_option_id consistent.
+    filtered_options = []
+    old_to_new_idx = {}
+    for old_i, opt in enumerate(raw_options):
+        opt_s = (opt or "").strip()
+        if not opt_s:
+            continue
+        old_to_new_idx[old_i] = len(filtered_options)
+        filtered_options.append(opt_s)
+
+    correct_option_id = q.get('correct_option_id')
+    correct_option_id = old_to_new_idx.get(correct_option_id) if isinstance(correct_option_id, int) else None
+
+    if len(filtered_options) < 2 or correct_option_id is None or correct_option_id >= len(filtered_options):
+        logger.warning(
+            "Skipping invalid question payload (not enough options or missing correct option)",
+            user_id=chat_id,
+            session_id=getattr(session, "id", None),
+            quiz_id=getattr(session, "quiz_id", None),
+            index=idx,
+        )
+        updated_session = await session_service.advance_session(session.id, is_correct=False)
+        if not updated_session or not updated_session.is_active:
+            return
+        await send_next_question(bot, chat_id, updated_session, session_service, lang)
+        return
+
+    question_text = f"{idx+1}/{session.total_questions}. {raw_question}"
     if len(question_text) > 300:
         question_text = question_text[:297] + "..."
 
     # Telegram limit: 100 characters per option
-    safe_options = [opt[:97] + "..." if len(opt) > 100 else opt for opt in q['options']]
+    safe_options = [opt[:97] + "..." if len(opt) > 100 else opt for opt in filtered_options]
+
+    explanation = None
+    if isinstance(raw_explanation, str) and raw_explanation.strip():
+        explanation = raw_explanation
 
     poll_msg = await bot.send_poll(
         chat_id=chat_id,
@@ -945,8 +997,8 @@ async def send_next_question(bot: Bot, chat_id: int, session: Any, session_servi
         options=safe_options,
         is_anonymous=False,
         type='quiz',
-        correct_option_id=q['correct_option_id'],
-        explanation=q.get('explanation'),
+        correct_option_id=correct_option_id,
+        explanation=explanation,
         explanation_parse_mode="HTML",
         open_period=settings.POLL_DURATION_SECONDS
     )
