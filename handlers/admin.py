@@ -29,7 +29,7 @@ router.callback_query.filter(F.from_user.id == settings.ADMIN_ID)
 @router.message(F.text.in_([Messages.get("ADMIN_BACKUP_BTN", "UZ"), Messages.get("ADMIN_BACKUP_BTN", "EN")]))
 async def admin_manual_backup(message: types.Message, bot: Bot, lang: str):
     await message.answer(Messages.get("BACKUP_STARTED", lang))
-    await send_backup_to_admin(bot)
+    await send_backup_to_admin(bot, lang)
 
 @router.message(F.text.in_([Messages.get("ADMIN_USERS_BTN", "UZ"), Messages.get("ADMIN_USERS_BTN", "EN")]))
 async def admin_list_users(message: types.Message, db: AsyncSession, lang: str):

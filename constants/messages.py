@@ -165,6 +165,7 @@ class Messages:
             "INVALID_COUNT": "⚠️ Noto'g'ri son kiritildi.",
             "WEBAPP_EDITOR_BTN": "Tahrirlash 🌐",
             "WEBAPP_PROMPT": "Tahrirlash uchun quyidagi tugmani bosing:",
+            "BACKUP_CAPTION": "📦 <b>Ma'lumotlar bazasi nusxasi</b>\n\n📅 Sana: {date}\n📁 Fayl: <code>{file}</code>\n⚖️ Hajmi: {size} MB",
         },
         "EN": {
             "WELCOME": "Hello! Welcome to QuizBot.\n\nSend me tests in Word (.docx, .doc) or .txt format, and I'll convert them into Telegram polls.",
@@ -334,6 +335,7 @@ class Messages:
              "QUIZ_UPLOADED": "✅ <b>Test uploaded!</b>\n\n📊 Questions found: {count}\n\n📝 Now enter the quiz title.\nExample: 'Informatics Quiz 1'",
              "QUIZ_PARTIAL_SUCCESS": "✅ <b>Test partially uploaded!</b>\n\n📊 Successful: {count}\n⚠️ Errors: {errors_count}\n\n📝 <b>Error list:</b>\n{errors}\n\n📝 Enter a title to continue with valid questions:",
              "QUIZ_ALL_FAILED": "❌ <b>Failed to parse quiz!</b>\n\nErrors found in all questions:\n{errors}\n\nPlease check the format. If answers are not marked, try the <b>AI Conversion</b> service (it will find answers automatically).",
+             "BACKUP_CAPTION": "📦 <b>Database Backup</b>\n\n📅 Date: {date}\n📁 File: <code>{file}</code>\n⚖️ Size: {size} MB",
         }
     }
 

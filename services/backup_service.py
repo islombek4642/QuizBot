@@ -54,7 +54,9 @@ async def create_backup():
         if os.path.exists(sql_path): os.remove(sql_path)
         return None
 
-async def send_backup_to_admin(bot: Bot):
+from constants.messages import Messages
+
+async def send_backup_to_admin(bot: Bot, lang: str = "UZ"):
     """
     Creates a compressed backup and sends it to the admin.
     """
@@ -68,18 +70,17 @@ async def send_backup_to_admin(bot: Bot):
     if backup_path and os.path.exists(backup_path):
         try:
             file_size_mb = os.path.getsize(backup_path) / (1024 * 1024)
-            caption = (
-                f"📦 *Database Backup*\n"
-                f"📅 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                f"📁 File: `{os.path.basename(backup_path)}`\n"
-                f"⚖️ Size: {file_size_mb:.2f} MB"
+            caption = Messages.get("BACKUP_CAPTION", lang).format(
+                date=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                file=os.path.basename(backup_path),
+                size=f"{file_size_mb:.2f}"
             )
             
             await bot.send_document(
                 chat_id=settings.ADMIN_ID,
                 document=FSInputFile(backup_path),
                 caption=caption,
-                parse_mode="Markdown"
+                parse_mode="HTML"
             )
             logger.info(f"Backup sent to admin {settings.ADMIN_ID}")
         except Exception as e:
