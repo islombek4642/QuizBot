@@ -33,7 +33,7 @@ async def monitor_private_sessions(bot: Bot, redis: Redis):
     """
     from handlers.quiz import _failsafe_advance_private_quiz
     
-    threshold = datetime.now() - timedelta(seconds=settings.POLL_DURATION_SECONDS + 5)
+    threshold = datetime.utcnow() - timedelta(seconds=settings.POLL_DURATION_SECONDS + 5)
     
     async with AsyncSessionLocal() as db:
         # Find active sessions updated before the threshold

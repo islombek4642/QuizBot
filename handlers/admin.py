@@ -221,9 +221,9 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     lobby_keys = await redis.keys("quiz_lobby:*")
     active_lobbies = len(lobby_keys)
     
-    # Active sessions (Private) - Filter by updated_at within last 1 minute 
-    # Alignment: Monitor runs every 30s, so 1m threshold is perfect for 'Active'
-    activity_threshold = datetime.now() - timedelta(minutes=1)
+    # Active sessions (Private) - Filter by updated_at within last 2 minutes 
+    # Alignment: Using utcnow() to match DB storage, threshold reduced to 2m for stability
+    activity_threshold = datetime.utcnow() - timedelta(minutes=2)
     res_active_sessions = await db.execute(
         select(func.count(QuizSession.id))
         .filter(QuizSession.is_active == True, QuizSession.updated_at > activity_threshold)
