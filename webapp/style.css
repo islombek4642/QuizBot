@@ -1052,6 +1052,8 @@ textarea {
 
 .lb-info {
     flex-grow: 1;
+    min-width: 0;
+    /* Critical for ellipsis in flex */
 }
 
 .lb-name {
@@ -1059,11 +1061,18 @@ textarea {
     font-size: 1rem;
     margin-bottom: 2px;
     display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .lb-username {
     font-size: 0.75rem;
     color: var(--text-muted);
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .lb-score {
