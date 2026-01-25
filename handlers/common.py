@@ -74,6 +74,7 @@ def get_main_keyboard(lang: str, user_id: int = None):
         builder.button(text=Messages.get("ADMIN_STATS_BTN", lang))
         builder.button(text=Messages.get("ADMIN_AI_SETTINGS_BTN", lang))
         builder.button(text=Messages.get("ADMIN_BROADCAST_BTN", lang))
+        builder.button(text=Messages.get("ADMIN_BACKUP_BTN", lang))
         builder.button(text=Messages.get("ADMIN_MAINTENANCE_BTN", lang))
     
     builder.adjust(2)

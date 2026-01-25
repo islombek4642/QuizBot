@@ -15,6 +15,7 @@ from models.quiz import Quiz
 from models.session import QuizSession
 from services.user_service import UserService
 from services.group_service import GroupService
+from services.backup_service import send_backup_to_admin
 from core.logger import logger
 from handlers.common import QuizStates, get_main_keyboard, get_admin_ai_keyboard, get_cancel_keyboard
 from aiogram.fsm.context import FSMContext
@@ -24,6 +25,11 @@ router = Router()
 router.message.filter(F.from_user.id == settings.ADMIN_ID)
 router.callback_query.filter(F.from_user.id == settings.ADMIN_ID)
 
+@router.message(F.text.in_([Messages.get("ADMIN_BACKUP_BTN", "UZ"), Messages.get("ADMIN_BACKUP_BTN", "EN")]))
+async def admin_manual_backup(message: types.Message, bot: Bot, lang: str):
+    await message.answer(Messages.get("BACKUP_STARTED", lang))
+    await send_backup_to_admin(bot)
+
 @router.message(F.text.in_([Messages.get("ADMIN_USERS_BTN", "UZ"), Messages.get("ADMIN_USERS_BTN", "EN")]))
 async def admin_list_users(message: types.Message, db: AsyncSession, lang: str):
     await show_users_page(message, db, lang, page=0)
@@ -32,15 +38,15 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
     limit = 10
     offset = page * limit
     
-    # Get total count (only active users with phone numbers)
+    # Get total count (only active users)
     total_result = await db.execute(
-        select(func.count(User.id)).filter(User.phone_number.isnot(None), User.is_active == True)
+        select(func.count(User.id)).filter(User.is_active == True)
     )
     total_users = total_result.scalar()
     
-    # Get users for page (only active users with phone numbers)
+    # Get users for page (only active users)
     result = await db.execute(
-        select(User).filter(User.phone_number.isnot(None), User.is_active == True)
+        select(User).filter(User.is_active == True)
         .offset(offset).limit(limit).order_by(User.id.desc())
     )
     users = result.scalars().all()
@@ -180,11 +186,10 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     keys = await redis.keys("group_quiz:*")
     active_group_quizzes = len(keys)
     
-    # Active sessions (Private) - Only count recent ones (last 2 hours) to avoid stale data
-    two_hours_ago = time.time() - 7200
+    # Active sessions (Private)
     res_active_sessions = await db.execute(
         select(func.count(QuizSession.id))
-        .filter(QuizSession.is_active == True, QuizSession.start_time > two_hours_ago)
+        .filter(QuizSession.is_active == True)
     )
     active_private_quizzes = res_active_sessions.scalar()
     
@@ -377,13 +382,32 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
             else:
                 group_success += 1
         except Exception as e:
-            err_msg = str(e)
+            from aiogram.exceptions import TelegramRetryAfter, TelegramForbiddenError, TelegramBadRequest
+            
+            if isinstance(e, TelegramRetryAfter):
+                logger.warning(f"Rate limit hit during broadcast. Waiting {e.retry_after} seconds.")
+                await asyncio.sleep(e.retry_after)
+                # Retry this specific target once
+                try:
+                    await bot.copy_message(chat_id=target_id, from_chat_id=message.chat.id, message_id=message.message_id)
+                    count += 1
+                    if target_id in user_ids_set: user_success += 1
+                    else: group_success += 1
+                except:
+                    pass
+                continue
+
+            err_msg = str(e).lower()
             logger.warning(f"Failed to send broadcast to {target_id}: {err_msg}")
             
             # If forbidden or chat not found, mark as inactive
-            if "Forbidden" in err_msg or "chat not found" in err_msg.lower():
+            if "forbidden" in err_msg or "chat not found" in err_msg:
                 if target_id in user_ids_set:
                     dead_user_ids.append(target_id)
+                    # Also deactivate active sessions for this user
+                    await db.execute(
+                        update(QuizSession).where(QuizSession.user_id == target_id, QuizSession.is_active == True).values(is_active=False)
+                    )
                 else:
                     dead_group_ids.append(target_id)
         
@@ -464,11 +488,27 @@ async def admin_maintenance_notify(message: types.Message, bot: Bot, db: AsyncSe
     group_count = 0
 
     # Notify users
+    from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
+    from sqlalchemy import update
+    
     for user_id in user_ids:
         try:
             await bot.send_message(chat_id=user_id, text=msg_text, parse_mode="HTML")
             user_count += 1
             await asyncio.sleep(0.05)  # 20 messages per second limit
+        except (TelegramForbiddenError, TelegramBadRequest) as e:
+            err_msg = str(e).lower()
+            logger.warning(f"Failed to send maintenance warning to user {user_id}: {e}")
+            
+            # If forbidden (blocked) or chat not found, deactivate their sessions
+            if "forbidden" in err_msg or "chat not found" in err_msg:
+                await db.execute(
+                    update(QuizSession).where(QuizSession.user_id == user_id, QuizSession.is_active == True).values(is_active=False)
+                )
+                await db.execute(
+                    update(User).where(User.telegram_id == user_id).values(is_active=False)
+                )
+                await db.commit()
         except Exception as e:
             logger.warning(f"Failed to send maintenance warning to user {user_id}: {e}")
 

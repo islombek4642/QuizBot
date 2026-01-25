@@ -7,6 +7,9 @@ from core.config import settings
 from core.logger import setup_logging, logger
 from handlers import start, quiz, settings as settings_handlers, group, admin, webapp
 from utils.middleware import DbSessionMiddleware, RedisMiddleware, AuthMiddleware
+from services.backup_service import send_backup_to_admin
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 async def start_api():
     import uvicorn
@@ -58,6 +61,18 @@ async def main():
     dp.include_router(webapp.router)
     dp.include_router(group.router)
     dp.include_router(quiz.router)
+
+    # Initialize Scheduler for Backups
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(
+        send_backup_to_admin,
+        trigger=CronTrigger(hour=settings.BACKUP_SCHEDULE_HOUR, minute=settings.BACKUP_SCHEDULE_MINUTE),
+        args=[bot],
+        id=settings.BACKUP_JOB_ID,
+        replace_existing=True
+    )
+    scheduler.start()
+    logger.info(f"Scheduler started. Daily backup scheduled at {settings.BACKUP_SCHEDULE_HOUR:02d}:{settings.BACKUP_SCHEDULE_MINUTE:02d}.")
 
     # Set commands only if running bot (or all)
     try:

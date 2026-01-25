@@ -38,5 +38,12 @@ class Settings(BaseSettings):
     WEBAPP_URL: str = Field("", description="URL for the Telegram WebApp Editor")
     ENV: str = "production"  # development, staging, production
     DEBUG: bool = False
+    
+    # Backup Settings
+    BACKUP_SCHEDULE_HOUR: int = 0
+    BACKUP_SCHEDULE_MINUTE: int = 0
+    BACKUP_TEMP_DIR: str = "/tmp"
+    BACKUP_FILENAME_PREFIX: str = "backup"
+    BACKUP_JOB_ID: str = "daily_backup"
 
 settings = Settings()

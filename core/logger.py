@@ -9,7 +9,7 @@ def setup_logging():
             structlog.processors.add_log_level,
             structlog.processors.StackInfoRenderer(),
             structlog.dev.set_exc_info,
-            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.TimeStamper(fmt="iso", utc=False),
             structlog.processors.JSONRenderer()
         ],
         wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),

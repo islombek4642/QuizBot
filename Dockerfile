@@ -10,7 +10,12 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     antiword \
     catdoc \
+    postgresql-client \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+# Set timezone
+ENV TZ=Asia/Tashkent
 
 # Copy requirements
 COPY requirements.txt .
