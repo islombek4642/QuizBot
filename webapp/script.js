@@ -1488,15 +1488,6 @@ function switchView(view) {
         loadLeaderboard();
     }
 }
-// CRITICAL FIX: Ensure render is called
-renderEditor();
-    } else if (view === 'leaderboard') {
-    if (leaderboardView) leaderboardView.style.display = 'block';
-    if (pageTitle) pageTitle.innerText = t('leaderboard_title');
-    if (navLeaderboard) navLeaderboard.classList.add('active');
-    loadLeaderboard();
-}
-}
 
 function showLoader() {
     loader.style.display = 'flex';
