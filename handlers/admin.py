@@ -74,8 +74,8 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
     
     builder = InlineKeyboardBuilder()
     for i, user in enumerate(users, 1 + offset):
-        # Name display logic: prioritize full_name, then username
-        display_name = user.full_name or (f"@{user.username}" if user.username else "Deleted Account")
+        # Name display logic: prioritize full_name, then username, then telegram_id
+        display_name = user.full_name or (f"@{user.username}" if user.username else str(user.telegram_id))
         if len(display_name) > 25:
             display_name = display_name[:22] + "..."
             
