@@ -198,7 +198,8 @@ const TRANSLATIONS = {
         split_type_size: "Savollar soni bo'yicha",
         nav_dashboard: "Testlarim",
         nav_split: "Bo'lish",
-        error_min_questions: "Testni bo'lish uchun kamida 10 ta savol bo'lishi kerak!",
+        error_min_questions: "Testni bo'lish uchun jami kamida 20 ta savol bo'lishi kerak!",
+        error_min_chunk: "Har bir qismda kamida 10 ta savol bo'lishi shart!",
     },
     EN: {
         my_quizzes: "My Quizzes",
@@ -231,7 +232,8 @@ const TRANSLATIONS = {
         split_type_size: "By questions per part",
         nav_dashboard: "My Quizzes",
         nav_split: "Split",
-        error_min_questions: "A quiz must have at least 10 questions to be split!",
+        error_min_questions: "A quiz must have at least 20 questions to be split!",
+        error_min_chunk: "Each part must have at least 10 questions!",
     }
 };
 
@@ -890,7 +892,7 @@ function renderQuizList(targetList, isSplitMode = false) {
  * Quiz Splitting logic
  */
 async function requestSplit(quizId, totalCount) {
-    if (totalCount < 10) {
+    if (totalCount < 20) {
         tg.showAlert(t('error_min_questions'));
         return;
     }
@@ -923,6 +925,19 @@ async function requestSplit(quizId, totalCount) {
 
         const val = parseInt(numValue);
         if (isNaN(val) || val <= 0) return;
+
+        // Validation based on type
+        if (paramName === 'size' && val < 10) {
+            tg.showAlert(t('error_min_chunk'));
+            return;
+        }
+        if (paramName === 'parts') {
+            const size = Math.ceil(totalCount / val);
+            if (size < 10) {
+                tg.showAlert(t('error_min_chunk'));
+                return;
+            }
+        }
 
         const body = {};
         body[paramName] = val;

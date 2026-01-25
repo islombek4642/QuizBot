@@ -107,13 +107,14 @@ class QuizService:
         questions = quiz.questions_json
         total = len(questions)
         
-        if total < 10:
+        # New Rule: Source quiz must have at least 20 questions
+        if total < 20:
             return []
         
         if parts:
             size = (total + parts - 1) // parts
             
-        if not size or size <= 0:
+        if not size or size < 10: # New Rule: Each part must have >= 10 questions
             return []
             
         # Hard safety limit: max 100 parts
