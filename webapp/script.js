@@ -1479,7 +1479,7 @@ function switchView(view) {
         if (editorActions) editorActions.style.display = 'block';
         if (bottomNav) bottomNav.style.display = 'none';
         if (pageTitle) pageTitle.innerText = t('editing_test');
-        // CRITICAL FIX: Ensure render is called
+        // CRITICAL FIX: Trigger rendering
         renderEditor();
     } else if (view === 'leaderboard') {
         if (leaderboardView) leaderboardView.style.display = 'block';
@@ -1487,6 +1487,15 @@ function switchView(view) {
         if (navLeaderboard) navLeaderboard.classList.add('active');
         loadLeaderboard();
     }
+}
+// CRITICAL FIX: Ensure render is called
+renderEditor();
+    } else if (view === 'leaderboard') {
+    if (leaderboardView) leaderboardView.style.display = 'block';
+    if (pageTitle) pageTitle.innerText = t('leaderboard_title');
+    if (navLeaderboard) navLeaderboard.classList.add('active');
+    loadLeaderboard();
+}
 }
 
 function showLoader() {
