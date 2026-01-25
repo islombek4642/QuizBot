@@ -1176,7 +1176,7 @@ function renderQuizList(targetList, isSplitMode = false) {
                 </div>
             </div>
             <div class="quiz-card glass" id="quiz-card-${quiz.id}">
-                <div class="quiz-card-content" onclick="openEditor(${quiz.id})">
+                <div class="quiz-card-content">
                     <h3 style="margin-bottom: 8px;">${escapeHtml(quiz.title)}</h3>
                     <p style="opacity: 0.8; font-size: 0.85rem;">
                         <span style="color: var(--accent-color); font-weight: 600;">${quiz.questions_count}</span> ${t('questions_count')} • ${new Date(quiz.created_at).toLocaleDateString(t('date_format'))}
@@ -1238,7 +1238,7 @@ function addSwipeListeners(el, wrapper) {
         wrapper.classList.remove('swiping');
 
         const diff = currentX - startX;
-        el.style.transition = 'transform 0.3s ease';
+        el.style.transition = 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)';
 
         if (diff > 50) {
             el.style.transform = 'translateX(80px)';
@@ -1253,7 +1253,7 @@ function addSwipeListeners(el, wrapper) {
 
         setTimeout(() => {
             el.style.transition = 'transform 0.2s ease-out';
-        }, 300);
+        }, 400);
     });
 
     // Close on click or interaction
