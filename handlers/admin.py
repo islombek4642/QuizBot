@@ -163,35 +163,42 @@ async def admin_restore_mode_selected(message: types.Message, db: AsyncSession, 
     # Execute based on mode
     if not file_path or not os.path.exists(file_path):
         await state.clear()
-        await message.answer("❌ Fayl topilmadi.", reply_markup=get_main_keyboard(lang, message.from_user.id))
+        await message.answer(Messages.get("RESTORE_FILE_NOT_FOUND", lang), reply_markup=get_main_keyboard(lang, message.from_user.id))
         return
     
-    status_msg = await message.answer("⏳ Jarayon boshlandi...")
+    status_msg = await message.answer(Messages.get("RESTORE_PROCESSING", lang))
     
     try:
         if is_smart_merge:
             stats = await perform_smart_merge(file_path, db)
             if stats:
-                await status_msg.edit_text(
-                    Messages.get("MERGE_SUCCESS_MSG", lang).format(
-                        users=stats["u_new"] + stats["u_old"], u_new=stats["u_new"], u_old=stats["u_old"],
-                        groups=stats["g_new"] + stats["g_old"], g_new=stats["g_new"], g_old=stats["g_old"]
-                    ),
-                    parse_mode="HTML"
-                )
+                # Check if all data already exists
+                if stats["u_new"] == 0 and stats["g_new"] == 0:
+                    await status_msg.edit_text(
+                        Messages.get("MERGE_NO_NEW_DATA", lang),
+                        parse_mode="HTML"
+                    )
+                else:
+                    await status_msg.edit_text(
+                        Messages.get("MERGE_SUCCESS_MSG", lang).format(
+                            users=stats["u_new"] + stats["u_old"], u_new=stats["u_new"], u_old=stats["u_old"],
+                            groups=stats["g_new"] + stats["g_old"], g_new=stats["g_new"], g_old=stats["g_old"]
+                        ),
+                        parse_mode="HTML"
+                    )
             else:
-                await status_msg.edit_text("❌ Birlashtirishda xatolik yuz berdi.")
+                await status_msg.edit_text(Messages.get("MERGE_ERROR", lang))
         else:
             success = await perform_full_restore(file_path)
             if success:
                 await status_msg.edit_text(Messages.get("RESTORE_SUCCESS_MSG", lang), parse_mode="HTML")
             else:
-                await status_msg.edit_text("❌ Tiklashda xatolik yuz berdi.")
+                await status_msg.edit_text(Messages.get("RESTORE_ERROR", lang))
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
         await state.clear()
-        await message.answer("✅ Jarayon yakunlandi.", reply_markup=get_main_keyboard(lang, message.from_user.id))
+        await message.answer(Messages.get("RESTORE_COMPLETE", lang), reply_markup=get_main_keyboard(lang, message.from_user.id))
 
 @router.callback_query(F.data.startswith("admin_users_page_"))
 async def admin_users_pagination(callback: types.CallbackQuery, db: AsyncSession, lang: str):
