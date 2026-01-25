@@ -1,3 +1,4 @@
+from sqlalchemy import Column, BigInteger, String, Boolean
 from sqlalchemy.orm import relationship
 from models.base import Base, TimestampMixin
 
