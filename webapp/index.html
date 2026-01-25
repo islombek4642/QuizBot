@@ -71,9 +71,9 @@
             <button id="nav-split" class="nav-item">
                 <svg viewBox="0 0 24 24" width="24" height="24">
                     <path fill="currentColor"
-                        d="M19,3L13,9L15,11L22,4V3H19M12,10.5L11,11.5L4.74,17.76C4.15,18.35 4.15,19.3 4.74,19.89L5.11,20.26C5.7,20.85 6.65,20.85 7.24,20.26L13.5,14L12.5,13L12,10.5M10,12.5L9,13.5L3,19.5V20H4L10,14L10,12.5Z" />
+                        d="M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M11,7H13V13H11V7M11,15H13V17H11V15Z" />
                 </svg>
-                <span id="label-nav-split">Split</span>
+                <span id="label-nav-split">...</span>
             </button>
         </nav>
 
@@ -89,14 +89,15 @@
                     <h2 id="split-modal-title">Split Quiz</h2>
                 </div>
                 <div class="split-options">
-                    <button class="split-type-btn active" id="btn-type-parts">
+                    <button class="split-type-btn active" id="btn-type-parts"
+                        style="display: flex; flex-direction: column;">
                         <div style="font-weight: 600; margin-bottom: 4px;" id="label-type-parts">By Parts</div>
                         <div style="font-size: 0.8rem; opacity: 0.7;" id="desc-type-parts">Divide into equal parts</div>
                         <div class="split-input-group active" id="group-parts">
                             <input type="number" class="split-input" id="input-parts" value="2" min="1" max="50">
                         </div>
                     </button>
-                    <button class="split-type-btn" id="btn-type-size">
+                    <button class="split-type-btn" id="btn-type-size" style="display: flex; flex-direction: column;">
                         <div style="font-weight: 600; margin-bottom: 4px;" id="label-type-size">By Questions</div>
                         <div style="font-size: 0.8rem; opacity: 0.7;" id="desc-type-size">Questions per part</div>
                         <div class="split-input-group" id="group-size">
@@ -112,7 +113,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=36"></script>
+    <script src="script.js?v=37"></script>
 </body>
 
 </html>

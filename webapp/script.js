@@ -162,7 +162,11 @@ function handleSearch(e) {
     const isNumber = /^\d+$/.test(query);
 
     // Reset highlights
-    items.forEach(i => i.classList.remove('highlight-pulse'));
+    items.forEach(i => {
+        i.classList.remove('highlight-pulse');
+        // Force reflow to allow re-triggering animation
+        void i.offsetWidth;
+    });
 
     if (isNumber && query) {
         // "Scroll To" Mode for numbers
@@ -362,7 +366,7 @@ const TRANSLATIONS = {
         split_type_parts: "Qismlar soni bo'yicha",
         split_type_size: "Savollar soni bo'yicha",
         nav_dashboard: "Testlarim",
-        nav_split: "Bo'lish",
+        nav_split: "...",
         error_min_questions: "Testni bo'lish uchun jami kamida 20 ta savol bo'lishi kerak!",
         error_min_chunk: "Har bir qismda kamida 10 ta savol bo'lishi shart!",
         split_modal_title: "Testni Bo'lish",
@@ -403,7 +407,7 @@ const TRANSLATIONS = {
         split_type_parts: "By number of parts",
         split_type_size: "By questions per part",
         nav_dashboard: "My Quizzes",
-        nav_split: "Split",
+        nav_split: "...",
         error_min_questions: "A quiz must have at least 20 questions to be split!",
         error_min_chunk: "Each part must have at least 10 questions!",
         split_modal_title: "Split Quiz",
@@ -1049,31 +1053,22 @@ function renderQuizList(targetList, isSplitMode = false) {
         const card = document.createElement('div');
         card.className = 'quiz-card glass';
 
-        if (isSplitMode) {
-            card.innerHTML = `
-                <div class="quiz-card-content">
-                    <h3>${escapeHtml(quiz.title)}</h3>
-                    <p>${quiz.questions_count} ${t('questions_count')} • ${new Date(quiz.created_at).toLocaleDateString(t('date_format'))}</p>
-                </div>
-                <div class="quiz-card-actions">
-                    <button class="split-btn" onclick="requestSplit(${quiz.id}, ${quiz.questions_count})">
-                       ✂️ ${t('split_quiz')}
-                    </button>
-                </div>
-            `;
-        } else {
-            card.innerHTML = `
-                <div class="quiz-card-content" onclick="openEditor(${quiz.id})">
-                    <h3>${escapeHtml(quiz.title)}</h3>
-                    <p>${quiz.questions_count} ${t('questions_count')} • ${new Date(quiz.created_at).toLocaleDateString(t('date_format'))}</p>
-                </div>
-                <div class="quiz-card-actions">
-                    <button class="secondary-btn" onclick="openEditor(${quiz.id})">
-                       📝 ${t('editing_test')}
-                    </button>
-                </div>
-            `;
-        }
+        card.innerHTML = `
+            <div class="quiz-card-content" onclick="openEditor(${quiz.id})">
+                <h3 style="margin-bottom: 8px;">${escapeHtml(quiz.title)}</h3>
+                <p style="opacity: 0.8; font-size: 0.85rem;">
+                    <span style="color: var(--accent-color); font-weight: 600;">${quiz.questions_count}</span> ${t('questions_count')} • ${new Date(quiz.created_at).toLocaleDateString(t('date_format'))}
+                </p>
+            </div>
+            <div class="quiz-card-actions" style="gap: 10px;">
+                <button class="secondary-btn" onclick="openEditor(${quiz.id})" style="flex: 1; min-width: 0; font-size: 0.8rem;">
+                   📝 ${t('editing_test')}
+                </button>
+                <button class="secondary-btn" onclick="requestSplit(${quiz.id}, ${quiz.questions_count})" style="flex: 1; min-width: 0; font-size: 0.8rem; border-color: rgba(255,255,255,0.2); color: #fff; background: rgba(255,255,255,0.05);">
+                   ✂️ ${t('split_quiz')}
+                </button>
+            </div>
+        `;
         targetList.appendChild(card);
     });
 }
@@ -1372,8 +1367,8 @@ async function saveChanges() {
         if (!res.ok) throw new Error(t('error_save'));
 
         tg.showAlert(t('success_save'));
-        // Update local data
-        currentQuizData.questions = updatedQuestions;
+        // Update local data and Refresh Dashboard
+        await loadQuizzes();
         setTimeout(() => switchView('dashboard'), 1000);
     } catch (err) {
         console.error(err);
