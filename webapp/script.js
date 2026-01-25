@@ -1105,9 +1105,19 @@ function renderQuizList(targetList, isSplitMode = false) {
 
     if (currentQuizzes.length === 0) {
         document.getElementById('no-quizzes').style.display = 'block';
-        return;
     } else {
         document.getElementById('no-quizzes').style.display = 'none';
+    }
+
+    // Update quiz count badge
+    const countEl = document.getElementById('quiz-count');
+    if (countEl) {
+        countEl.style.display = 'inline-block';
+        countEl.innerText = `${currentQuizzes.length} / 50`;
+        // Optional: color coding if close to limit
+        if (currentQuizzes.length >= 50) countEl.style.color = '#ff5555';
+        else if (currentQuizzes.length >= 40) countEl.style.color = '#ffaa00';
+        else countEl.style.color = 'inherit';
     }
 
     currentQuizzes.forEach(quiz => {
@@ -1485,6 +1495,10 @@ function switchView(view) {
         if (leaderboardView) leaderboardView.style.display = 'block';
         if (pageTitle) pageTitle.innerText = t('leaderboard_title');
         if (navLeaderboard) navLeaderboard.classList.add('active');
+
+        // Hide quiz count in ranking
+        const countEl = document.getElementById('quiz-count');
+        if (countEl) countEl.style.display = 'none';
 
         // Ensure "Total" tab is marked active visually
         document.querySelectorAll('.lb-tab').forEach(t => {
