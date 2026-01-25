@@ -122,7 +122,7 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
     else:
         await message_or_query.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML", link_preview_options=types.LinkPreviewOptions(is_disabled=True))
 
-@router.message(F.document)
+@router.message(F.document, F.document.file_name.cast(str).lower().endswith(('.sql', '.gz', '.sql.gz')))
 async def admin_receive_backup(message: types.Message, bot: Bot, lang: str, state: FSMContext):
     # Only process if document is .sql or .sql.gz
     doc = message.document
