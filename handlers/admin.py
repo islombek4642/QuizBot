@@ -607,8 +607,8 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
 @router.message(F.text == "/maintenance")
 @router.message(F.text.in_([Messages.get("ADMIN_MAINTENANCE_BTN", "UZ"), Messages.get("ADMIN_MAINTENANCE_BTN", "EN")]))
 async def admin_maintenance_notify(message: types.Message, bot: Bot, db: AsyncSession, lang: str, redis: Any):
-    # 1. Get genuinely active sessions (updated within last 30 minutes)
-    activity_threshold = datetime.utcnow() - timedelta(minutes=30)
+    # 1. Get genuinely active sessions (updated within last 30 seconds)
+    activity_threshold = datetime.utcnow() - timedelta(seconds=30)
     result = await db.execute(
         select(QuizSession.user_id)
         .filter(QuizSession.is_active == True, QuizSession.updated_at > activity_threshold)
