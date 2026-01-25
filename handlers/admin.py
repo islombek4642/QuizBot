@@ -113,66 +113,66 @@ async def admin_receive_backup(message: types.Message, bot: Bot, lang: str, stat
     if not (doc.file_name.endswith(".sql") or doc.file_name.endswith(".gz")):
         return
 
-    # Create temp path
+    # Create temp path and download
     temp_path = os.path.join(settings.BACKUP_TEMP_DIR, doc.file_name)
     await bot.download(doc, destination=temp_path)
     
-    # Show selection menu
-    builder = InlineKeyboardBuilder()
-    builder.button(text=Messages.get("RESTORE_SMART_MERGE_BTN", lang), callback_data=f"restore_merge:{doc.file_name}")
-    builder.button(text=Messages.get("RESTORE_FULL_BTN", lang), callback_data=f"restore_full:{doc.file_name}")
-    builder.adjust(1)
+    # Store file path in FSM
+    await state.update_data(restore_file_path=temp_path)
+    
+    # Show keyboard selection menu
+    from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=Messages.get("RESTORE_SMART_MERGE_BTN", lang))],
+            [KeyboardButton(text=Messages.get("RESTORE_FULL_BTN", lang))],
+            [KeyboardButton(text=Messages.get("CANCEL_BTN", lang))]
+        ],
+        resize_keyboard=True
+    )
     
     await message.answer(
         Messages.get("SELECT_BUTTON", lang),
-        reply_markup=builder.as_markup()
+        reply_markup=keyboard
     )
+    await state.set_state(QuizStates.WAITING_FOR_RESTORE_CONFIRM)
 
-@router.callback_query(F.data.startswith("restore_"))
-async def admin_restore_selection(callback: types.CallbackQuery, bot: Bot, lang: str, state: FSMContext):
-    data = callback.data.split(":")
-    mode_key = data[0] # restore_merge or restore_full
-    filename = data[1]
+@router.message(QuizStates.WAITING_FOR_RESTORE_CONFIRM)
+async def admin_restore_mode_selected(message: types.Message, db: AsyncSession, lang: str, state: FSMContext, bot: Bot):
+    user_data = await state.get_data()
+    file_path = user_data.get("restore_file_path")
     
-    mode_name = "Smart Merge" if mode_key == "restore_merge" else "Full Restore"
-    
-    await callback.message.edit_text(
-        Messages.get("RESTORE_CONFIRM_PROMPT", lang).format(mode=mode_name),
-        reply_markup=InlineKeyboardBuilder().button(
-            text=Messages.get("SHUFFLE_YES", lang), 
-            callback_data=f"confirm_{mode_key}:{filename}"
-        ).button(
-            text=Messages.get("CANCEL_BTN", lang), 
-            callback_data="restore_cancel"
-        ).as_markup(),
-        parse_mode="HTML"
-    )
-    await callback.answer()
-
-@router.callback_query(F.data == "restore_cancel")
-async def admin_restore_cancel(callback: types.CallbackQuery, lang: str):
-    await callback.message.edit_text(Messages.get("CANCELLED", lang))
-    await callback.answer()
-
-@router.callback_query(F.data.startswith("confirm_restore_"))
-async def admin_restore_confirmed(callback: types.CallbackQuery, db: AsyncSession, lang: str):
-    data = callback.data.split(":")
-    mode_key = data[0] # confirm_restore_merge or confirm_restore_full
-    filename = data[1]
-    file_path = os.path.join(settings.BACKUP_TEMP_DIR, filename)
-
-    if not os.path.exists(file_path):
-        await callback.message.answer("❌ Fayl topilmadi.")
-        await callback.answer()
+    # Check cancel
+    if message.text in [Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN")]:
+        await state.clear()
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+        await message.answer(Messages.get("CANCELLED", lang), reply_markup=get_main_keyboard(lang, message.from_user.id))
         return
-
-    await callback.message.edit_text("⏳ Jarayon boshlandi...")
-
+    
+    # Determine mode
+    is_smart_merge = message.text in [Messages.get("RESTORE_SMART_MERGE_BTN", "UZ"), Messages.get("RESTORE_SMART_MERGE_BTN", "EN")]
+    is_full_restore = message.text in [Messages.get("RESTORE_FULL_BTN", "UZ"), Messages.get("RESTORE_FULL_BTN", "EN")]
+    
+    if not (is_smart_merge or is_full_restore):
+        await message.answer(Messages.get("SELECT_BUTTON", lang))
+        return
+    
+    mode = "Smart Merge" if is_smart_merge else "Full Restore"
+    
+    # Execute based on mode
+    if not file_path or not os.path.exists(file_path):
+        await state.clear()
+        await message.answer("❌ Fayl topilmadi.", reply_markup=get_main_keyboard(lang, message.from_user.id))
+        return
+    
+    status_msg = await message.answer("⏳ Jarayon boshlandi...")
+    
     try:
-        if mode_key == "confirm_restore_merge":
+        if is_smart_merge:
             stats = await perform_smart_merge(file_path, db)
             if stats:
-                await callback.message.edit_text(
+                await status_msg.edit_text(
                     Messages.get("MERGE_SUCCESS_MSG", lang).format(
                         users=stats["u_new"] + stats["u_old"], u_new=stats["u_new"], u_old=stats["u_old"],
                         groups=stats["g_new"] + stats["g_old"], g_new=stats["g_new"], g_old=stats["g_old"]
@@ -180,20 +180,18 @@ async def admin_restore_confirmed(callback: types.CallbackQuery, db: AsyncSessio
                     parse_mode="HTML"
                 )
             else:
-                await callback.message.edit_text("❌ Birlashtirishda xatolik yuz berdi.")
-        
-        elif mode_key == "confirm_restore_full":
+                await status_msg.edit_text("❌ Birlashtirishda xatolik yuz berdi.")
+        else:
             success = await perform_full_restore(file_path)
             if success:
-                await callback.message.edit_text(Messages.get("RESTORE_SUCCESS_MSG", lang), parse_mode="HTML")
+                await status_msg.edit_text(Messages.get("RESTORE_SUCCESS_MSG", lang), parse_mode="HTML")
             else:
-                await callback.message.edit_text("❌ Tiklashda xatolik yuz berdi.")
-
+                await status_msg.edit_text("❌ Tiklashda xatolik yuz berdi.")
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
-
-    await callback.answer()
+        await state.clear()
+        await message.answer("✅ Jarayon yakunlandi.", reply_markup=get_main_keyboard(lang, message.from_user.id))
 
 @router.callback_query(F.data.startswith("admin_users_page_"))
 async def admin_users_pagination(callback: types.CallbackQuery, db: AsyncSession, lang: str):
