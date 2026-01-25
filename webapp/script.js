@@ -1054,7 +1054,7 @@ function renderQuizList(targetList, isSplitMode = false) {
         card.className = 'quiz-card glass';
 
         card.innerHTML = `
-            <div class="quiz-card-content" onclick="openEditor(${quiz.id})">
+            <div class="quiz-card-content">
                 <h3 style="margin-bottom: 8px;">${escapeHtml(quiz.title)}</h3>
                 <p style="opacity: 0.8; font-size: 0.85rem;">
                     <span style="color: var(--accent-color); font-weight: 600;">${quiz.questions_count}</span> ${t('questions_count')} • ${new Date(quiz.created_at).toLocaleDateString(t('date_format'))}

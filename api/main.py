@@ -281,7 +281,8 @@ def get_current_user(
 )
 async def list_quizzes(user_id: int = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get all quizzes for the current user."""
-    service = QuizService(db)
+    from db.session import get_redis
+    service = QuizService(db) # redis not needed for listing
     quizzes = await service.get_user_quizzes(user_id)
     return [{
         "id": q.id,
@@ -332,10 +333,11 @@ async def update_quiz(
     quiz_id: int, 
     update: QuizUpdate, 
     user_id: int = Depends(get_current_user), 
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    redis = Depends(get_redis)
 ):
     """Update an existing quiz."""
-    service = QuizService(db)
+    service = QuizService(db, redis=redis)
     
     # Convert Question objects back to raw dicts for storage
     questions_list = [q.model_dump() for q in update.questions]
@@ -385,11 +387,11 @@ async def split_quiz(
     if split_req.parts and split_req.parts > 50:
         raise HTTPException(status_code=400, detail="Cannot split into more than 50 parts.")
 
-    service = QuizService(db)
+    service = QuizService(db, redis=redis)
     
     new_quizzes = await service.split_quiz(quiz_id, user_id, parts=split_req.parts, size=split_req.size)
     if not new_quizzes:
-        raise HTTPException(status_code=400, detail="Could not split quiz. Check parameters or quiz ownership.")
+        raise HTTPException(status_code=400, detail="Could not split quiz. Limit reached or invalid parameters.")
         
     # Increment rate limit counter
     await redis.incr(rate_key)

@@ -1,14 +1,24 @@
-from typing import Optional
+from datetime import datetime
+from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from models.quiz import Quiz
 from core.logger import logger
 
 class QuizService:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, redis=None):
         self.db = db
+        self.redis = redis
+        self.MAX_TOTAL_QUIZZES = 100
+        self.MAX_DAILY_SPLITS = 10
 
     async def save_quiz(self, user_id: int, title: str, questions: list, shuffle_options: bool) -> Quiz:
+        # Check total quiz limit
+        result = await self.db.execute(select(func.count(Quiz.id)).filter(Quiz.user_id == user_id))
+        user_total = result.scalar()
+        if user_total >= self.MAX_TOTAL_QUIZZES:
+             return None # Or raise custom exception
+
         quiz = Quiz(
             user_id=user_id,
             title=title,
@@ -58,6 +68,12 @@ class QuizService:
 
     async def clone_quiz(self, quiz_id: int, new_user_id: int) -> Optional[Quiz]:
         """Clone an existing quiz for a new user"""
+        # Check total quiz limit for new user
+        result = await self.db.execute(select(func.count(Quiz.id)).filter(Quiz.user_id == new_user_id))
+        user_total = result.scalar()
+        if user_total >= self.MAX_TOTAL_QUIZZES:
+             return None
+
         quiz = await self.get_quiz(quiz_id)
         if not quiz or quiz.user_id == new_user_id:
             return None
@@ -98,8 +114,24 @@ class QuizService:
         await self.db.commit()
         logger.info("Quiz updated", quiz_id=quiz_id, user_id=user_id)
         return True
+
     async def split_quiz(self, quiz_id: int, user_id: int, parts: int = None, size: int = None):
-        """Split a quiz into multiple parts by either number of parts or questions per part."""
+        """Split a quiz into multiple parts with security checks."""
+        # 1. Total quiz limit check
+        result = await self.db.execute(select(func.count(Quiz.id)).filter(Quiz.user_id == user_id))
+        user_total = result.scalar()
+        if user_total >= self.MAX_TOTAL_QUIZZES:
+             return []
+
+        # 2. Daily split limit (via Redis)
+        if self.redis:
+            today = datetime.now().strftime('%Y-%m-%d')
+            split_key = f"splits:{user_id}:{today}"
+            current = await self.redis.get(split_key)
+            if current and int(current) >= self.MAX_DAILY_SPLITS:
+                logger.warning("Daily split limit reached", user_id=user_id)
+                return []
+
         quiz = await self.get_quiz_by_id_and_user(quiz_id, user_id)
         if not quiz:
             return []
@@ -137,6 +169,14 @@ class QuizService:
             new_quizzes.append(new_quiz)
             
         await self.db.commit()
+        
+        # Increment redis counter
+        if self.redis:
+            today = datetime.now().strftime('%Y-%m-%d')
+            split_key = f"splits:{user_id}:{today}"
+            await self.redis.incr(split_key)
+            await self.redis.expire(split_key, 86400) # 24h
+
         for nq in new_quizzes:
             await self.db.refresh(nq)
             
