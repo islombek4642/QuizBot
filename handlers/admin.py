@@ -41,10 +41,12 @@ async def admin_manual_backup(message: types.Message, bot: Bot, lang: str):
     await send_backup_to_admin(bot, lang)
 
 @router.message(F.text.in_([Messages.get("ADMIN_USERS_BTN", "UZ"), Messages.get("ADMIN_USERS_BTN", "EN")]))
-async def admin_list_users(message: types.Message, db: AsyncSession, lang: str):
-    await show_users_page(message, db, lang, page=0)
+async def admin_list_users(message: types.Message, db: AsyncSession, lang: str, bot: Bot):
+    await show_users_page(message, db, lang, page=0, bot=bot)
 
-async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: int):
+async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: int, bot: Bot = None):
+    from sqlalchemy import update
+    
     limit = 10
     offset = page * limit
     
@@ -66,6 +68,20 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
         .offset(offset).limit(limit).order_by(User.id.desc())
     )
     users = result.scalars().all()
+    
+    # Fetch missing user info from Telegram API
+    if bot:
+        for user in users:
+            if not user.full_name:
+                try:
+                    chat = await bot.get_chat(user.telegram_id)
+                    full_name = f"{chat.first_name} {chat.last_name}".strip() if chat.last_name else chat.first_name
+                    user.full_name = full_name
+                    if chat.username:
+                        user.username = chat.username
+                    await db.commit()
+                except Exception:
+                    pass  # User might have blocked bot or deleted account
     
     text = Messages.get("ADMIN_USERS_TITLE", lang).format(
         total=total_users, 
@@ -204,9 +220,9 @@ async def admin_restore_mode_selected(message: types.Message, db: AsyncSession, 
         await state.clear()
 
 @router.callback_query(F.data.startswith("admin_users_page_"))
-async def admin_users_pagination(callback: types.CallbackQuery, db: AsyncSession, lang: str):
+async def admin_users_pagination(callback: types.CallbackQuery, db: AsyncSession, lang: str, bot: Bot):
     page = int(callback.data.split("_")[-1])
-    await show_users_page(callback, db, lang, page)
+    await show_users_page(callback, db, lang, page, bot=bot)
     await callback.answer()
 
 @router.message(F.text.in_([Messages.get("ADMIN_GROUPS_BTN", "UZ"), Messages.get("ADMIN_GROUPS_BTN", "EN")]))
