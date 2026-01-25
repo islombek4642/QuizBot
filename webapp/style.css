@@ -371,10 +371,6 @@ main {
     visibility: hidden;
 }
 
-visibility: hidden;
-/* Hide backgrounds by default */
-}
-
 .quiz-card-wrapper.swiping .quiz-card-swipe-actions,
 .quiz-card-wrapper.active-swipe .quiz-card-swipe-actions {
     visibility: visible;
