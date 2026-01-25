@@ -500,27 +500,37 @@ async function init() {
     }
 
     // Set static texts
-    document.getElementById('save-btn').innerText = t('save_changes');
-    document.getElementById('search-input').placeholder = t('search_placeholder');
-    document.querySelector('#no-quizzes p').innerText = t('no_quizzes');
-    pageTitle.innerText = t('my_quizzes');
-    document.getElementById('label-nav-dashboard').innerText = t('nav_dashboard');
-    if (document.getElementById('label-nav-leaderboard')) {
-        document.getElementById('label-nav-leaderboard').innerText = t('nav_leaderboard');
-    }
+    const labelDashboard = document.getElementById('label-nav-dashboard');
+    if (labelDashboard) labelDashboard.innerText = t('nav_dashboard');
+
+    const labelLeaderboard = document.getElementById('label-nav-leaderboard');
+    if (labelLeaderboard) labelLeaderboard.innerText = t('nav_leaderboard');
+
+    const labelSplit = document.getElementById('label-nav-split');
+    if (labelSplit) labelSplit.innerText = t('nav_split');
 
     // Set LB type buttons
-    if (document.getElementById('lb-type-users')) document.getElementById('lb-type-users').innerText = "👤 " + t('lb_users');
-    if (document.getElementById('lb-type-groups')) document.getElementById('lb-type-groups').innerText = "👥 " + t('lb_groups');
+    const lbUsersBtn = document.getElementById('lb-type-users');
+    if (lbUsersBtn) lbUsersBtn.innerText = "👤 " + t('lb_users');
+    const lbGroupsBtn = document.getElementById('lb-type-groups');
+    if (lbGroupsBtn) lbGroupsBtn.innerText = "👥 " + t('lb_groups');
 
     // Localization for split modal
-    document.getElementById('split-modal-title').innerText = t('split_modal_title');
-    document.getElementById('label-type-parts').innerText = t('label_type_parts');
-    document.getElementById('desc-type-parts').innerText = t('desc_type_parts');
-    document.getElementById('label-type-size').innerText = t('label_type_size');
-    document.getElementById('desc-type-size').innerText = t('desc_type_size');
-    document.getElementById('split-cancel').innerText = t('btn_cancel');
-    document.getElementById('split-confirm').innerText = t('btn_confirm_split');
+    const elementsToLocalize = {
+        'split-modal-title': 'split_modal_title',
+        'label-type-parts': 'label_type_parts',
+        'desc-type-parts': 'desc_type_parts',
+        'label-type-size': 'label_type_size',
+        'desc-type-size': 'desc_type_size',
+        'split-cancel': 'btn_cancel',
+        'split-confirm': 'btn_confirm_split',
+        'save-btn': 'save_changes'
+    };
+
+    for (const [id, key] of Object.entries(elementsToLocalize)) {
+        const el = document.getElementById(id);
+        if (el) el.innerText = t(key);
+    }
 
     await loadQuizzes();
     hideLoader();
@@ -1281,12 +1291,14 @@ function renderEditor() {
     if (!currentQuizData || !currentQuizData.questions) return;
 
     currentQuizData.questions.forEach((q, index) => {
+        if (!q) return;
         const item = document.createElement('div');
         item.className = 'question-item glass';
         item.dataset.index = index;
 
-        // Escape values to prevent HTML attribute breakage
-        const safeQuestion = escapeHtml(q.question);
+        const safeQuestion = escapeHtml(q.question || "");
+        const qLen = q.question ? q.question.length : 0;
+        const options = q.options || ["", "", "", ""];
 
         item.innerHTML = `
             <div class="q-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -1297,17 +1309,18 @@ function renderEditor() {
             </div>
             <div class="input-group">
                 <textarea class="q-text" placeholder="${t('question_placeholder')}">${safeQuestion}</textarea>
-                <small class="char-count">${q.question.length}/300</small>
+                <small class="char-count">${qLen}/300</small>
             </div>
             <div class="options-grid">
-                ${q.options.map((opt, optIndex) => {
-            const safeOpt = escapeHtml(opt);
+                ${options.map((opt, optIndex) => {
+            const safeOpt = escapeHtml(opt || "");
+            const optLen = opt ? opt.length : 0;
             return `
-                    <div class="option-row ${optIndex === q.correct_option_id ? 'correct' : 'wrong'}">
+                    <div class="option-row ${optIndex === (q.correct_option_id || 0) ? 'correct' : 'wrong'}">
                         <div class="indicator">${optIndex === 0 ? '✓' : '✗'}</div>
                         <div class="input-group">
                             <input type="text" class="option-input" value="${safeOpt}" placeholder="${t('option_placeholder')} ${optIndex + 1}">
-                            <small class="char-count">${opt.length}/100</small>
+                            <small class="char-count">${optLen}/100</small>
                         </div>
                     </div>
                 `}).join('')}
