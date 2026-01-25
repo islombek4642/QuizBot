@@ -66,6 +66,59 @@ function initElements() {
     navDashboard = document.getElementById('nav-dashboard');
     navSplit = document.getElementById('nav-split');
     bottomNav = document.querySelector('.bottom-nav');
+
+    // Attach event listeners safely
+    if (searchInput) {
+        searchInput.oninput = handleSearch;
+    }
+    if (backBtn) {
+        backBtn.onclick = () => switchView('dashboard');
+    }
+    if (saveBtn) {
+        saveBtn.onclick = saveChanges;
+    }
+    if (navDashboard) {
+        navDashboard.onclick = () => switchView('dashboard');
+    }
+    if (navSplit) {
+        navSplit.onclick = () => switchView('split');
+    }
+}
+
+function handleSearch(e) {
+    const query = e.target.value.toLowerCase().trim();
+    if (!questionsContainer) return;
+
+    const items = questionsContainer.querySelectorAll('.question-item');
+    const isNumber = /^\d+$/.test(query);
+
+    // Reset highlights
+    items.forEach(i => i.classList.remove('highlight-pulse'));
+
+    if (isNumber && query) {
+        // "Scroll To" Mode for numbers
+        items.forEach(item => item.style.display = 'flex'); // Show all
+
+        const targetIndex = parseInt(query) - 1;
+        const targetItem = Array.from(items).find(item => parseInt(item.dataset.index) === targetIndex);
+
+        if (targetItem) {
+            targetItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            targetItem.classList.add('highlight-pulse');
+        }
+    } else {
+        // "Filter" Mode for text
+        items.forEach(item => {
+            if (!query) {
+                item.style.display = 'flex';
+                return;
+            }
+
+            const text = item.innerText.toLowerCase();
+            const match = text.includes(query);
+            item.style.display = match ? 'flex' : 'none';
+        });
+    }
 }
 
 
@@ -324,9 +377,7 @@ async function init() {
     document.getElementById('label-nav-dashboard').innerText = t('nav_dashboard');
     document.getElementById('label-nav-split').innerText = t('nav_split');
 
-    // Navigation events
-    navDashboard.onclick = () => switchView('dashboard');
-    navSplit.onclick = () => switchView('split');
+    document.getElementById('label-nav-split').innerText = t('nav_split');
 
     await loadQuizzes();
     hideLoader();
@@ -1278,40 +1329,6 @@ async function saveChanges() {
     }
 }
 
-// Search Logic
-searchInput.oninput = (e) => {
-    const query = e.target.value.toLowerCase().trim();
-    const items = questionsContainer.querySelectorAll('.question-item');
-    const isNumber = /^\d+$/.test(query);
-
-    // Reset highlights
-    items.forEach(i => i.classList.remove('highlight-pulse'));
-
-    if (isNumber && query) {
-        // "Scroll To" Mode for numbers
-        items.forEach(item => item.style.display = 'flex'); // Show all
-
-        const targetIndex = parseInt(query) - 1;
-        const targetItem = Array.from(items).find(item => parseInt(item.dataset.index) === targetIndex);
-
-        if (targetItem) {
-            targetItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            targetItem.classList.add('highlight-pulse');
-        }
-    } else {
-        // "Filter" Mode for text
-        items.forEach(item => {
-            if (!query) {
-                item.style.display = 'flex';
-                return;
-            }
-
-            const text = item.innerText.toLowerCase();
-            const match = text.includes(query);
-            item.style.display = match ? 'flex' : 'none';
-        });
-    }
-};
 
 function switchView(view) {
     currentView = view;
@@ -1355,8 +1372,10 @@ function hideLoader() {
     document.body.classList.remove('loading');
 }
 
-backBtn.onclick = () => switchView('dashboard');
-saveBtn.onclick = saveChanges;
 
-// Start
-init();
+// Final Guard: Wait for DOM complete
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
