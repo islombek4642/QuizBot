@@ -587,12 +587,27 @@ async def admin_silent_cleanup(message: types.Message, bot: Bot, db: AsyncSessio
 async def run_silent_cleanup_task(admin_chat_id: int, bot: Bot, lang: str):
     from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest, TelegramRetryAfter
     from sqlalchemy import select, update, delete
+    from models.quiz import Quiz
+    from models.session import QuizSession
     
     # We need a new session for the background task
     from db.session import AsyncSessionLocal as async_session_factory
     async with async_session_factory() as session:
-        # First: Mass-delete all users already marked as inactive to clean up stats immediately
+        # First: Mass-delete all users already marked as inactive
+        # Order matters! Sessions -> Quizzes -> Users
+        inactive_user_ids_query = select(User.telegram_id).where(User.is_active == False)
+        
+        # 1. Sessions for inactive users
+        await session.execute(delete(QuizSession).where(QuizSession.user_id.in_(inactive_user_ids_query)))
+        # 2. Sessions for quizzes created by inactive users
+        inactive_quiz_ids_query = select(Quiz.id).where(Quiz.user_id.in_(inactive_user_ids_query))
+        await session.execute(delete(QuizSession).where(QuizSession.quiz_id.in_(inactive_quiz_ids_query)))
+        # 3. Quizzes for inactive users
+        await session.execute(delete(Quiz).where(Quiz.user_id.in_(inactive_user_ids_query)))
+        # 4. Inactive Users
         await session.execute(delete(User).where(User.is_active == False))
+        
+        # Groups can be deleted directly as they have no FK dependencies
         await session.execute(delete(Group).where(Group.is_active == False))
         await session.commit()
 
@@ -655,8 +670,21 @@ async def run_silent_cleanup_task(admin_chat_id: int, bot: Bot, lang: str):
             # Periodic deletion and progress update
             if i % settings.CLEANUP_BATCH_SIZE == 0 or i == total:
                 if dead_user_ids:
+                    # Satisfy FK constraints for batch deletion
+                    # 1. Sessions for dead users
+                    await session.execute(delete(QuizSession).where(QuizSession.user_id.in_(dead_user_ids)))
+                    
+                    # 2. Sessions for quizzes created by dead users
+                    dead_quiz_ids_query = select(Quiz.id).where(Quiz.user_id.in_(dead_user_ids))
+                    await session.execute(delete(QuizSession).where(QuizSession.quiz_id.in_(dead_quiz_ids_query)))
+                    
+                    # 3. Quizzes for dead users
+                    await session.execute(delete(Quiz).where(Quiz.user_id.in_(dead_user_ids)))
+                    
+                    # 4. User record
                     await session.execute(delete(User).where(User.telegram_id.in_(dead_user_ids)))
                     dead_user_ids = []
+                    
                 if dead_group_ids:
                     await session.execute(delete(Group).where(Group.telegram_id.in_(dead_group_ids)))
                     dead_group_ids = []
