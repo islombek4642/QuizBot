@@ -164,21 +164,29 @@ class StatsService:
         return leaderboard
 
     async def get_group_leaderboard(self, limit: int = 50) -> List[dict]:
+        from models.group import Group
         # Sort by average score (fair for small/large groups)
         query = (
-            select(GroupStat)
+            select(
+                GroupStat.chat_id,
+                GroupStat.avg_score,
+                Group.title,
+                Group.username
+            )
+            .join(Group, Group.telegram_id == GroupStat.chat_id)
             .order_by(desc(GroupStat.avg_score))
             .limit(limit)
         )
         result = await self.db.execute(query)
-        groups = result.scalars().all()
+        rows = result.all()
         
         return [{
             "rank": i,
-            "chat_id": g.chat_id,
-            "title": g.title or f"Group {g.chat_id}",
-            "score": round(g.avg_score, 1)
-        } for i, g in enumerate(groups, 1)]
+            "chat_id": row.chat_id,
+            "title": row.title or f"Group {row.chat_id}",
+            "username": row.username,
+            "score": round(row.avg_score, 1)
+        } for i, row in enumerate(rows, 1)]
 
     async def get_user_rank(self, user_id: int, period: str = 'total') -> Optional[dict]:
         """Get specific user's current rank and score"""
