@@ -67,26 +67,33 @@ class AuthMiddleware(BaseMiddleware):
         # Basic data
         user_service: UserService = data.get("user_service")
         telegram_id = event.from_user.id
-        
-        # Always fetch/create user to get language and check phone
-        user, is_new = await user_service.get_or_create_user(telegram_id)
-        
-        # Auto-update username and full_name if changed
         tg_user = event.from_user
-        needs_update = False
-        update_fields = {}
-        
-        if tg_user.username and tg_user.username != user.username:
-            update_fields["username"] = tg_user.username
-            needs_update = True
-        
+
+        # Extract current profile data from Telegram
         full_name = f"{tg_user.first_name} {tg_user.last_name}".strip() if tg_user.last_name else tg_user.first_name
-        if full_name and full_name != user.full_name:
-            update_fields["full_name"] = full_name
-            needs_update = True
+        current_data = {
+            "username": tg_user.username,
+            "full_name": full_name
+        }
         
-        if needs_update:
-            user = await user_service.update_user(telegram_id, **update_fields)
+        # Always fetch/create user with latest profile info
+        user, is_new = await user_service.get_or_create_user(telegram_id, **current_data)
+        
+        # Auto-update if profile info changed (only if not new)
+        if not is_new:
+            needs_update = False
+            update_fields = {}
+            
+            if tg_user.username and tg_user.username != user.username:
+                update_fields["username"] = tg_user.username
+                needs_update = True
+            
+            if full_name and full_name != user.full_name:
+                update_fields["full_name"] = full_name
+                needs_update = True
+            
+            if needs_update:
+                user = await user_service.update_user(telegram_id, **update_fields)
         
         data["user"] = user
         data["lang"] = user.language if user else "UZ"

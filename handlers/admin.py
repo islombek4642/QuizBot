@@ -56,8 +56,14 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
     
     builder = InlineKeyboardBuilder()
     for i, user in enumerate(users, 1 + offset):
-        # Improve name display logic
-        name = user.full_name or (f"@{user.username}" if user.username else f"Foydalanuvchi {user.telegram_id}")
+        # Improved name display logic: show both Name and @username if available
+        parts = []
+        if user.full_name:
+            parts.append(user.full_name)
+        if user.username:
+            parts.append(f"(@{user.username})")
+        
+        name = " ".join(parts) if parts else f"Foydalanuvchi {user.telegram_id}"
         
         # Phone indicator: ✅ if shared, ⚠️ if not
         indicator = "✅" if user.phone_number else "⚠️"
