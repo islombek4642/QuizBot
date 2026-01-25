@@ -21,6 +21,7 @@ from typing import List, Optional
 from core.config import settings
 from datetime import datetime
 from db.session import get_db, get_redis
+from fastapi import Header
 
 logger = structlog.get_logger()
 
