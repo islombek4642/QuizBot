@@ -182,7 +182,14 @@ const TRANSLATIONS = {
         date_format: "uz-UZ",
         delete_question: "O'chirish",
         add_question: "➕ Savol qo'shish",
-        confirm_delete: "Rostdan ham bu savolni o'chirmoqchimisiz?"
+        confirm_delete: "Rostdan ham bu savolni o'chirmoqchimisiz?",
+        split_quiz: "Bo'lish",
+        split_parts: "Testni nechta qismga bo'lmoqchisiz?",
+        split_size: "Har bir qismda nechta savol bo'lsin?",
+        split_success: "Test muvaffaqiyatli bo'lindi! ✅",
+        split_info: "Katta testni kichikroq testlarga bo'lish.",
+        split_type_parts: "Qismlar soni bo'yicha",
+        split_type_size: "Savollar soni bo'yicha",
     },
     EN: {
         my_quizzes: "My Quizzes",
@@ -205,7 +212,14 @@ const TRANSLATIONS = {
         date_format: "en-US",
         delete_question: "Delete",
         add_question: "➕ Add Question",
-        confirm_delete: "Are you sure you want to delete this question?"
+        confirm_delete: "Are you sure you want to delete this question?",
+        split_quiz: "Split",
+        split_parts: "How many parts do you want to split into?",
+        split_size: "How many questions per part?",
+        split_success: "Quiz split successfully! ✅",
+        split_info: "Split a large quiz into smaller parts.",
+        split_type_parts: "By number of parts",
+        split_type_size: "By questions per part",
     }
 };
 
@@ -341,7 +355,7 @@ async function showAuthRedirect() {
         link = link.replace("t.me/@", "t.me/");
         return link;
     }
-    
+
     try {
         const res = await fetch(`${API_BASE}/bot-info`);
         if (res.ok) {
@@ -375,11 +389,11 @@ async function showAuthRedirect() {
                 window.Telegram.WebApp.openTelegramLink(botLink);
                 return false;
             }
-        } catch (_) {}
+        } catch (_) { }
         window.open(botLink, '_blank');
         return false;
     };
-    
+
     const landingHTML = `
         <style>
             @keyframes float {
@@ -820,11 +834,79 @@ function renderQuizList() {
         const card = document.createElement('div');
         card.className = 'quiz-card glass';
         card.innerHTML = `
-            <h3>${quiz.title}</h3>
-            <p>${quiz.questions_count} ${t('questions_count')} • ${new Date(quiz.created_at).toLocaleDateString(t('date_format'))}</p>
+            <div class="quiz-card-content" onclick="openEditor(${quiz.id})">
+                <h3>${escapeHtml(quiz.title)}</h3>
+                <p>${quiz.questions_count} ${t('questions_count')} • ${new Date(quiz.created_at).toLocaleDateString(t('date_format'))}</p>
+            </div>
+            <div class="quiz-card-actions">
+                <button class="secondary-btn" onclick="requestSplit(${quiz.id}, ${quiz.questions_count})">
+                   ✂️ ${t('split_quiz')}
+                </button>
+            </div>
         `;
-        card.onclick = () => openEditor(quiz.id);
         quizList.appendChild(card);
+    });
+}
+
+/**
+ * Quiz Splitting logic
+ */
+async function requestSplit(quizId, totalCount) {
+    tg.showPopup({
+        title: t('split_quiz'),
+        message: `${t('split_info')}\n\n${t('questions_count').toUpperCase()}: ${totalCount}`,
+        buttons: [
+            { id: 'parts', text: t('split_type_parts'), type: 'default' },
+            { id: 'size', text: t('split_type_size'), type: 'default' },
+            { type: 'cancel' }
+        ]
+    }, async (buttonId) => {
+        if (!buttonId || buttonId === 'cancel') return;
+
+        let promptText = '';
+        let paramName = '';
+
+        if (buttonId === 'parts') {
+            promptText = t('split_parts');
+            paramName = 'parts';
+        } else {
+            promptText = t('split_size');
+            paramName = 'size';
+        }
+
+        // Native prompt for simplicity in MVP, custom modal later if requested
+        const numValue = window.prompt(promptText, "2");
+        if (!numValue) return;
+
+        const val = parseInt(numValue);
+        if (isNaN(val) || val <= 0) return;
+
+        const body = {};
+        body[paramName] = val;
+
+        showLoader();
+        try {
+            const headers = getAuthHeaders();
+            headers['Content-Type'] = 'application/json';
+            const res = await fetch(`${API_BASE}/quizzes/${quizId}/split`, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(body)
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.detail || t('error_save'));
+            }
+
+            tg.showAlert(t('split_success'));
+            await loadQuizzes(); // Refresh list
+        } catch (err) {
+            console.error(err);
+            tg.showAlert(err.message);
+        } finally {
+            hideLoader();
+        }
     });
 }
 

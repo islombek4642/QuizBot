@@ -98,3 +98,39 @@ class QuizService:
         await self.db.commit()
         logger.info("Quiz updated", quiz_id=quiz_id, user_id=user_id)
         return True
+    async def split_quiz(self, quiz_id: int, user_id: int, parts: int = None, size: int = None):
+        """Split a quiz into multiple parts by either number of parts or questions per part."""
+        quiz = await self.get_quiz_by_id_and_user(quiz_id, user_id)
+        if not quiz:
+            return []
+            
+        questions = quiz.questions_json
+        total = len(questions)
+        
+        if parts:
+            size = (total + parts - 1) // parts
+            
+        if not size or size <= 0:
+            return []
+            
+        new_quizzes = []
+        for i in range(0, total, size):
+            chunk = questions[i:i+size]
+            part_num = (i // size) + 1
+            new_title = f"{quiz.title} - {part_num}-qism"
+            
+            new_quiz = Quiz(
+                user_id=user_id,
+                title=new_title,
+                questions_json=chunk,
+                shuffle_options=quiz.shuffle_options
+            )
+            self.db.add(new_quiz)
+            new_quizzes.append(new_quiz)
+            
+        await self.db.commit()
+        for nq in new_quizzes:
+            await self.db.refresh(nq)
+            
+        logger.info("Quiz split", original_id=quiz_id, new_count=len(new_quizzes), user_id=user_id)
+        return new_quizzes

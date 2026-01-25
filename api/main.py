@@ -345,6 +345,43 @@ async def update_quiz(
         raise HTTPException(status_code=404, detail="Quiz not found or unauthorized")
         
     return {"status": "success"}
+class QuizSplitRequest(BaseModel):
+    """Request body for splitting a quiz."""
+    parts: Optional[int] = Field(None, description="Number of parts to split into", ge=1)
+    size: Optional[int] = Field(None, description="Number of questions per part", ge=1)
+
+
+@app.post(
+    "/api/quizzes/{quiz_id}/split",
+    response_model=List[QuizListItem],
+    tags=["quizzes"],
+    summary="Split quiz",
+    description="Splits a quiz into multiple smaller quizzes by parts or questions per part.",
+    responses={
+        200: {"description": "List of new quiz parts"},
+        401: {"description": "Authentication required"},
+        400: {"description": "Invalid parameters or quiz not found"},
+    },
+)
+async def split_quiz(
+    quiz_id: int, 
+    split_req: QuizSplitRequest, 
+    user_id: int = Depends(get_current_user), 
+    db: AsyncSession = Depends(get_db)
+):
+    """Split an existing quiz into multiple parts."""
+    service = QuizService(db)
+    
+    new_quizzes = await service.split_quiz(quiz_id, user_id, parts=split_req.parts, size=split_req.size)
+    if not new_quizzes:
+        raise HTTPException(status_code=400, detail="Could not split quiz. Check parameters or quiz ownership.")
+        
+    return [{
+        "id": q.id,
+        "title": q.title,
+        "questions_count": len(q.questions_json),
+        "created_at": q.created_at
+    } for q in new_quizzes]
 
 
 @app.get(
