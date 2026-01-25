@@ -1134,3 +1134,159 @@ body {
     padding: 0;
     width: 100%;
 }
+/* Performance View Styles */
+.perf-stats-card {
+    padding: 24px;
+    border-radius: 24px;
+    margin-bottom: 24px;
+    text-align: center;
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9));
+    border: 1px solid var(--border-color);
+}
+
+#perf-user-name {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: var(--accent-color);
+}
+
+.perf-main-row {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin-bottom: 20px;
+}
+
+.perf-stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.perf-val {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1;
+}
+
+.perf-lbl {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 4px;
+}
+
+.rules-guide-btn {
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px dashed var(--accent-color);
+    color: var(--accent-color);
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+}
+
+.rules-guide-btn:active {
+    background: rgba(56, 189, 248, 0.2);
+    transform: scale(0.98);
+}
+
+.perf-section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: var(--text-muted);
+    padding-left: 4px;
+}
+
+.perf-list {
+    display: grid;
+    gap: 12px;
+}
+
+.perf-item {
+    padding: 16px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.perf-item-info {
+    flex: 1;
+}
+
+.perf-item-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.perf-item-stats {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    display: flex;
+    gap: 12px;
+}
+
+.perf-item-score {
+    text-align: right;
+}
+
+.score-val {
+    font-size: 1.1rem;
+    font-weight: 700;
+    display: block;
+}
+
+.score-val.positive { color: var(--success-color); }
+.score-val.negative { color: var(--danger-color); }
+
+/* Rules Modal Refinement */
+.rules-container {
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.rules-list {
+    display: grid;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.rule-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+}
+
+.rule-icon {
+    font-size: 1.5rem;
+    min-width: 32px;
+    text-align: center;
+}
+
+.rule-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.rule-desc {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.rule-item.limit {
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    background: rgba(239, 68, 68, 0.05);
+}
