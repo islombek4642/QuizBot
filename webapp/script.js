@@ -1517,13 +1517,26 @@ function collectCurrentState() {
 }
 
 function deleteQuestion(index) {
-    if (!confirm(t('confirm_delete'))) return;
-    collectCurrentState();
-    currentQuizData.questions.splice(index, 1);
-    renderEditor();
+    showConfirmModal({
+        title: t('delete_question'),
+        text: t('confirm_delete'),
+        icon: '🗑️',
+        isDanger: true,
+        onConfirm: () => {
+            collectCurrentState();
+            currentQuizData.questions.splice(index, 1);
+            renderEditor();
+        }
+    });
 }
 
 function addQuestion() {
+    const count = questionsContainer.querySelectorAll('.question-item').length;
+    if (count >= 50) {
+        tg.showAlert('Sizda maksimal 50 ta savol bo\'lishi mumkin!');
+        return;
+    }
+
     collectCurrentState();
     currentQuizData.questions.push({
         question: "",
@@ -1534,7 +1547,7 @@ function addQuestion() {
 
     // Scroll to bottom after render
     setTimeout(() => {
-        window.scrollTo(0, document.body.scrollHeight);
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     }, 100);
 }
 
