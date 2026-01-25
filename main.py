@@ -11,6 +11,7 @@ from services.backup_service import send_backup_to_admin
 from services.monitoring_service import monitor_sessions
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from sqlalchemy import text
 
 async def start_api():
     import uvicorn
@@ -43,9 +44,22 @@ async def main():
     from db.session import engine
     from models.base import Base
     import models.user, models.quiz, models.stats # Ensure all models are registered
+    
     async with engine.begin() as conn:
+        # 1. Create tables if not exist
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables verified/created.")
+        
+        # 2. Manual Migrations (Add missing columns)
+        logger.info("Running database migrations...")
+        
+        # Add is_active to users if missing
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE"))
+        await conn.execute(text("UPDATE users SET is_active = TRUE WHERE is_active IS NULL"))
+        
+        # Add quiz_id to point_logs if missing
+        await conn.execute(text("ALTER TABLE point_logs ADD COLUMN IF NOT EXISTS quiz_id INTEGER REFERENCES quizzes(id)"))
+        
+    logger.info("Database migration and tables verification completed.")
 
     # Initialize Redis
     redis = Redis.from_url(settings.REDIS_URL, decode_responses=True)
