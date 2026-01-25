@@ -671,8 +671,15 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
     if group_lang:
         lang = group_lang
 
+    summary = Messages.get("GROUP_QUIZ_SUMMARY", lang).format(
+        count=len(participants),
+        answered_count=quiz_state.get("current_index", 0),
+        total=quiz_state.get("total_questions", 0),
+        skipped=quiz_state.get("skipped_count", 0)
+    )
+
     if not participants:
-        await bot.send_message(chat_id, Messages.get("QUIZ_FINISHED", lang))
+        await bot.send_message(chat_id, Messages.get("QUIZ_FINISHED", lang) + summary, parse_mode="HTML")
     else:
         # Sort by correct then total_time (less is better)
         # We use -stats['correct'] for descending and stats.get('total_time', 0) for ascending
@@ -711,15 +718,6 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
             total_time_str = format_duration(stats.get('total_time', 0), lang)
             leaderboard += f"{rank_str} <a href='tg://user?id={uid}'>{name}</a> – <b>{stats['correct']}</b>/{stats['answered']} ({total_time_str})\n"
         
-        # Summary footer
-        answered_count = quiz_state.get("current_index", 0)
-        
-        summary = Messages.get("GROUP_QUIZ_SUMMARY", lang).format(
-            count=len(participants),
-            answered_count=answered_count,
-            total=quiz_state.get("total_questions", 0),
-            skipped=quiz_state.get("skipped_count", 0)
-        )
         await bot.send_message(chat_id, leaderboard + summary, parse_mode="HTML")
     
     # Clean up

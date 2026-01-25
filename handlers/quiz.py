@@ -1280,16 +1280,9 @@ async def show_stats(bot: Bot, session: Any, lang: str):
     correct = session.correct_count
     answered = session.answered_count
     
-    # Use updated_at for inactive sessions if possible, or current time
-    # updated_at is a datetime object, start_time is float
-    import datetime
-    if not session.is_active:
-        # Assuming updated_at is when it was stopped/finished
-        duration = (session.updated_at.replace(tzinfo=datetime.timezone.utc).timestamp() - session.start_time)
-    else:
-        duration = time.time() - session.start_time
-    
-    # If duration is negative or zero (e.g. very fast finish), set to 1
+    # Calculate duration (time elapsed since start)
+    duration = time.time() - session.start_time
+    # If duration is negative or zero (e.g. clock sync issues), set to 1
     duration = max(1.0, duration)
     avg_time = duration / answered if answered > 0 else 0
     # Percent removed as requested
