@@ -183,19 +183,24 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     )
     total_sessions = res_total_sessions.scalar() or 0
     
-    # Active quizzes (Group) - Redis keys with 4h TTL
-    keys = await redis.keys("group_quiz:*")
-    active_group_quizzes = len(keys)
+    # Active quizzes (Group) - Redis keys for in-progress quizzes
+    group_keys = await redis.keys("group_quiz:*")
+    active_group_quizzes = len(group_keys)
     
-    # Active sessions (Private) - Filter by updated_at within last 30 minutes to avoid restart ghosts
-    activity_threshold = datetime.now() - timedelta(minutes=30)
+    # Active lobbies (Group)
+    lobby_keys = await redis.keys("quiz_lobby:*")
+    active_lobbies = len(lobby_keys)
+    
+    # Active sessions (Private) - Filter by updated_at within last 1 minute 
+    # Alignment: Monitor runs every 30s, so 1m threshold is perfect for 'Active'
+    activity_threshold = datetime.now() - timedelta(minutes=1)
     res_active_sessions = await db.execute(
         select(func.count(QuizSession.id))
         .filter(QuizSession.is_active == True, QuizSession.updated_at > activity_threshold)
     )
-    active_private_quizzes = res_active_sessions.scalar()
+    active_private_quizzes = res_active_sessions.scalar() or 0
     
-    total_active = active_group_quizzes + active_private_quizzes
+    total_active = active_group_quizzes + active_private_quizzes + active_lobbies
 
     # AI Stats
     ai_gen_total = await redis.get("stats:ai_gen_total") or 0
@@ -228,6 +233,7 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
         total_sessions=total_sessions,
         active_quizzes=total_active,
         active_groups=active_group_quizzes,
+        active_lobbies=active_lobbies,
         active_private=active_private_quizzes,
         ai_gen_total=int(ai_gen_total),
         ai_conv_total=int(ai_conv_total),
