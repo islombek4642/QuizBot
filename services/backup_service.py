@@ -206,13 +206,22 @@ async def perform_smart_merge(file_path: str, session):
                         continue
             return date_str  # Already datetime or None
 
+        # Get actual model columns
+        user_columns = {c.name for c in User.__table__.columns}
+        group_columns = {c.name for c in Group.__table__.columns}
+
         for u in user_data:
             try:
                 # Convert types safely with defaults for missing columns
                 u["id"] = int(u["id"])
                 u["telegram_id"] = int(u["telegram_id"])
                 u["is_active"] = safe_get(u, "is_active", "t") == "t"
-                u["ai_credits"] = int(safe_get(u, "ai_credits", 0) or 0)  # Default for old backups
+                
+                # Only add ai_credits if it exists in the current schema
+                if "ai_credits" in user_columns:
+                    u["ai_credits"] = int(safe_get(u, "ai_credits", 0) or 0)
+                elif "ai_credits" in u:
+                    del u["ai_credits"]  # Remove if it's in backup but not in schema
                 
                 # Parse datetime fields
                 if "created_at" in u:
@@ -220,8 +229,11 @@ async def perform_smart_merge(file_path: str, session):
                 if "updated_at" in u:
                     u["updated_at"] = parse_datetime(u["updated_at"])
                 
+                # Only keep columns that exist in the model
+                u_filtered = {k: v for k, v in u.items() if k in user_columns}
+                
                 # Use insert().on_conflict_do_nothing explicitly for postgres
-                stmt = insert(User).values(**u).on_conflict_do_nothing(index_elements=["telegram_id"])
+                stmt = insert(User).values(**u_filtered).on_conflict_do_nothing(index_elements=["telegram_id"])
                 res = await session.execute(stmt)
                 if res.rowcount > 0: stats["u_new"] += 1
                 else: stats["u_old"] += 1
@@ -241,7 +253,10 @@ async def perform_smart_merge(file_path: str, session):
                 if "updated_at" in g:
                     g["updated_at"] = parse_datetime(g["updated_at"])
                 
-                stmt = insert(Group).values(**g).on_conflict_do_nothing(index_elements=["telegram_id"])
+                # Only keep columns that exist in the model
+                g_filtered = {k: v for k, v in g.items() if k in group_columns}
+                
+                stmt = insert(Group).values(**g_filtered).on_conflict_do_nothing(index_elements=["telegram_id"])
                 res = await session.execute(stmt)
                 if res.rowcount > 0: stats["g_new"] += 1
                 else: stats["g_old"] += 1
