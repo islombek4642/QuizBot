@@ -43,7 +43,13 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
     total_result = await db.execute(
         select(func.count(User.id)).filter(User.is_active == True)
     )
-    total_users = total_result.scalar()
+    total_users = total_result.scalar() or 0
+    
+    # Get registered count (active users with phone)
+    registered_result = await db.execute(
+        select(func.count(User.id)).filter(User.is_active == True, User.phone_number != None)
+    )
+    registered_users = registered_result.scalar() or 0
     
     # Get users for page (only active users)
     result = await db.execute(
@@ -52,7 +58,10 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
     )
     users = result.scalars().all()
     
-    text = Messages.get("ADMIN_USERS_TITLE", lang).format(total=total_users) + "\n\n"
+    text = Messages.get("ADMIN_USERS_TITLE", lang).format(
+        total=total_users, 
+        registered=registered_users
+    ) + "\n\n"
     
     builder = InlineKeyboardBuilder()
     for i, user in enumerate(users, 1 + offset):
