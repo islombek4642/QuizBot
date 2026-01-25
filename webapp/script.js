@@ -69,6 +69,19 @@ let currentQuizData = null;
 let currentView = 'dashboard';
 let authToken = null;
 
+function updateEditorCounter() {
+    const counterEl = document.getElementById('editor-counter');
+    if (!counterEl) return;
+    const count = questionsContainer.querySelectorAll('.question-item').length;
+    counterEl.innerText = `${count} / 50`;
+
+    if (count >= 50) {
+        counterEl.style.color = '#ef4444'; // Danger color
+    } else {
+        counterEl.style.color = 'var(--accent-color)';
+    }
+}
+
 // Elements
 let loader, appContainer, quizList, dashboardView, editorView, questionsContainer, pageTitle, backBtn, editorActions, saveBtn, searchInput, splitView, splitQuizList, navDashboard, navSplit, bottomNav, leaderboardView, lbList, navLeaderboard, myRankBar;
 
@@ -1578,6 +1591,8 @@ function renderEditor() {
 
         questionsContainer.appendChild(item);
     });
+
+    updateEditorCounter();
 
     // Add "Add Question" button at the end
     const addBtnContainer = document.createElement('div');
