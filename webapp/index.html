@@ -75,10 +75,11 @@
                             <span class="perf-lbl">Rank</span>
                         </div>
                     </div>
-                    <button id="show-rules-btn" class="rules-guide-btn">📘 Tizim qoidalari</button>
+                    <button id="show-rules-btn" class="rules-guide-btn">📘 <span id="label-rules-btn">Tizim
+                            qoidalari</span></button>
                 </div>
 
-                <div class="perf-section-title">Test Results History</div>
+                <div class="perf-section-title" id="perf-history-title">Test Results History</div>
                 <div id="perf-history-list" class="perf-list">
                     <!-- History items will be loaded here -->
                 </div>
@@ -168,43 +169,43 @@
                     <div class="rule-item">
                         <span class="rule-icon">✅</span>
                         <div class="rule-info">
-                            <div class="rule-title">To‘g‘ri javob</div>
-                            <div class="rule-desc">+5 ball</div>
+                            <div class="rule-title" id="rule-correct-title">To‘g‘ri javob</div>
+                            <div class="rule-desc" id="rule-correct-desc">+5 ball</div>
                         </div>
                     </div>
                     <div class="rule-item">
                         <span class="rule-icon">⚡</span>
                         <div class="rule-info">
-                            <div class="rule-title">Tezlik bonusi (3s)</div>
-                            <div class="rule-desc">+10 ball</div>
+                            <div class="rule-title" id="rule-speed-title">Tezlik bonusi (3s)</div>
+                            <div class="rule-desc" id="rule-speed-desc">+10 ball</div>
                         </div>
                     </div>
                     <div class="rule-item">
                         <span class="rule-icon">🔥</span>
                         <div class="rule-info">
-                            <div class="rule-title">Seriya (10 ta)</div>
-                            <div class="rule-desc">+10 ball</div>
+                            <div class="rule-title" id="rule-streak-title">Seriya (10 ta)</div>
+                            <div class="rule-desc" id="rule-streak-desc">+10 ball</div>
                         </div>
                     </div>
                     <div class="rule-item">
                         <span class="rule-icon">❌</span>
                         <div class="rule-info">
-                            <div class="rule-title">Noto‘g‘ri javob</div>
-                            <div class="rule-desc">-10 ball</div>
+                            <div class="rule-title" id="rule-wrong-title">Noto‘g‘ri javob</div>
+                            <div class="rule-desc" id="rule-wrong-desc">-10 ball</div>
                         </div>
                     </div>
                     <div class="rule-item">
                         <span class="rule-icon">⏱</span>
                         <div class="rule-info">
-                            <div class="rule-title">Vaqt tugashi</div>
-                            <div class="rule-desc">-5 ball</div>
+                            <div class="rule-title" id="rule-timeout-title">Vaqt tugashi</div>
+                            <div class="rule-desc" id="rule-timeout-desc">-5 ball</div>
                         </div>
                     </div>
                     <div class="rule-item limit">
                         <span class="rule-icon">🚫</span>
                         <div class="rule-info">
-                            <div class="rule-title">Kunlik limit</div>
-                            <div class="rule-desc">Maksimal 2000 ball</div>
+                            <div class="rule-title" id="rule-limit-title">Kunlik limit</div>
+                            <div class="rule-desc" id="rule-limit-desc">Maksimal 2000 ball</div>
                         </div>
                     </div>
                 </div>

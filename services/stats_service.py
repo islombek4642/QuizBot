@@ -140,6 +140,7 @@ class StatsService:
 
         query = (
             query.group_by(PointLog.user_id, User.full_name, User.username)
+            .having(func.sum(PointLog.points) != 0) # Only show users with non-zero points
             .order_by(desc('score'))
             .limit(limit)
         )
