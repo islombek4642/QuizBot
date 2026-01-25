@@ -16,6 +16,7 @@ from db.session import get_db
 from models.user import User
 from models.quiz import Quiz
 from services.quiz_service import QuizService
+from services.stats_service import StatsService
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from core.config import settings
@@ -158,6 +159,24 @@ class SuccessResponse(BaseModel):
     """Generic success response."""
     status: str = Field(default="success", description="Operation status")
 
+class LeaderboardEntry(BaseModel):
+    rank: int
+    user_id: int
+    name: str
+    username: Optional[str] = None
+    score: int
+
+class GroupLeaderboardEntry(BaseModel):
+    rank: int
+    chat_id: int
+    title: str
+    score: int
+
+class LeaderboardResponse(BaseModel):
+    users: List[LeaderboardEntry]
+    groups: List[GroupLeaderboardEntry]
+    user_rank: Optional[LeaderboardEntry] = None
+
 def verify_telegram_data(init_data: str, max_age_seconds: int = 3600) -> Optional[int]:
     """
     Verify Telegram WebApp initData and return the user ID.
@@ -268,6 +287,31 @@ def get_current_user(
     headers = dict(request.headers)
     logger.warning("Auth failed: Missing or invalid credentials", headers=headers)
     raise HTTPException(status_code=401, detail="Unauthorized")
+
+@app.get(
+    "/api/leaderboard",
+    response_model=LeaderboardResponse,
+    tags=["info"],
+    summary="Get leaderboard",
+    description="Returns top users and groups based on points. Period can be 'daily', 'weekly', or 'total'.",
+)
+async def get_leaderboard_endpoint(
+    period: str = "total", 
+    user_id: int = Depends(get_current_user), 
+    db: AsyncSession = Depends(get_db)
+):
+    """Get global leaderboard and current user's rank."""
+    service = StatsService(db)
+    
+    users = await service.get_user_leaderboard(period=period, limit=50)
+    groups = await service.get_group_leaderboard(limit=50)
+    user_rank = await service.get_user_rank(user_id, period=period)
+    
+    return {
+        "users": users,
+        "groups": groups,
+        "user_rank": user_rank
+    }
 
 @app.get(
     "/api/quizzes",

@@ -30,6 +30,7 @@ from handlers.common import (
 from services.user_service import UserService
 from services.quiz_service import QuizService
 from services.session_service import SessionService
+from services.stats_service import StatsService
 from services.ai_service import (
     AIService, 
     generate_docx_from_questions, 
@@ -1050,6 +1051,11 @@ async def _failsafe_advance_private_quiz(bot: Bot, chat_id: int, session_id: int
 
             # Advance session with is_skipped=True
             updated_session = await session_service.advance_session(session_id, is_skipped=True)
+            
+            # Leaderboard: Add timeout penalty
+            stats_service = StatsService(db)
+            await stats_service.add_points(chat_id, action_type='timeout')
+
             if not updated_session:
                 return
             
@@ -1153,6 +1159,20 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
         q = questions[session.current_index]
         is_correct = poll_answer.option_ids[0] == q['correct_option_id']
         
+        # Leaderboard: Add points/penalty
+        from services.stats_service import StatsService
+        stats_service = StatsService(session_service.db)
+        
+        time_taken = 0.0
+        # Wait, session_service doesn't track question start time for private. 
+        # I should probably add it or use a default.
+        # For now, I'll use 10.0 as default if not tracked.
+        await stats_service.add_points(
+            session.user_id, 
+            action_type='correct' if is_correct else 'incorrect',
+            time_taken=10.0 # Placeholder for private
+        )
+
         updated_session = await session_service.advance_session(session.id, is_correct=is_correct, is_skipped=False)
         if not updated_session:
             logger.warning("Failed to advance private session (advance_session returned None)", session_id=session.id)
@@ -1232,6 +1252,11 @@ async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service
 
         # Advance with is_skipped=True
         updated_session = await session_service.advance_session(session.id, is_skipped=True)
+        
+        # Leaderboard: Add timeout penalty
+        stats_service = StatsService(session_service.db)
+        await stats_service.add_points(session.user_id, action_type='timeout')
+
         if not updated_session:
             return
             

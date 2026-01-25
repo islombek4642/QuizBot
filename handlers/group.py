@@ -25,6 +25,7 @@ from services.user_service import UserService
 from services.quiz_service import QuizService
 from services.session_service import SessionService
 from services.group_service import GroupService
+from services.stats_service import StatsService
 from models.group import Group
 from core.config import settings
 from core.logger import logger
@@ -994,6 +995,15 @@ async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot,
         if is_correct:
             participants[user_key]["correct"] += 1
         
+        # Leaderboard: Add points/penalty
+        stats_service = StatsService(session_service.db)
+        await stats_service.add_points(
+            user_id=user_id,
+            chat_id=chat_id,
+            action_type='correct' if is_correct else 'incorrect',
+            time_taken=time_taken
+        )
+
         quiz_state["participants"] = participants
         
         # Increment vote count for current question

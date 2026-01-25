@@ -47,7 +47,7 @@ let currentView = 'dashboard';
 let authToken = null;
 
 // Elements
-let loader, appContainer, quizList, dashboardView, editorView, questionsContainer, pageTitle, backBtn, editorActions, saveBtn, searchInput, splitView, splitQuizList, navDashboard, navSplit, bottomNav;
+let loader, appContainer, quizList, dashboardView, editorView, questionsContainer, pageTitle, backBtn, editorActions, saveBtn, searchInput, splitView, splitQuizList, navDashboard, navSplit, bottomNav, leaderboardView, lbList, navLeaderboard, myRankBar;
 
 function initElements() {
     loader = document.getElementById('loader');
@@ -66,6 +66,10 @@ function initElements() {
     navDashboard = document.getElementById('nav-dashboard');
     navSplit = document.getElementById('nav-split');
     bottomNav = document.querySelector('.bottom-nav');
+    leaderboardView = document.getElementById('leaderboard');
+    lbList = document.getElementById('lb-list');
+    navLeaderboard = document.getElementById('nav-leaderboard');
+    myRankBar = document.getElementById('my-rank-bar');
 
     // Split Modal Elements
     const splitModal = document.getElementById('split-modal');
@@ -376,6 +380,12 @@ const TRANSLATIONS = {
         desc_type_size: "Har bir qismda nechta savol bo'lishi",
         btn_cancel: "Bekor qilish",
         btn_confirm_split: "Bo'lishni tasdiqlash",
+        leaderboard_title: "Reyting 🏆",
+        nav_leaderboard: "Reyting",
+        lb_users: "Foydalanuvchilar",
+        lb_groups: "Guruhlar",
+        pts: "ball",
+        my_rank: "Sizning o'riningiz",
     },
     EN: {
         my_quizzes: "My Quizzes",
@@ -417,6 +427,12 @@ const TRANSLATIONS = {
         desc_type_size: "Questions per part",
         btn_cancel: "Cancel",
         btn_confirm_split: "Confirm Split",
+        leaderboard_title: "Leaderboard 🏆",
+        nav_leaderboard: "Ranking",
+        lb_users: "Users",
+        lb_groups: "Groups",
+        pts: "pts",
+        my_rank: "Your Rank",
     }
 };
 
@@ -462,7 +478,13 @@ async function init() {
     document.querySelector('#no-quizzes p').innerText = t('no_quizzes');
     pageTitle.innerText = t('my_quizzes');
     document.getElementById('label-nav-dashboard').innerText = t('nav_dashboard');
-    document.getElementById('label-nav-split').innerText = t('nav_split');
+    if (document.getElementById('label-nav-leaderboard')) {
+        document.getElementById('label-nav-leaderboard').innerText = t('nav_leaderboard');
+    }
+
+    // Set LB type buttons
+    if (document.getElementById('lb-type-users')) document.getElementById('lb-type-users').innerText = "👤 " + t('lb_users');
+    if (document.getElementById('lb-type-groups')) document.getElementById('lb-type-groups').innerText = "👥 " + t('lb_groups');
 
     // Localization for split modal
     document.getElementById('split-modal-title').innerText = t('split_modal_title');
@@ -1407,6 +1429,11 @@ function switchView(view) {
         backBtn.style.display = 'block';
         editorActions.style.display = 'block';
         bottomNav.style.display = 'none';
+    } else if (view === 'leaderboard') {
+        leaderboardView.style.display = 'block';
+        pageTitle.innerText = t('leaderboard_title');
+        navLeaderboard.classList.add('active');
+        loadLeaderboard();
     }
 }
 
@@ -1419,6 +1446,79 @@ function hideLoader() {
     loader.style.display = 'none';
     appContainer.style.display = 'block';
     document.body.classList.remove('loading');
+}
+
+// === Leaderboard Logic ===
+let lbData = null;
+async function loadLeaderboard(period = 'total') {
+    lbList.innerHTML = '<div class="lb-loader"><div class="spinner"></div></div>';
+    myRankBar.style.display = 'none';
+
+    try {
+        const headers = getAuthHeaders();
+        const res = await fetch(`${CONFIG.API_BASE}/leaderboard?period=${period}`, { headers });
+        if (!res.ok) throw new Error("Failed to load leaderboard");
+
+        lbData = await res.json();
+        renderLeaderboard();
+    } catch (err) {
+        console.error(err);
+        lbList.innerHTML = `<div class="empty-state"><p>${t('error_load')}</p></div>`;
+    }
+}
+
+function renderLeaderboard() {
+    if (!lbData || !lbList) return;
+
+    const isUsers = document.getElementById('lb-type-users')?.classList.contains('active');
+    const items = isUsers ? lbData.users : lbData.groups;
+    lbList.innerHTML = '';
+
+    if (!items || items.length === 0) {
+        lbList.innerHTML = '<div class="empty-state"><p>No data yet.</p></div>';
+        return;
+    }
+
+    items.forEach((item, index) => {
+        const card = document.createElement('div');
+        card.className = `lb-card ${item.rank <= 3 ? 'top-' + item.rank : ''}`;
+        card.style.animationDelay = `${index * 0.05}s`;
+
+        const name = item.name || item.title || "Unknown";
+        const score = item.score || 0;
+        const sub = item.username ? `@${item.username}` : "";
+
+        card.innerHTML = `
+            <div class="lb-rank">${item.rank}</div>
+            <div class="lb-info">
+                <span class="lb-name">${escapeHtml(name)}</span>
+                <span class="lb-username">${escapeHtml(sub)}</span>
+            </div>
+            <div class="lb-score">
+                <span class="lb-score-val">${score}</span>
+                <span class="lb-score-unit">${t('pts')}</span>
+            </div>
+        `;
+        lbList.appendChild(card);
+    });
+
+    // Handle My Rank Sticky
+    if (isUsers && lbData.user_rank) {
+        myRankBar.style.display = 'flex';
+        const myRank = lbData.user_rank;
+        myRankBar.querySelector('.rank-num').innerText = `#${myRank.rank}`;
+        myRankBar.querySelector('.rank-name').innerText = t('my_rank');
+        myRankBar.querySelector('.rank-score').innerText = `${myRank.score} ${t('pts')}`;
+    } else {
+        myRankBar.style.display = 'none';
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return "";
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 

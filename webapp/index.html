@@ -58,6 +58,34 @@
                     <!-- Quizzes for splitting will be loaded here -->
                 </div>
             </section>
+
+            <!-- Leaderboard View -->
+            <section id="leaderboard" class="view" style="display: none;">
+                <div class="leaderboard-tabs glass">
+                    <button class="lb-tab active" data-period="total">Total</button>
+                    <button class="lb-tab" data-period="weekly">Weekly</button>
+                    <button class="lb-tab" data-period="daily">Daily</button>
+                </div>
+
+                <div class="lb-type-selector">
+                    <button class="lb-type-btn active" id="lb-type-users">👤 Users</button>
+                    <button class="lb-type-btn" id="lb-type-groups">👥 Groups</button>
+                </div>
+
+                <div id="lb-list" class="lb-list-container">
+                    <!-- Leaderboard items will be loaded here -->
+                    <div class="loader-lb"></div>
+                </div>
+
+                <!-- Sticky My Rank -->
+                <div id="my-rank-bar" class="my-rank-sticky glass" style="display: none;">
+                    <div class="rank-info">
+                        <span class="rank-num">#??</span>
+                        <span class="rank-name">You</span>
+                    </div>
+                    <div class="rank-score">0 pts</div>
+                </div>
+            </section>
         </main>
 
         <!-- Bottom Navigation -->
@@ -68,12 +96,12 @@
                 </svg>
                 <span id="label-nav-dashboard">My Quizzes</span>
             </button>
-            <button id="nav-split" class="nav-item">
+            <button id="nav-leaderboard" class="nav-item">
                 <svg viewBox="0 0 24 24" width="24" height="24">
                     <path fill="currentColor"
-                        d="M12,2C6.48,2 2,6.48 2,12C2,17.52 6.48,22 12,22C17.52,22 22,17.52 22,12C22,6.48 17.52,2 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M11,7H13V13H11V7M11,15H13V17H11V15Z" />
+                        d="M18,2H6A3,3 0 0,0 3,5V19A3,3 0 0,0 6,22H18A3,3 0 0,0 21,19V5A3,3 0 0,0 18,2M11,15H9V17H11V15M11,11H9V13H11V11M11,7H9V9H11V7M15,15H13V17H15V15M15,11H13V13H15V11M15,7H13V9H15V7Z" />
                 </svg>
-                <span id="label-nav-split">...</span>
+                <span id="label-nav-leaderboard">Leaderboard</span>
             </button>
         </nav>
 
@@ -113,7 +141,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=38"></script>
+    <script src="script.js?v=40"></script>
 </body>
 
 </html>

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String, Boolean
+from sqlalchemy.orm import relationship
 from models.base import Base, TimestampMixin
 
 class User(Base, TimestampMixin):
@@ -11,3 +11,5 @@ class User(Base, TimestampMixin):
     phone_number = Column(String(50), nullable=True)
     language = Column(String(10), default="UZ", nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+
+    stats = relationship("UserStat", back_populates="user", uselist=False)
