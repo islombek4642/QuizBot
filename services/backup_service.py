@@ -90,3 +90,142 @@ async def send_backup_to_admin(bot: Bot, lang: str = "UZ"):
                 os.remove(backup_path)
     else:
         logger.error("Backup failed, nothing to send")
+
+async def perform_full_restore(file_path: str):
+    """
+    Performs a full database restore using psql.
+    WARNING: This overwrites everything.
+    """
+    # 1. Decompress if needed
+    work_path = file_path
+    if file_path.endswith(".gz"):
+        work_path = file_path[:-3]
+        with gzip.open(file_path, "rb") as f_in:
+            with open(work_path, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+    
+    # 2. Extract connection details
+    url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+    
+    try:
+        # 3. Run psql
+        # We use --clean --if-exists to drop tables before creating them
+        # Note: pg_dump --clean usually handles this, but we run it as a script
+        process = await asyncio.create_subprocess_exec(
+            "psql", url, "-f", work_path,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        
+        success = process.returncode == 0
+        if not success:
+            logger.error("Full restore failed", error=stderr.decode())
+        else:
+            logger.info("Full restore successful")
+        
+        # Cleanup decompressed file if we created one
+        if work_path != file_path and os.path.exists(work_path):
+            os.remove(work_path)
+            
+        return success
+    except Exception as e:
+        logger.error("Exception during full restore", error=str(e))
+        return False
+
+async def perform_smart_merge(file_path: str, session):
+    """
+    Merges only Users and Groups from backup into the current DB.
+    Returns (u_new, u_old, g_new, g_old)
+    """
+    from sqlalchemy import text
+    from models.user import User
+    from models.group import Group
+    from sqlalchemy.dialects.postgresql import insert
+    import re
+
+    # 1. Decompress if needed
+    work_path = file_path
+    is_temp = False
+    if file_path.endswith(".gz"):
+        work_path = file_path[:-3]
+        is_temp = True
+        with gzip.open(file_path, "rb") as f_in:
+            with open(work_path, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
+    stats = {"u_new": 0, "u_old": 0, "g_new": 0, "g_old": 0}
+
+    try:
+        # Read file content
+        with open(work_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        def get_data_from_dump(table_name):
+            lines = content.splitlines()
+            results = []
+            in_block = False
+            columns = []
+            
+            for line in lines:
+                if line.startswith(f"COPY public.{table_name} "):
+                    in_block = True
+                    # Extract columns between (...) 
+                    # Format: COPY public.users (id, telegram_id, ...) FROM stdin;
+                    match = re.search(r"\((.*?)\)", line)
+                    if match:
+                        columns = [c.strip() for c in match.group(1).split(",")]
+                    continue
+                
+                if in_block:
+                    if line.strip() == r"\.":
+                        in_block = False
+                        continue
+                    vals = line.split("\t")
+                    row = [v if v != r"\N" else None for v in vals]
+                    if columns and len(row) == len(columns):
+                        results.append(dict(zip(columns, row)))
+            return results
+
+        user_data = get_data_from_dump("users")
+        group_data = get_data_from_dump("groups")
+
+        for u in user_data:
+            try:
+                # Convert types safely
+                u["id"] = int(u["id"])
+                u["telegram_id"] = int(u["telegram_id"])
+                u["is_active"] = u["is_active"] == "t"
+                u["ai_credits"] = int(u["ai_credits"] or 0)
+                
+                # Use insert().on_conflict_do_nothing explicitly for postgres
+                stmt = insert(User).values(**u).on_conflict_do_nothing(index_elements=["telegram_id"])
+                res = await session.execute(stmt)
+                if res.rowcount > 0: stats["u_new"] += 1
+                else: stats["u_old"] += 1
+            except Exception as e:
+                logger.warning(f"Failed to merge user {u.get('telegram_id')}", error=str(e))
+                stats["u_old"] += 1
+
+        for g in group_data:
+            try:
+                g["id"] = int(g["id"])
+                g["telegram_id"] = int(g["telegram_id"])
+                g["is_active"] = g["is_active"] == "t"
+                
+                stmt = insert(Group).values(**g).on_conflict_do_nothing(index_elements=["telegram_id"])
+                res = await session.execute(stmt)
+                if res.rowcount > 0: stats["g_new"] += 1
+                else: stats["g_old"] += 1
+            except Exception as e:
+                logger.warning(f"Failed to merge group {g.get('telegram_id')}", error=str(e))
+                stats["g_old"] += 1
+
+        await session.commit()
+        return stats
+
+    except Exception as e:
+        logger.error("Smart merge failed", error=str(e))
+        return None
+    finally:
+        if is_temp and os.path.exists(work_path):
+            os.remove(work_path)

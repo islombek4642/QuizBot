@@ -24,6 +24,7 @@ class QuizStates(StatesGroup):
     SELECTING_MODE = State()
     WAITING_FOR_RANGE = State()
     WAITING_FOR_RANDOM_COUNT = State()
+    WAITING_FOR_RESTORE_CONFIRM = State()
 
 import hmac
 import hashlib
@@ -162,4 +163,11 @@ def get_admin_ai_keyboard(lang: str):
     builder.button(text=Messages.get("ADMIN_SET_CONV_LIMIT_BTN", lang))
     builder.button(text=Messages.get("BACK_BTN", lang))
     builder.adjust(2)
+    return builder.as_markup(resize_keyboard=True)
+
+def get_admin_backup_keyboard(lang: str):
+    builder = ReplyKeyboardBuilder()
+    builder.button(text=Messages.get("ADMIN_TAKE_BACKUP_BTN", lang))
+    builder.button(text=Messages.get("BACK_BTN", lang))
+    builder.adjust(1)
     return builder.as_markup(resize_keyboard=True)

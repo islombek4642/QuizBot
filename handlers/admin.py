@@ -16,9 +16,9 @@ from models.quiz import Quiz
 from models.session import QuizSession
 from services.user_service import UserService
 from services.group_service import GroupService
-from services.backup_service import send_backup_to_admin
+from services.backup_service import send_backup_to_admin, perform_full_restore, perform_smart_merge
 from core.logger import logger
-from handlers.common import QuizStates, get_main_keyboard, get_admin_ai_keyboard, get_cancel_keyboard
+from handlers.common import QuizStates, get_main_keyboard, get_admin_ai_keyboard, get_admin_backup_keyboard, get_cancel_keyboard
 from aiogram.fsm.context import FSMContext
 
 router = Router()
@@ -27,6 +27,14 @@ router.message.filter(F.from_user.id == settings.ADMIN_ID)
 router.callback_query.filter(F.from_user.id == settings.ADMIN_ID)
 
 @router.message(F.text.in_([Messages.get("ADMIN_BACKUP_BTN", "UZ"), Messages.get("ADMIN_BACKUP_BTN", "EN")]))
+async def admin_backup_menu(message: types.Message, lang: str):
+    await message.answer(
+        Messages.get("ADMIN_RESTORE_INFO", lang), 
+        reply_markup=get_admin_backup_keyboard(lang), 
+        parse_mode="HTML"
+    )
+
+@router.message(F.text.in_([Messages.get("ADMIN_TAKE_BACKUP_BTN", "UZ"), Messages.get("ADMIN_TAKE_BACKUP_BTN", "EN")]))
 async def admin_manual_backup(message: types.Message, bot: Bot, lang: str):
     await message.answer(Messages.get("BACKUP_STARTED", lang))
     await send_backup_to_admin(bot, lang)
@@ -83,7 +91,6 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
         
     text += "\n" + Messages.get("ADMIN_PAGE", lang).format(page=page+1, total=(total_users + limit - 1) // limit)
     
-    # Pagination buttons
     nav_buttons = []
     if page > 0:
         nav_buttons.append(types.InlineKeyboardButton(text=Messages.get("PREV_BTN", lang), callback_data=f"admin_users_page_{page-1}"))
@@ -97,6 +104,95 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
         await message_or_query.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML", link_preview_options=types.LinkPreviewOptions(is_disabled=True))
     else:
         await message_or_query.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML", link_preview_options=types.LinkPreviewOptions(is_disabled=True))
+
+@router.message(F.document)
+async def admin_receive_backup(message: types.Message, bot: Bot, lang: str, state: FSMContext):
+    # Only process if document is .sql or .sql.gz
+    doc = message.document
+    if not (doc.file_name.endswith(".sql") or doc.file_name.endswith(".gz")):
+        return
+
+    # Create temp path
+    temp_path = os.path.join(settings.BACKUP_TEMP_DIR, doc.file_name)
+    await bot.download(doc, destination=temp_path)
+    
+    # Show selection menu
+    builder = InlineKeyboardBuilder()
+    builder.button(text=Messages.get("RESTORE_SMART_MERGE_BTN", lang), callback_data=f"restore_merge:{doc.file_name}")
+    builder.button(text=Messages.get("RESTORE_FULL_BTN", lang), callback_data=f"restore_full:{doc.file_name}")
+    builder.adjust(1)
+    
+    await message.answer(
+        Messages.get("SELECT_BUTTON", lang),
+        reply_markup=builder.as_markup()
+    )
+
+@router.callback_query(F.data.startswith("restore_"))
+async def admin_restore_selection(callback: types.CallbackQuery, bot: Bot, lang: str, state: FSMContext):
+    data = callback.data.split(":")
+    mode_key = data[0] # restore_merge or restore_full
+    filename = data[1]
+    
+    mode_name = "Smart Merge" if mode_key == "restore_merge" else "Full Restore"
+    
+    await callback.message.edit_text(
+        Messages.get("RESTORE_CONFIRM_PROMPT", lang).format(mode=mode_name),
+        reply_markup=InlineKeyboardBuilder().button(
+            text=Messages.get("SHUFFLE_YES", lang), 
+            callback_data=f"confirm_{mode_key}:{filename}"
+        ).button(
+            text=Messages.get("CANCEL_BTN", lang), 
+            callback_data="restore_cancel"
+        ).as_markup(),
+        parse_mode="HTML"
+    )
+    await callback.answer()
+
+@router.callback_query(F.data == "restore_cancel")
+async def admin_restore_cancel(callback: types.CallbackQuery, lang: str):
+    await callback.message.edit_text(Messages.get("CANCELLED", lang))
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("confirm_restore_"))
+async def admin_restore_confirmed(callback: types.CallbackQuery, db: AsyncSession, lang: str):
+    data = callback.data.split(":")
+    mode_key = data[0] # confirm_restore_merge or confirm_restore_full
+    filename = data[1]
+    file_path = os.path.join(settings.BACKUP_TEMP_DIR, filename)
+
+    if not os.path.exists(file_path):
+        await callback.message.answer("❌ Fayl topilmadi.")
+        await callback.answer()
+        return
+
+    await callback.message.edit_text("⏳ Jarayon boshlandi...")
+
+    try:
+        if mode_key == "confirm_restore_merge":
+            stats = await perform_smart_merge(file_path, db)
+            if stats:
+                await callback.message.edit_text(
+                    Messages.get("MERGE_SUCCESS_MSG", lang).format(
+                        users=stats["u_new"] + stats["u_old"], u_new=stats["u_new"], u_old=stats["u_old"],
+                        groups=stats["g_new"] + stats["g_old"], g_new=stats["g_new"], g_old=stats["g_old"]
+                    ),
+                    parse_mode="HTML"
+                )
+            else:
+                await callback.message.edit_text("❌ Birlashtirishda xatolik yuz berdi.")
+        
+        elif mode_key == "confirm_restore_full":
+            success = await perform_full_restore(file_path)
+            if success:
+                await callback.message.edit_text(Messages.get("RESTORE_SUCCESS_MSG", lang), parse_mode="HTML")
+            else:
+                await callback.message.edit_text("❌ Tiklashda xatolik yuz berdi.")
+
+    finally:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    await callback.answer()
 
 @router.callback_query(F.data.startswith("admin_users_page_"))
 async def admin_users_pagination(callback: types.CallbackQuery, db: AsyncSession, lang: str):
