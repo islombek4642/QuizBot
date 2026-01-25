@@ -1265,10 +1265,10 @@ function addSwipeListeners(el, wrapper) {
         const diff = currentX - startX;
         el.style.transition = 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
 
-        if (diff > 60) {
+        if (diff > 80) {
             el.style.transform = 'translateX(80px)';
             wrapper.classList.add('active-swipe');
-        } else if (diff < -60) {
+        } else if (diff < -80) {
             el.style.transform = 'translateX(-80px)';
             wrapper.classList.add('active-swipe');
         } else {

@@ -18,7 +18,7 @@ from models.quiz import Quiz
 from services.quiz_service import QuizService
 from services.stats_service import StatsService
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any, Union
 from core.config import settings
 from datetime import datetime
 from db.session import get_db, get_redis
@@ -167,13 +167,13 @@ class LeaderboardEntry(BaseModel):
     user_id: int
     name: str
     username: Optional[str] = None
-    score: int
+    score: Union[int, float]
 
 class GroupLeaderboardEntry(BaseModel):
     rank: int
     chat_id: int
     title: str
-    score: int
+    score: Union[int, float]
 
 class LeaderboardResponse(BaseModel):
     users: List[LeaderboardEntry]

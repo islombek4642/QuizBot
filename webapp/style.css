@@ -404,21 +404,22 @@ main {
 .ripple {
     position: absolute;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.4);
     transform: scale(0);
-    animation: ripple-animation 0.8s ease-out;
+    animation: ripple-animation 1.2s cubic-bezier(0.23, 1, 0.32, 1);
+    /* cinematic feel */
     pointer-events: none;
 }
 
 @keyframes ripple-animation {
     from {
         transform: scale(0);
-        opacity: 0.5;
+        opacity: 0.6;
     }
 
     to {
-        transform: scale(6);
-        /* Larger spread */
+        transform: scale(12);
+        /* Deep and wide spread */
         opacity: 0;
     }
 }
