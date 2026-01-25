@@ -118,6 +118,14 @@ class QuizService:
         logger.info("Quiz updated", quiz_id=quiz_id, user_id=user_id)
         return True
 
+    async def check_limit(self, user_id: int) -> bool:
+        """Checks if the user can create more quizzes."""
+        if user_id == settings.ADMIN_ID:
+            return True
+            
+        result = await self.db.execute(select(func.count(Quiz.id)).filter(Quiz.user_id == user_id))
+        return result.scalar() < self.MAX_TOTAL_QUIZZES
+
     async def split_quiz(self, quiz_id: int, user_id: int, parts: int = None, size: int = None):
         """Split a quiz into multiple parts with security checks."""
         # 1. Total quiz limit check (Bypass for admins)

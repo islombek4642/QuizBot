@@ -212,6 +212,130 @@ main {
     width: 100%;
 }
 
+/* Swipe to Action */
+.quiz-card-wrapper {
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+    touch-action: pan-y;
+    user-select: none;
+    margin-bottom: 16px;
+}
+
+.quiz-card-swipe-actions {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0;
+    z-index: 1;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.swipe-action {
+    width: 80px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    font-size: 1.2rem;
+    gap: 4px;
+}
+
+.swipe-action:active {
+    opacity: 0.7;
+}
+
+.swipe-action span {
+    font-size: 0.65rem;
+    font-weight: 600;
+}
+
+.action-delete {
+    background: var(--danger-color);
+}
+
+.action-download {
+    background: #0088cc;
+}
+
+.quiz-card {
+    position: relative;
+    z-index: 2;
+    transition: transform 0.2s ease-out;
+    background: var(--card-bg);
+}
+
+.quiz-card.swiped-left {
+    transform: translateX(-80px);
+}
+
+.quiz-card.swiped-right {
+    transform: translateX(80px);
+}
+
+/* Confirmation Modal */
+.confirm-modal-content {
+    text-align: center;
+}
+
+.confirm-icon {
+    font-size: 3rem;
+    margin-bottom: 5px;
+    display: block;
+}
+
+.confirm-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: white;
+}
+
+.confirm-text {
+    color: var(--text-muted);
+    margin-bottom: 20px;
+}
+
+.confirm-buttons {
+    display: flex;
+    gap: 12px;
+}
+
+.confirm-yes {
+    flex: 2;
+    background: var(--accent-color);
+    border: none;
+    color: white;
+    padding: 12px;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.confirm-no {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    color: white;
+    padding: 12px;
+    border-radius: 12px;
+    cursor: pointer;
+}
+
+.confirm-yes.danger {
+    background: var(--danger-color);
+}
+
 .char-count {
     position: absolute;
     right: 8px;

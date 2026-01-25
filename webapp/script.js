@@ -1118,26 +1118,91 @@ function renderQuizList(targetList, isSplitMode = false) {
     }
 
     currentQuizzes.forEach(quiz => {
-        const card = document.createElement('div');
-        card.className = 'quiz-card glass';
+        const wrapper = document.createElement('div');
+        wrapper.className = 'quiz-card-wrapper';
 
-        card.innerHTML = `
-            <div class="quiz-card-content">
-                <h3 style="margin-bottom: 8px;">${escapeHtml(quiz.title)}</h3>
-                <p style="opacity: 0.8; font-size: 0.85rem;">
-                    <span style="color: var(--accent-color); font-weight: 600;">${quiz.questions_count}</span> ${t('questions_count')} • ${new Date(quiz.created_at).toLocaleDateString(t('date_format'))}
-                </p>
+        wrapper.innerHTML = `
+            <div class="quiz-card-swipe-actions">
+                <div class="swipe-action action-download" onclick="confirmDownload(${quiz.id}, '${escapeHtml(quiz.title)}')">
+                    <span>📥</span>
+                    <span>Yuklash</span>
+                </div>
+                <div class="swipe-action action-delete" onclick="confirmDelete(${quiz.id}, '${escapeHtml(quiz.title)}')">
+                    <span>🗑️</span>
+                    <span>O'chirish</span>
+                </div>
             </div>
-            <div class="quiz-card-actions" style="gap: 10px;">
-                <button class="secondary-btn" onclick="openEditor(${quiz.id})" style="flex: 1; min-width: 0; font-size: 0.8rem;">
-                   📝 ${t('editing_test')}
-                </button>
-                <button class="secondary-btn" onclick="requestSplit(${quiz.id}, ${quiz.questions_count})" style="flex: 1; min-width: 0; font-size: 0.8rem; border-color: rgba(255,255,255,0.2); color: #fff; background: rgba(255,255,255,0.05);">
-                   ✂️ ${t('split_quiz')}
-                </button>
+            <div class="quiz-card glass" id="quiz-card-${quiz.id}">
+                <div class="quiz-card-content" onclick="openEditor(${quiz.id})">
+                    <h3 style="margin-bottom: 8px;">${escapeHtml(quiz.title)}</h3>
+                    <p style="opacity: 0.8; font-size: 0.85rem;">
+                        <span style="color: var(--accent-color); font-weight: 600;">${quiz.questions_count}</span> ${t('questions_count')} • ${new Date(quiz.created_at).toLocaleDateString(t('date_format'))}
+                    </p>
+                </div>
+                <div class="quiz-card-actions" style="gap: 10px;">
+                    <button class="secondary-btn" onclick="openEditor(${quiz.id})" style="flex: 1; min-width: 0; font-size: 0.8rem;">
+                       📝 ${t('editing_test')}
+                    </button>
+                    <button class="secondary-btn" onclick="requestSplit(${quiz.id}, ${quiz.questions_count})" style="flex: 1; min-width: 0; font-size: 0.8rem; border-color: rgba(255,255,255,0.2); color: #fff; background: rgba(255,255,255,0.05);">
+                       ✂️ ${t('split_quiz')}
+                    </button>
+                </div>
             </div>
         `;
-        targetList.appendChild(card);
+
+        // Add Swipe listeners to the card element specifically
+        const cardEl = wrapper.querySelector('.quiz-card');
+        addSwipeListeners(cardEl);
+
+        targetList.appendChild(wrapper);
+    });
+}
+
+function addSwipeListeners(el) {
+    let startX = 0;
+    let currentX = 0;
+    let isSwiping = false;
+
+    el.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+        isSwiping = true;
+    }, { passive: true });
+
+    el.addEventListener('touchmove', (e) => {
+        if (!isSwiping) return;
+        currentX = e.touches[0].clientX;
+        const diff = currentX - startX;
+
+        if (Math.abs(diff) > 20) {
+            // Constrain movement
+            const move = Math.max(-100, Math.min(100, diff));
+            el.style.transform = `translateX(${move}px)`;
+        }
+    }, { passive: true });
+
+    el.addEventListener('touchend', (e) => {
+        isSwiping = false;
+        const diff = currentX - startX;
+        el.style.transition = 'transform 0.3s ease';
+
+        if (diff > 50) {
+            el.style.transform = 'translateX(80px)'; // Reveal Download
+        } else if (diff < -50) {
+            el.style.transform = 'translateX(-80px)'; // Reveal Delete
+        } else {
+            el.style.transform = 'translateX(0)';
+        }
+
+        setTimeout(() => {
+            el.style.transition = 'transform 0.2s ease-out';
+        }, 300);
+    });
+
+    // Close on click anywhere else
+    el.addEventListener('click', () => {
+        if (el.style.transform !== 'translateX(0px)' && el.style.transform !== '') {
+            el.style.transform = 'translateX(0)';
+        }
     });
 }
 

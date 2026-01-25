@@ -23,6 +23,9 @@ from core.config import settings
 from datetime import datetime
 from db.session import get_db, get_redis
 from fastapi import Header
+from utils.exporter import generate_quiz_docx
+from aiogram import Bot
+from aiogram.types import BufferedInputFile
 
 logger = structlog.get_logger()
 
@@ -433,6 +436,10 @@ async def split_quiz(
 
     service = QuizService(db, redis=redis)
     
+    # NEW: Check global limit before splitting
+    if not await service.check_limit(user_id):
+         raise HTTPException(status_code=400, detail="Quiz limit reached (50). Please delete some to split.")
+
     new_quizzes = await service.split_quiz(quiz_id, user_id, parts=split_req.parts, size=split_req.size)
     if not new_quizzes:
         raise HTTPException(status_code=400, detail="Could not split quiz. Limit reached or invalid parameters.")
@@ -448,6 +455,33 @@ async def split_quiz(
         "questions_count": len(q.questions_json),
         "created_at": q.created_at
     } for q in new_quizzes]
+
+@app.post("/api/quizzes/{quiz_id}/download", tags=["quizzes"])
+async def download_quiz(
+    quiz_id: int, 
+    user_id: int = Depends(get_current_user), 
+    db: AsyncSession = Depends(get_db)
+):
+    """Generate Word file and send it to user's private chat via bot."""
+    service = QuizService(db)
+    quiz = await service.get_quiz_by_id_and_user(quiz_id, user_id)
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+        
+    try:
+        # Generate docx
+        buf = generate_quiz_docx(quiz.title, quiz.questions_json)
+        
+        # Send via Bot
+        bot = Bot(token=settings.BOT_TOKEN)
+        file = BufferedInputFile(buf.getvalue(), filename=f"{quiz.title}.docx")
+        await bot.send_document(user_id, file, caption=f"📄 {quiz.title}")
+        await bot.session.close()
+        
+        return {"status": "success", "message": "File sent to your Telegram chat"}
+    except Exception as e:
+        logger.error("Failed to export/send quiz", error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to generate or send the file")
 
 
 @app.get(

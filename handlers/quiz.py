@@ -173,6 +173,12 @@ async def cmd_ai_generate(message: types.Message, state: FSMContext, redis, lang
         )
         return
 
+    # NEW: Check total quiz limit (50)
+    quiz_service = QuizService(db_session, redis)
+    if not await quiz_service.check_limit(telegram_id):
+        await message.answer(Messages.get("ERROR_QUIZ_LIMIT", lang), parse_mode="HTML")
+        return
+
     # Check if API key is configured
     if not settings.GROQ_API_KEY:
         await message.answer(Messages.get("AI_NO_API_KEY", lang))
@@ -336,10 +342,16 @@ async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, r
 # ===================== TEST CONVERSION =====================
 
 @router.message(F.text.in_([Messages.get("CONVERT_BTN", "UZ"), Messages.get("CONVERT_BTN", "EN")]))
-async def cmd_convert_test(message: types.Message, state: FSMContext, redis, lang: str, user: Any):
+async def cmd_convert_test(message: types.Message, state: FSMContext, redis, lang: str, user: Any, db_session):
     """Handle Test Conversion button press"""
     telegram_id = message.from_user.id
     
+    # NEW: Check total quiz limit (50)
+    service = QuizService(db_session)
+    if not await service.check_limit(telegram_id):
+        await message.answer(Messages.get("ERROR_QUIZ_LIMIT", lang), parse_mode="HTML")
+        return
+
     if not user or not user.phone_number:
         await message.answer(
             Messages.get("SHARE_CONTACT_PROMPT", lang),
