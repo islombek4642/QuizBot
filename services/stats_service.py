@@ -21,8 +21,6 @@ class StatsService:
         Calculate and add points with HIGH DIFFICULTY (Hard Mode).
         Correct: +5 | Incorrect: -10 | Timeout: -5
         """
-        total_delta = 0
-        
         # 1. Get user stats
         result = await self.db.execute(select(UserStat).filter(UserStat.user_id == user_id))
         user_stat = result.scalar_one_or_none()
@@ -32,61 +30,55 @@ class StatsService:
             self.db.add(user_stat)
             await self.db.flush()
 
-        # 2. Check Daily Point Limit (Limit: 2000 pts per day to prevent grinding)
-        now = datetime.utcnow()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        daily_query = select(func.sum(PointLog.points)).filter(
-            PointLog.user_id == user_id,
-            PointLog.points > 0,
-            PointLog.timestamp >= today_start
-        )
-        today_points = (await self.db.execute(daily_query)).scalar() or 0
-        
-        if today_points >= 2000 and action_type == 'correct':
-             # Still track stats but don't give more points today
-             total_delta = 0
-        else:
-            # 3. Base Points & HIGH Penalties
-            if action_type == 'correct':
+        # 2. Base Calculation
+        total_delta = 0
+        if action_type == 'correct':
+            total_delta = 5
+            user_stat.total_correct += 1
+            user_stat.current_streak += 1
+            if user_stat.current_streak > user_stat.max_streak:
+                user_stat.max_streak = user_stat.current_streak
+            
+            # Speed Bonus
+            if time_taken <= 3.0:
+                total_delta += 10
+            elif time_taken <= 5.0:
                 total_delta += 5
-                user_stat.total_correct += 1
-                user_stat.current_streak += 1
-                if user_stat.current_streak > user_stat.max_streak:
-                    user_stat.max_streak = user_stat.current_streak
-                
-                # Speed Bonus (Lowered)
-                speed_bonus = 0
-                if time_taken <= 3.0:
-                    speed_bonus = 10
-                elif time_taken <= 5.0:
-                    speed_bonus = 5
-                
-                if speed_bonus > 0:
-                    total_delta += speed_bonus
-                    await self._log_points(user_id, chat_id, speed_bonus, 'bonus_speed')
 
-                # Streak Bonus (Harder)
-                if user_stat.current_streak > 0 and user_stat.current_streak % 10 == 0:
-                    streak_bonus = 10
-                    total_delta += streak_bonus
-                    await self._log_points(user_id, chat_id, streak_bonus, 'bonus_streak')
+            # Streak Bonus (Every 10)
+            if user_stat.current_streak > 0 and user_stat.current_streak % 10 == 0:
+                total_delta += 10
+        elif action_type == 'incorrect':
+            total_delta = -10
+            user_stat.current_streak = 0
+        elif action_type == 'timeout':
+            total_delta = -5
+            user_stat.current_streak = 0
 
-            elif action_type == 'incorrect':
-                total_delta -= 10  # HIGH Penalty
-                user_stat.current_streak = 0
-            elif action_type == 'timeout':
-                total_delta -= 5   # HIGH Penalty
-                user_stat.current_streak = 0
-                
+        # 3. Apply Daily Point Limit (Limit: 2000 pts per day to prevent grinding)
+        if total_delta > 0:
+            now = datetime.utcnow()
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            daily_query = select(func.sum(PointLog.points)).filter(
+                PointLog.user_id == user_id,
+                PointLog.points > 0,
+                PointLog.timestamp >= today_start
+            )
+            today_points = (await self.db.execute(daily_query)).scalar() or 0
+            
+            if today_points + total_delta > 2000:
+                total_delta = max(0, 2000 - today_points)
+        
+        # 4. Update stats
         user_stat.total_answered += 1
         user_stat.total_points += total_delta
         user_stat.last_activity = datetime.utcnow()
 
-        # 4. Log main points
-        if total_delta != 0 or action_type != 'correct':
+        # 5. Log points ONCE (Ensures accuracy in leaderboard)
+        if total_delta != 0 or action_type == 'correct':
             await self._log_points(user_id, chat_id, total_delta, action_type)
 
-        # 5. Update Group Stats if applicable
+        # 6. Update Group Stats if applicable
         if chat_id and chat_id != user_id:
             await self._update_group_stats(chat_id, total_delta)
 
@@ -113,16 +105,8 @@ class StatsService:
             
         group_stat.total_points += delta
         group_stat.last_activity = datetime.utcnow()
-        
-        # Calculate active members from PointLog (e.g., last 30 days)
-        activity_threshold = datetime.utcnow() - timedelta(days=30)
-        active_users_query = select(func.count(func.distinct(PointLog.user_id))).filter(
-            and_(PointLog.chat_id == chat_id, PointLog.timestamp >= activity_threshold)
-        )
-        active_count = (await self.db.execute(active_users_query)).scalar() or 1
-        
-        group_stat.active_members_count = active_count
-        group_stat.avg_score = group_stat.total_points / active_count if active_count > 0 else 0
+        # Note: avg_score calculation removed from hot path to avoid expensive DISTINC query.
+        # Group leaderboard will now be calculated from PointLog for accuracy.
 
     async def get_user_leaderboard(self, period: str = 'total', limit: int = 50) -> List[dict]:
         """
@@ -174,18 +158,49 @@ class StatsService:
 
     async def get_group_leaderboard(self, limit: int = 50) -> List[dict]:
         from models.group import Group
-        # Sort by average score (fair for small/large groups)
+        # Fair metric: Group Score = Average total points of Top 5 users in that group
+        # This prevents large groups from winning by sheer volume and small groups from being ignored.
+        
+        # Subquery to get sum of points per user per group
+        user_scores_sub = (
+            select(
+                PointLog.chat_id,
+                PointLog.user_id,
+                func.sum(PointLog.points).label("user_total")
+            )
+            .filter(PointLog.chat_id != None)
+            .group_by(PointLog.chat_id, PointLog.user_id)
+            .alias("user_scores")
+        )
+        
+        # Window function to rank users within each group
+        ranked_users_sub = (
+            select(
+                user_scores_sub.c.chat_id,
+                user_scores_sub.c.user_total,
+                func.row_number().over(
+                    partition_by=user_scores_sub.c.chat_id,
+                    order_by=desc(user_scores_sub.c.user_total)
+                ).label("rnk")
+            )
+            .alias("ranked_users")
+        )
+        
+        # Main query: Average of Top 5 users, joined with Group table for names
         query = (
             select(
-                GroupStat.chat_id,
-                GroupStat.avg_score,
+                ranked_users_sub.c.chat_id,
+                func.avg(ranked_users_sub.c.user_total).label("group_avg"),
                 Group.title,
                 Group.username
             )
-            .join(Group, Group.telegram_id == GroupStat.chat_id)
-            .order_by(desc(GroupStat.avg_score))
+            .join(Group, Group.telegram_id == ranked_users_sub.c.chat_id)
+            .filter(ranked_users_sub.c.rnk <= 5)
+            .group_by(ranked_users_sub.c.chat_id, Group.title, Group.username)
+            .order_by(desc("group_avg"))
             .limit(limit)
         )
+        
         result = await self.db.execute(query)
         rows = result.all()
         
@@ -194,16 +209,53 @@ class StatsService:
             "chat_id": row.chat_id,
             "title": row.title or f"Group {row.chat_id}",
             "username": row.username,
-            "score": round(row.avg_score, 1)
+            "score": round(float(row.group_avg), 1)
         } for i, row in enumerate(rows, 1)]
 
     async def get_user_rank(self, user_id: int, period: str = 'total') -> Optional[dict]:
-        """Get specific user's current rank and score"""
-        # This is slightly expensive for large tables, but okay for Top 50 contexts
-        leaderboard = await self.get_user_leaderboard(period, limit=1000)
-        for item in leaderboard:
-            if item['user_id'] == user_id:
-                return item
+        """Get specific user's current rank and score with efficient SQL count"""
+        # 1. Get user's own score first
+        now = datetime.utcnow()
+        start_date = None
+        if period == 'daily':
+            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == 'weekly':
+            start_date = now - timedelta(days=now.weekday())
+            start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # Get my score
+        score_q = select(func.sum(PointLog.points)).filter(PointLog.user_id == user_id)
+        if start_date:
+            score_q = score_q.filter(PointLog.timestamp >= start_date)
         
-        # If not in top 1000, we'd need a separate count query
-        return None
+        my_score = (await self.db.execute(score_q)).scalar() or 0
+        
+        # 2. Count users with higher scores (filtering is_active)
+        # Subquery to get all scores
+        all_scores_sub = (
+            select(
+                PointLog.user_id,
+                func.sum(PointLog.points).label("total_score")
+            )
+            .join(User, User.telegram_id == PointLog.user_id)
+            .filter(User.is_active == True)
+        )
+        if start_date:
+            all_scores_sub = all_scores_sub.filter(PointLog.timestamp >= start_date)
+        
+        all_scores_sub = all_scores_sub.group_by(PointLog.user_id).alias("scores")
+
+        # Count those strictly greater
+        rank_q = select(func.count()).select_from(all_scores_sub).filter(all_scores_sub.c.total_score > my_score)
+        rank_val = (await self.db.execute(rank_q)).scalar() + 1
+
+        # 3. Get user metadata
+        user_meta = (await self.db.execute(select(User).filter(User.telegram_id == user_id))).scalar_one_or_none()
+        
+        return {
+            "rank": rank_val,
+            "user_id": user_id,
+            "name": user_meta.full_name if user_meta else f"User {user_id}",
+            "username": user_meta.username if user_meta else None,
+            "score": int(my_score)
+        }
