@@ -8,6 +8,7 @@ from core.logger import setup_logging, logger
 from handlers import start, quiz, settings as settings_handlers, group, admin, webapp
 from utils.middleware import DbSessionMiddleware, RedisMiddleware, AuthMiddleware
 from services.backup_service import send_backup_to_admin
+from services.monitoring_service import monitor_sessions
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
@@ -62,8 +63,10 @@ async def main():
     dp.include_router(group.router)
     dp.include_router(quiz.router)
 
-    # Initialize Scheduler for Backups
+    # Initialize Scheduler for Backups and Monitoring
     scheduler = AsyncIOScheduler()
+    
+    # 1. Daily Backup
     scheduler.add_job(
         send_backup_to_admin,
         trigger=CronTrigger(hour=settings.BACKUP_SCHEDULE_HOUR, minute=settings.BACKUP_SCHEDULE_MINUTE),
@@ -71,8 +74,19 @@ async def main():
         id=settings.BACKUP_JOB_ID,
         replace_existing=True
     )
+    
+    # 2. Global Session Monitor (Every 30 seconds)
+    scheduler.add_job(
+        monitor_sessions,
+        trigger="interval",
+        seconds=30,
+        args=[bot, redis],
+        id="session_monitor",
+        replace_existing=True
+    )
+    
     scheduler.start()
-    logger.info(f"Scheduler started. Daily backup scheduled at {settings.BACKUP_SCHEDULE_HOUR:02d}:{settings.BACKUP_SCHEDULE_MINUTE:02d}.")
+    logger.info("Scheduler started (Backup + Session Monitor).")
 
     # Set commands only if running bot (or all)
     try:
