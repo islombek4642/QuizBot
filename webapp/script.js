@@ -1485,7 +1485,14 @@ function switchView(view) {
         if (leaderboardView) leaderboardView.style.display = 'block';
         if (pageTitle) pageTitle.innerText = t('leaderboard_title');
         if (navLeaderboard) navLeaderboard.classList.add('active');
-        loadLeaderboard();
+
+        // Ensure "Total" tab is marked active visually
+        document.querySelectorAll('.lb-tab').forEach(t => {
+            if (t.dataset.period === 'total') t.classList.add('active');
+            else t.classList.remove('active');
+        });
+
+        loadLeaderboard('total');
     }
 }
 

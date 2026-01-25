@@ -4,20 +4,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, func
 from models.quiz import Quiz
 from core.logger import logger
+from core.config import settings
 
 class QuizService:
     def __init__(self, db: AsyncSession, redis=None):
         self.db = db
         self.redis = redis
-        self.MAX_TOTAL_QUIZZES = 100
+        self.MAX_TOTAL_QUIZZES = 50
         self.MAX_DAILY_SPLITS = 10
 
     async def save_quiz(self, user_id: int, title: str, questions: list, shuffle_options: bool) -> Quiz:
-        # Check total quiz limit
-        result = await self.db.execute(select(func.count(Quiz.id)).filter(Quiz.user_id == user_id))
-        user_total = result.scalar()
-        if user_total >= self.MAX_TOTAL_QUIZZES:
-             return None # Or raise custom exception
+        # Check total quiz limit (Bypass for admins)
+        if user_id != settings.ADMIN_ID:
+            result = await self.db.execute(select(func.count(Quiz.id)).filter(Quiz.user_id == user_id))
+            user_total = result.scalar()
+            if user_total >= self.MAX_TOTAL_QUIZZES:
+                 return None # Or raise custom exception
 
         quiz = Quiz(
             user_id=user_id,
@@ -68,11 +70,12 @@ class QuizService:
 
     async def clone_quiz(self, quiz_id: int, new_user_id: int) -> Optional[Quiz]:
         """Clone an existing quiz for a new user"""
-        # Check total quiz limit for new user
-        result = await self.db.execute(select(func.count(Quiz.id)).filter(Quiz.user_id == new_user_id))
-        user_total = result.scalar()
-        if user_total >= self.MAX_TOTAL_QUIZZES:
-             return None
+        # Check total quiz limit for new user (Bypass for admins)
+        if new_user_id != settings.ADMIN_ID:
+            result = await self.db.execute(select(func.count(Quiz.id)).filter(Quiz.user_id == new_user_id))
+            user_total = result.scalar()
+            if user_total >= self.MAX_TOTAL_QUIZZES:
+                 return None
 
         quiz = await self.get_quiz(quiz_id)
         if not quiz or quiz.user_id == new_user_id:
@@ -117,11 +120,12 @@ class QuizService:
 
     async def split_quiz(self, quiz_id: int, user_id: int, parts: int = None, size: int = None):
         """Split a quiz into multiple parts with security checks."""
-        # 1. Total quiz limit check
-        result = await self.db.execute(select(func.count(Quiz.id)).filter(Quiz.user_id == user_id))
-        user_total = result.scalar()
-        if user_total >= self.MAX_TOTAL_QUIZZES:
-             return []
+        # 1. Total quiz limit check (Bypass for admins)
+        if user_id != settings.ADMIN_ID:
+            result = await self.db.execute(select(func.count(Quiz.id)).filter(Quiz.user_id == user_id))
+            user_total = result.scalar()
+            if user_total >= self.MAX_TOTAL_QUIZZES:
+                 return []
 
         # 2. Daily split limit (via Redis)
         if self.redis:
