@@ -351,31 +351,51 @@ class QuizSplitRequest(BaseModel):
     size: Optional[int] = Field(None, description="Number of questions per part", ge=1)
 
 
+from db.session import get_db, get_redis
+
+
 @app.post(
     "/api/quizzes/{quiz_id}/split",
     response_model=List[QuizListItem],
     tags=["quizzes"],
     summary="Split quiz",
-    description="Splits a quiz into multiple smaller quizzes by parts or questions per part.",
+    description="Splits a quiz into multiple smaller quizzes by parts or questions per part. Max 50 parts allowed. Rate limited to 3 actions per minute.",
     responses={
         200: {"description": "List of new quiz parts"},
         401: {"description": "Authentication required"},
         400: {"description": "Invalid parameters or quiz not found"},
+        429: {"description": "Too many requests. Please wait."},
     },
 )
 async def split_quiz(
     quiz_id: int, 
     split_req: QuizSplitRequest, 
     user_id: int = Depends(get_current_user), 
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    redis = Depends(get_redis)
 ):
-    """Split an existing quiz into multiple parts."""
+    """Split an existing quiz into multiple parts with rate limiting."""
+    # 1. Rate Limiting: 3 splits per 60 seconds per user
+    rate_key = f"rl:split:{user_id}"
+    current_count = await redis.get(rate_key)
+    if current_count and int(current_count) >= 3:
+        raise HTTPException(status_code=429, detail="Too many split actions. Please wait a minute.")
+    
+    # 2. Hard Limits: Max 50 parts
+    if split_req.parts and split_req.parts > 50:
+        raise HTTPException(status_code=400, detail="Cannot split into more than 50 parts.")
+
     service = QuizService(db)
     
     new_quizzes = await service.split_quiz(quiz_id, user_id, parts=split_req.parts, size=split_req.size)
     if not new_quizzes:
         raise HTTPException(status_code=400, detail="Could not split quiz. Check parameters or quiz ownership.")
         
+    # Increment rate limit counter
+    await redis.incr(rate_key)
+    if not current_count:
+        await redis.expire(rate_key, 60)
+
     return [{
         "id": q.id,
         "title": q.title,

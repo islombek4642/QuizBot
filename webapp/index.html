@@ -51,15 +51,39 @@
                     <!-- Questions will be loaded here -->
                 </div>
             </section>
+
+            <!-- Split View -->
+            <section id="split-view" class="view" style="display: none;">
+                <div id="split-quiz-list" class="quiz-grid">
+                    <!-- Quizzes for splitting will be loaded here -->
+                </div>
+            </section>
         </main>
 
-        <!-- Fixed Footer Actions (Mobile style) -->
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button id="nav-dashboard" class="nav-item active">
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                    <path fill="currentColor" d="M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z" />
+                </svg>
+                <span id="label-nav-dashboard">My Quizzes</span>
+            </button>
+            <button id="nav-split" class="nav-item">
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                    <path fill="currentColor"
+                        d="M19,3L13,9L15,11L22,4V3H19M12,10.5L11,11.5L4.74,17.76C4.15,18.35 4.15,19.3 4.74,19.89L5.11,20.26C5.7,20.85 6.65,20.85 7.24,20.26L13.5,14L12.5,13L12,10.5M10,12.5L9,13.5L3,19.5V20H4L10,14L10,12.5Z" />
+                </svg>
+                <span id="label-nav-split">Split</span>
+            </button>
+        </nav>
+
+        <!-- Fixed Footer Actions (Only for Editor) -->
         <div id="editor-actions" class="footer-actions" style="display: none;">
             <button id="save-btn" class="primary-btn">Save Changes</button>
         </div>
     </div>
 
-    <script src="script.js?v=28"></script>
+    <script src="script.js?v=29"></script>
 </body>
 
 </html>

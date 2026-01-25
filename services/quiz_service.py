@@ -113,6 +113,10 @@ class QuizService:
         if not size or size <= 0:
             return []
             
+        # Hard safety limit: max 100 parts
+        if total / size > 100:
+            size = (total + 99) // 100
+            
         new_quizzes = []
         for i in range(0, total, size):
             chunk = questions[i:i+size]

@@ -18,17 +18,13 @@ let currentView = 'dashboard';
 let authToken = null;
 
 // Elements
-const loader = document.getElementById('loader');
-const appContainer = document.getElementById('app');
-const quizList = document.getElementById('quiz-list');
-const dashboardView = document.getElementById('dashboard');
-const editorView = document.getElementById('editor');
-const questionsContainer = document.getElementById('questions-container');
-const pageTitle = document.getElementById('page-title');
-const backBtn = document.getElementById('back-btn');
-const editorActions = document.getElementById('editor-actions');
-const saveBtn = document.getElementById('save-btn');
 const searchInput = document.getElementById('search-input');
+const splitView = document.getElementById('split-view');
+const splitQuizList = document.getElementById('split-quiz-list');
+const navDashboard = document.getElementById('nav-dashboard');
+const navSplit = document.getElementById('nav-split');
+const bottomNav = document.querySelector('.bottom-nav');
+
 
 // Helper to get params
 function getAuthHeaders() {
@@ -200,6 +196,8 @@ const TRANSLATIONS = {
         split_info: "Katta testni kichikroq testlarga bo'lish.",
         split_type_parts: "Qismlar soni bo'yicha",
         split_type_size: "Savollar soni bo'yicha",
+        nav_dashboard: "Testlarim",
+        nav_split: "Bo'lish",
     },
     EN: {
         my_quizzes: "My Quizzes",
@@ -230,6 +228,8 @@ const TRANSLATIONS = {
         split_info: "Split a large quiz into smaller parts.",
         split_type_parts: "By number of parts",
         split_type_size: "By questions per part",
+        nav_dashboard: "My Quizzes",
+        nav_split: "Split",
     }
 };
 
@@ -269,9 +269,12 @@ async function init() {
     document.getElementById('search-input').placeholder = t('search_placeholder');
     document.querySelector('#no-quizzes p').innerText = t('no_quizzes');
     pageTitle.innerText = t('my_quizzes');
+    document.getElementById('label-nav-dashboard').innerText = t('nav_dashboard');
+    document.getElementById('label-nav-split').innerText = t('nav_split');
 
-    // Update Main Button text if needed (though we use custom button)
-    tg.MainButton.setText(t('save_changes'));
+    // Navigation events
+    navDashboard.onclick = () => switchView('dashboard');
+    navSplit.onclick = () => switchView('split');
 
     await loadQuizzes();
     hideLoader();
@@ -832,29 +835,47 @@ async function showAuthRedirect() {
     });
 }
 
-function renderQuizList() {
+function renderQuizList(targetList, isSplitMode = false) {
     appContainer.classList.remove('landing');
-    quizList.innerHTML = '';
+    targetList.innerHTML = '';
+
     if (currentQuizzes.length === 0) {
         document.getElementById('no-quizzes').style.display = 'block';
         return;
+    } else {
+        document.getElementById('no-quizzes').style.display = 'none';
     }
 
     currentQuizzes.forEach(quiz => {
         const card = document.createElement('div');
         card.className = 'quiz-card glass';
-        card.innerHTML = `
-            <div class="quiz-card-content" onclick="openEditor(${quiz.id})">
-                <h3>${escapeHtml(quiz.title)}</h3>
-                <p>${quiz.questions_count} ${t('questions_count')} • ${new Date(quiz.created_at).toLocaleDateString(t('date_format'))}</p>
-            </div>
-            <div class="quiz-card-actions">
-                <button class="secondary-btn" onclick="requestSplit(${quiz.id}, ${quiz.questions_count})">
-                   ✂️ ${t('split_quiz')}
-                </button>
-            </div>
-        `;
-        quizList.appendChild(card);
+
+        if (isSplitMode) {
+            card.innerHTML = `
+                <div class="quiz-card-content">
+                    <h3>${escapeHtml(quiz.title)}</h3>
+                    <p>${quiz.questions_count} ${t('questions_count')} • ${new Date(quiz.created_at).toLocaleDateString(t('date_format'))}</p>
+                </div>
+                <div class="quiz-card-actions">
+                    <button class="split-btn" onclick="requestSplit(${quiz.id}, ${quiz.questions_count})">
+                       ✂️ ${t('split_quiz')}
+                    </button>
+                </div>
+            `;
+        } else {
+            card.innerHTML = `
+                <div class="quiz-card-content" onclick="openEditor(${quiz.id})">
+                    <h3>${escapeHtml(quiz.title)}</h3>
+                    <p>${quiz.questions_count} ${t('questions_count')} • ${new Date(quiz.created_at).toLocaleDateString(t('date_format'))}</p>
+                </div>
+                <div class="quiz-card-actions">
+                    <button class="secondary-btn" onclick="openEditor(${quiz.id})">
+                       📝 ${t('editing_test')}
+                    </button>
+                </div>
+            `;
+        }
+        targetList.appendChild(card);
     });
 }
 
@@ -1218,20 +1239,32 @@ searchInput.oninput = (e) => {
 
 function switchView(view) {
     currentView = view;
+
+    // UI Reset
+    dashboardView.style.display = 'none';
+    splitView.style.display = 'none';
+    editorView.style.display = 'none';
+    backBtn.style.display = 'none';
+    editorActions.style.display = 'none';
+    bottomNav.style.display = 'flex';
+    navDashboard.classList.remove('active');
+    navSplit.classList.remove('active');
+
     if (view === 'dashboard') {
-        appContainer.classList.remove('landing');
         dashboardView.style.display = 'grid';
-        editorView.style.display = 'none';
-        backBtn.style.display = 'none';
-        editorActions.style.display = 'none';
         pageTitle.innerText = t('my_quizzes');
-        loadQuizzes(); // Refresh list
-    } else {
-        appContainer.classList.remove('landing');
-        dashboardView.style.display = 'none';
+        navDashboard.classList.add('active');
+        renderQuizList(quizList, false);
+    } else if (view === 'split') {
+        splitView.style.display = 'grid';
+        pageTitle.innerText = t('nav_split');
+        navSplit.classList.add('active');
+        renderQuizList(splitQuizList, true);
+    } else if (view === 'editor') {
         editorView.style.display = 'block';
         backBtn.style.display = 'block';
         editorActions.style.display = 'block';
+        bottomNav.style.display = 'none';
     }
 }
 

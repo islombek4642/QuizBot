@@ -26,3 +26,13 @@ async def get_db():
             yield session
         finally:
             await session.close()
+
+
+async def get_redis():
+    from redis.asyncio import Redis
+    from core.config import settings
+    redis = Redis.from_url(settings.REDIS_URL, decode_responses=True)
+    try:
+        yield redis
+    finally:
+        await redis.aclose()
