@@ -1,3 +1,5 @@
+const tg = window.Telegram.WebApp;
+
 const CONFIG = {
     API_BASE: "/api",
     DEFAULT_SPLIT_PARTS: "2",
