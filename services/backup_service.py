@@ -189,13 +189,36 @@ async def perform_smart_merge(file_path: str, session):
         user_data = get_data_from_dump("users")
         group_data = get_data_from_dump("groups")
 
+        # Helper to safely get values with defaults
+        def safe_get(d, key, default=None):
+            val = d.get(key)
+            return val if val is not None and val != r"\N" else default
+
+        # Helper to parse datetime strings
+        from datetime import datetime as dt
+        def parse_datetime(date_str):
+            if isinstance(date_str, str):
+                # Handle both with and without microseconds
+                for fmt in ["%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"]:
+                    try:
+                        return dt.strptime(date_str, fmt)
+                    except ValueError:
+                        continue
+            return date_str  # Already datetime or None
+
         for u in user_data:
             try:
-                # Convert types safely
+                # Convert types safely with defaults for missing columns
                 u["id"] = int(u["id"])
                 u["telegram_id"] = int(u["telegram_id"])
-                u["is_active"] = u["is_active"] == "t"
-                u["ai_credits"] = int(u["ai_credits"] or 0)
+                u["is_active"] = safe_get(u, "is_active", "t") == "t"
+                u["ai_credits"] = int(safe_get(u, "ai_credits", 0) or 0)  # Default for old backups
+                
+                # Parse datetime fields
+                if "created_at" in u:
+                    u["created_at"] = parse_datetime(u["created_at"])
+                if "updated_at" in u:
+                    u["updated_at"] = parse_datetime(u["updated_at"])
                 
                 # Use insert().on_conflict_do_nothing explicitly for postgres
                 stmt = insert(User).values(**u).on_conflict_do_nothing(index_elements=["telegram_id"])
@@ -210,7 +233,13 @@ async def perform_smart_merge(file_path: str, session):
             try:
                 g["id"] = int(g["id"])
                 g["telegram_id"] = int(g["telegram_id"])
-                g["is_active"] = g["is_active"] == "t"
+                g["is_active"] = safe_get(g, "is_active", "t") == "t"
+                
+                # Parse datetime fields
+                if "created_at" in g:
+                    g["created_at"] = parse_datetime(g["created_at"])
+                if "updated_at" in g:
+                    g["updated_at"] = parse_datetime(g["updated_at"])
                 
                 stmt = insert(Group).values(**g).on_conflict_do_nothing(index_elements=["telegram_id"])
                 res = await session.execute(stmt)
