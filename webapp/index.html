@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Comfort Quiz - Bot</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="style.css?v=4">
+    <link rel="stylesheet" href="style.css?v=5">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
@@ -81,9 +81,38 @@
         <div id="editor-actions" class="footer-actions" style="display: none;">
             <button id="save-btn" class="primary-btn">Save Changes</button>
         </div>
+
+        <!-- Modern Split Modal -->
+        <div id="split-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="split-modal-title">Split Quiz</h2>
+                </div>
+                <div class="split-options">
+                    <button class="split-type-btn active" id="btn-type-parts">
+                        <div style="font-weight: 600; margin-bottom: 4px;" id="label-type-parts">By Parts</div>
+                        <div style="font-size: 0.8rem; opacity: 0.7;" id="desc-type-parts">Divide into equal parts</div>
+                        <div class="split-input-group active" id="group-parts">
+                            <input type="number" class="split-input" id="input-parts" value="2" min="1" max="50">
+                        </div>
+                    </button>
+                    <button class="split-type-btn" id="btn-type-size">
+                        <div style="font-weight: 600; margin-bottom: 4px;" id="label-type-size">By Questions</div>
+                        <div style="font-size: 0.8rem; opacity: 0.7;" id="desc-type-size">Questions per part</div>
+                        <div class="split-input-group" id="group-size">
+                            <input type="number" class="split-input" id="input-size" value="10" min="10">
+                        </div>
+                    </button>
+                </div>
+                <div class="modal-footer">
+                    <button class="cancel-btn" id="split-cancel">Cancel</button>
+                    <button class="confirm-btn" id="split-confirm">Confirm Split</button>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <script src="script.js?v=34"></script>
+    <script src="script.js?v=35"></script>
 </body>
 
 </html>

@@ -67,6 +67,17 @@ function initElements() {
     navSplit = document.getElementById('nav-split');
     bottomNav = document.querySelector('.bottom-nav');
 
+    // Split Modal Elements
+    const splitModal = document.getElementById('split-modal');
+    const btnTypeParts = document.getElementById('btn-type-parts');
+    const btnTypeSize = document.getElementById('btn-type-size');
+    const groupParts = document.getElementById('group-parts');
+    const groupSize = document.getElementById('group-size');
+    const inputParts = document.getElementById('input-parts');
+    const inputSize = document.getElementById('input-size');
+    const splitCancel = document.getElementById('split-cancel');
+    const splitConfirm = document.getElementById('split-confirm');
+
     // Attach event listeners safely
     if (searchInput) {
         searchInput.oninput = handleSearch;
@@ -81,7 +92,65 @@ function initElements() {
         navDashboard.onclick = () => switchView('dashboard');
     }
     if (navSplit) {
-        navSplit.onclick = () => switchView('split');
+        navSplit.onclick = () => {
+            if (currentView === 'editor') {
+                // If in editor, go back to dashboard first OR just switch
+                switchView('split');
+            } else {
+                switchView('split');
+            }
+        };
+    }
+
+    // Modal Events
+    if (btnTypeParts) {
+        btnTypeParts.onclick = () => {
+            btnTypeParts.classList.add('active');
+            btnTypeSize.classList.remove('active');
+            groupParts.classList.add('active');
+            groupSize.classList.remove('active');
+        };
+    }
+    if (btnTypeSize) {
+        btnTypeSize.onclick = () => {
+            btnTypeSize.classList.add('active');
+            btnTypeParts.classList.remove('active');
+            groupSize.classList.add('active');
+            groupParts.classList.remove('active');
+        };
+    }
+    if (splitCancel) {
+        splitCancel.onclick = () => {
+            splitModal.style.display = 'none';
+        };
+    }
+    if (splitConfirm) {
+        splitConfirm.onclick = async () => {
+            const quizId = splitModal.dataset.quizId;
+            const totalCount = parseInt(splitModal.dataset.totalCount);
+            const isParts = btnTypeParts.classList.contains('active');
+
+            const paramName = isParts ? 'parts' : 'size';
+            const val = parseInt(isParts ? inputParts.value : inputSize.value);
+
+            if (isNaN(val) || val <= 0) return;
+
+            // Validation
+            if (paramName === 'size' && val < 10) {
+                tg.showAlert(t('error_min_chunk'));
+                return;
+            }
+            if (paramName === 'parts') {
+                const size = Math.ceil(totalCount / val);
+                if (size < 10) {
+                    tg.showAlert(t('error_min_chunk'));
+                    return;
+                }
+            }
+
+            splitModal.style.display = 'none';
+            await performSplit(quizId, paramName, val);
+        };
     }
 }
 
@@ -296,6 +365,13 @@ const TRANSLATIONS = {
         nav_split: "Bo'lish",
         error_min_questions: "Testni bo'lish uchun jami kamida 20 ta savol bo'lishi kerak!",
         error_min_chunk: "Har bir qismda kamida 10 ta savol bo'lishi shart!",
+        split_modal_title: "Testni Bo'lish",
+        label_type_parts: "Qismlar soni bo'yicha",
+        desc_type_parts: "Testni teng qismlarga taqsimlash",
+        label_type_size: "Savollar soni bo'yicha",
+        desc_type_size: "Har bir qismda nechta savol bo'lishi",
+        btn_cancel: "Bekor qilish",
+        btn_confirm_split: "Bo'lishni tasdiqlash",
     },
     EN: {
         my_quizzes: "My Quizzes",
@@ -330,6 +406,13 @@ const TRANSLATIONS = {
         nav_split: "Split",
         error_min_questions: "A quiz must have at least 20 questions to be split!",
         error_min_chunk: "Each part must have at least 10 questions!",
+        split_modal_title: "Split Quiz",
+        label_type_parts: "By Parts",
+        desc_type_parts: "Divide into equal parts",
+        label_type_size: "By Questions",
+        desc_type_size: "Questions per part",
+        btn_cancel: "Cancel",
+        btn_confirm_split: "Confirm Split",
     }
 };
 
@@ -377,7 +460,14 @@ async function init() {
     document.getElementById('label-nav-dashboard').innerText = t('nav_dashboard');
     document.getElementById('label-nav-split').innerText = t('nav_split');
 
-    document.getElementById('label-nav-split').innerText = t('nav_split');
+    // Localization for split modal
+    document.getElementById('split-modal-title').innerText = t('split_modal_title');
+    document.getElementById('label-type-parts').innerText = t('label_type_parts');
+    document.getElementById('desc-type-parts').innerText = t('desc_type_parts');
+    document.getElementById('label-type-size').innerText = t('label_type_size');
+    document.getElementById('desc-type-size').innerText = t('desc_type_size');
+    document.getElementById('split-cancel').innerText = t('btn_cancel');
+    document.getElementById('split-confirm').innerText = t('btn_confirm_split');
 
     await loadQuizzes();
     hideLoader();
@@ -997,75 +1087,39 @@ async function requestSplit(quizId, totalCount) {
         return;
     }
 
-    tg.showPopup({
-        title: t('split_quiz'),
-        message: `${t('split_info')}\n\n${t('questions_count').toUpperCase()}: ${totalCount}`,
-        buttons: [
-            { id: 'parts', text: t('split_type_parts'), type: 'default' },
-            { id: 'size', text: t('split_type_size'), type: 'default' },
-            { type: 'cancel' }
-        ]
-    }, async (buttonId) => {
-        if (!buttonId || buttonId === 'cancel') return;
+    const splitModal = document.getElementById('split-modal');
+    splitModal.dataset.quizId = quizId;
+    splitModal.dataset.totalCount = totalCount;
+    splitModal.style.display = 'flex';
+}
 
-        let promptText = '';
-        let paramName = '';
+async function performSplit(quizId, paramName, val) {
+    const body = {};
+    body[paramName] = val;
 
-        if (buttonId === 'parts') {
-            promptText = t('split_parts');
-            paramName = 'parts';
-        } else {
-            promptText = t('split_size');
-            paramName = 'size';
+    showLoader();
+    try {
+        const headers = getAuthHeaders();
+        headers['Content-Type'] = 'application/json';
+        const res = await fetch(`${CONFIG.API_BASE}/quizzes/${quizId}/split`, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(body)
+        });
+
+        if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.detail || t('error_save'));
         }
 
-        // Native prompt for simplicity in MVP, custom modal later if requested
-        const numValue = window.prompt(promptText, paramName === 'parts' ? CONFIG.DEFAULT_SPLIT_PARTS : CONFIG.DEFAULT_SPLIT_SIZE);
-        if (!numValue) return;
-
-        const val = parseInt(numValue);
-        if (isNaN(val) || val <= 0) return;
-
-        // Validation based on type
-        if (paramName === 'size' && val < 10) {
-            tg.showAlert(t('error_min_chunk'));
-            return;
-        }
-        if (paramName === 'parts') {
-            const size = Math.ceil(totalCount / val);
-            if (size < 10) {
-                tg.showAlert(t('error_min_chunk'));
-                return;
-            }
-        }
-
-        const body = {};
-        body[paramName] = val;
-
-        showLoader();
-        try {
-            const headers = getAuthHeaders();
-            headers['Content-Type'] = 'application/json';
-            const res = await fetch(`${CONFIG.API_BASE}/quizzes/${quizId}/split`, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(body)
-            });
-
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.detail || t('error_save'));
-            }
-
-            tg.showAlert(t('split_success'));
-            await loadQuizzes(); // Refresh list
-        } catch (err) {
-            console.error(err);
-            tg.showAlert(err.message);
-        } finally {
-            hideLoader();
-        }
-    });
+        tg.showAlert(t('split_success'));
+        await loadQuizzes(); // Refresh list
+    } catch (err) {
+        console.error(err);
+        tg.showAlert(err.message);
+    } finally {
+        hideLoader();
+    }
 }
 
 async function openEditor(quizId) {
