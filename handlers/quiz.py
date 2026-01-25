@@ -153,7 +153,7 @@ async def set_ai_limit(user_id: int, limit_type: str, redis):
 # ===================== AI QUIZ GENERATION =====================
 
 @router.message(F.text.in_([Messages.get("AI_GENERATE_BTN", "UZ"), Messages.get("AI_GENERATE_BTN", "EN")]))
-async def cmd_ai_generate(message: types.Message, state: FSMContext, redis, lang: str, user: Any):
+async def cmd_ai_generate(message: types.Message, state: FSMContext, redis, lang: str, user: Any, quiz_service: QuizService):
     """Handle AI quiz generation button press"""
     telegram_id = message.from_user.id
     
@@ -174,7 +174,6 @@ async def cmd_ai_generate(message: types.Message, state: FSMContext, redis, lang
         return
 
     # NEW: Check total quiz limit (50)
-    quiz_service = QuizService(db_session, redis)
     if not await quiz_service.check_limit(telegram_id):
         await message.answer(Messages.get("ERROR_QUIZ_LIMIT", lang), parse_mode="HTML")
         return
@@ -342,13 +341,12 @@ async def handle_ai_count(message: types.Message, state: FSMContext, bot: Bot, r
 # ===================== TEST CONVERSION =====================
 
 @router.message(F.text.in_([Messages.get("CONVERT_BTN", "UZ"), Messages.get("CONVERT_BTN", "EN")]))
-async def cmd_convert_test(message: types.Message, state: FSMContext, redis, lang: str, user: Any, db_session):
+async def cmd_convert_test(message: types.Message, state: FSMContext, redis, lang: str, user: Any, quiz_service: QuizService):
     """Handle Test Conversion button press"""
     telegram_id = message.from_user.id
     
     # NEW: Check total quiz limit (50)
-    service = QuizService(db_session)
-    if not await service.check_limit(telegram_id):
+    if not await quiz_service.check_limit(telegram_id):
         await message.answer(Messages.get("ERROR_QUIZ_LIMIT", lang), parse_mode="HTML")
         return
 
@@ -541,13 +539,12 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
 
 @router.message(F.text.in_([Messages.get("UPLOAD_WORD_BTN", "UZ"), Messages.get("UPLOAD_WORD_BTN", "EN"),
                             Messages.get("CREATE_QUIZ_BTN", "UZ"), Messages.get("CREATE_QUIZ_BTN", "EN")]))
-async def cmd_upload_word(message: types.Message, state: FSMContext, lang: str, user: Any, db_session):
+async def cmd_upload_word(message: types.Message, state: FSMContext, lang: str, user: Any, quiz_service: QuizService):
     """Handle Word upload button press (renamed from create_quiz)"""
     telegram_id = message.from_user.id
     
     # NEW: Check total quiz limit (50)
-    service = QuizService(db_session)
-    if not await service.check_limit(telegram_id):
+    if not await quiz_service.check_limit(telegram_id):
         await message.answer(Messages.get("ERROR_QUIZ_LIMIT", lang), parse_mode="HTML")
         return
     

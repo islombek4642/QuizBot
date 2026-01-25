@@ -394,6 +394,19 @@ async def update_quiz(
         raise HTTPException(status_code=404, detail="Quiz not found or unauthorized")
         
     return {"status": "success"}
+
+@app.delete("/api/quizzes/{quiz_id}", tags=["quizzes"])
+async def delete_quiz(
+    quiz_id: int, 
+    user_id: int = Depends(get_current_user), 
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a quiz owned by the current user."""
+    service = QuizService(db)
+    success = await service.delete_quiz(quiz_id, user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Quiz not found or unauthorized")
+    return {"status": "success"}
 class QuizSplitRequest(BaseModel):
     """Request body for splitting a quiz."""
     parts: Optional[int] = Field(None, description="Number of parts to split into", ge=1)
