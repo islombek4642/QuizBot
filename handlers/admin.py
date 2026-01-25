@@ -56,17 +56,19 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
     
     builder = InlineKeyboardBuilder()
     for i, user in enumerate(users, 1 + offset):
-        # Name display logic: use full name or fallback, username is hidden but used for the link
-        name = user.full_name or f"Foydalanuvchi {user.telegram_id}"
-        
+        # Name display logic: use full name or fallback, truncate if too long
+        display_name = user.full_name or f"Foydalanuvchi {user.telegram_id}"
+        if len(display_name) > 25:
+            display_name = display_name[:22] + "..."
+            
         # Phone indicator: ✅ if shared, ⚠️ if not
         indicator = "✅" if user.phone_number else "⚠️"
-        date_str = user.created_at.strftime("%d.%m.%y")
+        date_str = user.created_at.strftime("%d.%m.%y %H:%M")
         phone = f" — <code>{user.phone_number}</code>" if user.phone_number else " — [Raqamsiz]"
         id_info = f" (<code>{user.telegram_id}</code>)"
         
         link = f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.telegram_id}"
-        text += f"{i}. {indicator} [{date_str}] <a href='{link}'>{name}</a>{id_info}{phone}\n"
+        text += f"{i}. {indicator} <a href='{link}'>{display_name}</a>{id_info}{phone} — [{date_str}]\n"
         
     text += "\n" + Messages.get("ADMIN_PAGE", lang).format(page=page+1, total=(total_users + limit - 1) // limit)
     
