@@ -43,12 +43,18 @@ const CONFIG = {
 function createRipple(event) {
     const button = event.currentTarget;
     const ripple = document.createElement("span");
-    const diameter = Math.max(button.clientWidth, button.clientHeight);
+    const diameter = Math.max(button.clientWidth, button.clientHeight) * 1.5;
     const radius = diameter / 2;
 
     ripple.style.width = ripple.style.height = `${diameter}px`;
-    ripple.style.left = `${event.clientX - button.getBoundingClientRect().left - radius}px`;
-    ripple.style.top = `${event.clientY - button.getBoundingClientRect().top - radius}px`;
+
+    // Support both mouse and touch events
+    const clientX = event.clientX || (event.touches && event.touches[0].clientX);
+    const clientY = event.clientY || (event.touches && event.touches[0].clientY);
+
+    const rect = button.getBoundingClientRect();
+    ripple.style.left = `${clientX - rect.left - radius}px`;
+    ripple.style.top = `${clientY - rect.top - radius}px`;
     ripple.classList.add("ripple");
 
     const oldRipple = button.getElementsByClassName("ripple")[0];
@@ -1257,12 +1263,12 @@ function addSwipeListeners(el, wrapper) {
         wrapper.classList.remove('swiping');
 
         const diff = currentX - startX;
-        el.style.transition = 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)';
+        el.style.transition = 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
 
-        if (diff > 50) {
+        if (diff > 60) {
             el.style.transform = 'translateX(80px)';
             wrapper.classList.add('active-swipe');
-        } else if (diff < -50) {
+        } else if (diff < -60) {
             el.style.transform = 'translateX(-80px)';
             wrapper.classList.add('active-swipe');
         } else {
@@ -1272,7 +1278,7 @@ function addSwipeListeners(el, wrapper) {
 
         setTimeout(() => {
             el.style.transition = 'transform 0.2s ease-out';
-        }, 400);
+        }, 500);
     });
 
     // Close on click or interaction
