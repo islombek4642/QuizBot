@@ -1,6 +1,8 @@
 import os
 import asyncio
 import subprocess
+import gzip
+import shutil
 from datetime import datetime
 from aiogram import Bot
 from aiogram.types import FSInputFile
@@ -9,26 +11,23 @@ from core.logger import logger
 
 async def create_backup():
     """
-    Creates a database backup using pg_dump.
-    Returns the path to the backup file.
+    Creates a database backup using pg_dump and compresses it with gzip.
+    Returns the path to the compressed backup file.
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_filename = f"{settings.BACKUP_FILENAME_PREFIX}_{timestamp}.sql"
-    backup_path = os.path.join(settings.BACKUP_TEMP_DIR, backup_filename)
+    sql_filename = f"{settings.BACKUP_FILENAME_PREFIX}_{timestamp}.sql"
+    sql_path = os.path.join(settings.BACKUP_TEMP_DIR, sql_filename)
+    gz_path = f"{sql_path}.gz"
     
     # Extract connection details from DATABASE_URL
-    # Format: postgresql+asyncpg://user:password@host:port/dbname
     url = settings.DATABASE_URL
     if "asyncpg" in url:
         url = url.replace("postgresql+asyncpg://", "postgresql://")
     
     try:
-        # We use pg_dump with the connection string directly
-        # PGPASSWORD environment variable is used to avoid interactive prompt
-        # But pg_dump also supports connection URI
-        
+        # Create SQL dump
         process = await asyncio.create_subprocess_exec(
-            "pg_dump", url, "-f", backup_path,
+            "pg_dump", url, "-f", sql_path,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
@@ -36,17 +35,28 @@ async def create_backup():
         
         if process.returncode != 0:
             logger.error("pg_dump failed", error=stderr.decode())
+            if os.path.exists(sql_path): os.remove(sql_path)
             return None
             
-        logger.info(f"Backup created successfully: {backup_path}")
-        return backup_path
+        # Compress the SQL file
+        logger.info(f"Compressing backup: {sql_path}")
+        with open(sql_path, 'rb') as f_in:
+            with gzip.open(gz_path, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        
+        # Remove original SQL file
+        os.remove(sql_path)
+        
+        logger.info(f"Backup created and compressed: {gz_path}")
+        return gz_path
     except Exception as e:
         logger.error("Failed to create backup", error=str(e))
+        if os.path.exists(sql_path): os.remove(sql_path)
         return None
 
 async def send_backup_to_admin(bot: Bot):
     """
-    Creates a backup and sends it to the admin.
+    Creates a compressed backup and sends it to the admin.
     """
     if not settings.ADMIN_ID:
         logger.warning("ADMIN_ID not set, skipping backup send")
@@ -57,7 +67,13 @@ async def send_backup_to_admin(bot: Bot):
     
     if backup_path and os.path.exists(backup_path):
         try:
-            caption = f"📦 *Daily Backup*\n📅 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n📁 File: {os.path.basename(backup_path)}"
+            file_size_mb = os.path.getsize(backup_path) / (1024 * 1024)
+            caption = (
+                f"📦 *Database Backup*\n"
+                f"📅 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"📁 File: `{os.path.basename(backup_path)}`\n"
+                f"⚖️ Size: {file_size_mb:.2f} MB"
+            )
             
             await bot.send_document(
                 chat_id=settings.ADMIN_ID,
@@ -69,7 +85,6 @@ async def send_backup_to_admin(bot: Bot):
         except Exception as e:
             logger.error("Failed to send backup to admin", error=str(e))
         finally:
-            # Clean up the temporary file
             if os.path.exists(backup_path):
                 os.remove(backup_path)
     else:
