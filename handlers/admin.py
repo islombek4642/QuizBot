@@ -586,20 +586,25 @@ async def admin_silent_cleanup(message: types.Message, bot: Bot, db: AsyncSessio
 
 async def run_silent_cleanup_task(admin_chat_id, bot: Bot, db: AsyncSession, lang: str):
     from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest, TelegramRetryAfter
-    from sqlalchemy import select, update
+    from sqlalchemy import select, update, delete
     
     # We need a new session for the background task
-    from db.session import AsyncSessionLocal
-    async with AsyncSessionLocal() as session:
-        # 1. Get all active IDs
-        users = await session.execute(select(User.telegram_id).filter(User.is_active == True))
-        user_ids = list(users.scalars().all())
+    from db.session import AsyncSessionLocal as async_session_factory # Assuming this is the factory
+    async with async_session_factory() as session:
+        # First: Delete all users already marked as inactive
+        await session.execute(delete(User).where(User.is_active == False))
+        await session.execute(delete(Group).where(Group.is_active == False))
+        await session.commit()
+
+        # Same for all active users to check if they still exist for THIS bot
+        res_users = await session.execute(select(User.telegram_id))
+        all_user_ids = [r[0] for r in res_users.fetchall()]
         
-        groups = await session.execute(select(Group.telegram_id).filter(Group.is_active == True))
-        group_ids = list(groups.scalars().all())
+        res_groups = await session.execute(select(Group.telegram_id))
+        all_group_ids = [r[0] for r in res_groups.fetchall()]
         
-        all_targets = user_ids + group_ids
-        user_ids_set = set(user_ids)
+        all_targets = all_user_ids + all_group_ids
+        user_ids_set = set(all_user_ids)
         
         dead_user_ids = []
         dead_group_ids = []
@@ -621,6 +626,7 @@ async def run_silent_cleanup_task(admin_chat_id, bot: Bot, db: AsyncSession, lan
                 if target_id in user_ids_set: dead_user_ids.append(target_id)
                 else: dead_group_ids.append(target_id)
             except TelegramBadRequest as e:
+                # Most common for users from OLD bots (banned)
                 if "chat not found" in str(e).lower():
                     if target_id in user_ids_set: dead_user_ids.append(target_id)
                     else: dead_group_ids.append(target_id)
@@ -629,21 +635,21 @@ async def run_silent_cleanup_task(admin_chat_id, bot: Bot, db: AsyncSession, lan
             except Exception:
                 pass
             
-            # Periodic commit to save progress and updated names
+            # Periodic deletion of dead IDs
             if i % 25 == 0:
                 if dead_user_ids:
-                    await session.execute(update(User).where(User.telegram_id.in_(dead_user_ids)).values(is_active=False))
+                    await session.execute(delete(User).where(User.telegram_id.in_(dead_user_ids)))
                     dead_user_ids = []
                 if dead_group_ids:
-                    await session.execute(update(Group).where(Group.telegram_id.in_(dead_group_ids)).values(is_active=False))
+                    await session.execute(delete(Group).where(Group.telegram_id.in_(dead_group_ids)))
                     dead_group_ids = []
                 await session.commit()
 
-        # Final commit
+        # Final cleanup
         if dead_user_ids:
-            await session.execute(update(User).where(User.telegram_id.in_(dead_user_ids)).values(is_active=False))
+            await session.execute(delete(User).where(User.telegram_id.in_(dead_user_ids)))
         if dead_group_ids:
-            await session.execute(update(Group).where(Group.telegram_id.in_(dead_group_ids)).values(is_active=False))
+            await session.execute(delete(Group).where(Group.telegram_id.in_(dead_group_ids)))
         await session.commit()
         
-        await bot.send_message(admin_chat_id, "✅ Bazani sokin tozalash yakunlandi! Endi statistika va ro'yxatlar faqat real foydalanuvchilarni ko'rsatadi.")
+        await bot.send_message(admin_chat_id, "✅ Bazani tozalash yakunlandi! Eski (banned gacha bo'lgan) foydalanuvchilar o'chirildi.")
