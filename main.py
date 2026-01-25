@@ -39,6 +39,14 @@ async def main():
         await start_api()
         return
 
+    # Initialize DB (Auto-create missing tables)
+    from db.session import engine
+    from models.base import Base
+    import models.user, models.quiz, models.stats # Ensure all models are registered
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("Database tables verified/created.")
+
     # Initialize Redis
     redis = Redis.from_url(settings.REDIS_URL, decode_responses=True)
     
