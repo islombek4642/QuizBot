@@ -604,11 +604,15 @@ async def run_silent_cleanup_task(admin_chat_id: int, bot: Bot, lang: str):
         await session.execute(delete(QuizSession).where(QuizSession.quiz_id.in_(inactive_quiz_ids_query)))
         # 3. Quizzes for inactive users
         await session.execute(delete(Quiz).where(Quiz.user_id.in_(inactive_user_ids_query)))
-        # 4. Inactive Users
-        await session.execute(delete(User).where(User.is_active == False))
         
-        # Groups can be deleted directly as they have no FK dependencies
-        await session.execute(delete(Group).where(Group.is_active == False))
+        # Track counts of initially inactive records and perform deletion
+        res_u = await session.execute(delete(User).where(User.is_active == False))
+        u_count = res_u.rowcount or 0
+        
+        res_g = await session.execute(delete(Group).where(Group.is_active == False))
+        g_count = res_g.rowcount or 0
+        
+        initial_dead_count = u_count + g_count
         await session.commit()
 
         # Get all IDs to check
@@ -620,23 +624,31 @@ async def run_silent_cleanup_task(admin_chat_id: int, bot: Bot, lang: str):
         
         all_targets = all_user_ids + all_group_ids
         user_ids_set = set(all_user_ids)
-        total = len(all_targets)
         
-        if total == 0:
+        # Improved reporting: Total = Initial dead + items to check
+        check_count = len(all_targets)
+        report_total = initial_dead_count + check_count
+        
+        if report_total == 0:
             await bot.send_message(admin_chat_id, "ℹ️ Bazada tekshirish uchun foydalanuvchilar yo'q.")
             return
 
+        # Initial status message including already deleted ones
         status_msg = await bot.send_message(
             admin_chat_id, 
             Messages.get("CLEANUP_PROGRESS", lang).format(
-                current=0, total=total, percent=0, alive=0, dead=0
+                current=initial_dead_count, 
+                total=report_total, 
+                percent=int((initial_dead_count/report_total)*100) if report_total > 0 else 100,
+                alive=0, 
+                dead=initial_dead_count
             )
         )
 
         dead_user_ids = []
         dead_group_ids = []
         alive_count = 0
-        dead_count = 0
+        dead_count = initial_dead_count
         
         for i, target_id in enumerate(all_targets, 1):
             try:
@@ -693,13 +705,14 @@ async def run_silent_cleanup_task(admin_chat_id: int, bot: Bot, lang: str):
                 
                 # Update progress message
                 try:
+                    current_processed = initial_dead_count + i
                     await bot.edit_message_text(
                         chat_id=admin_chat_id,
                         message_id=status_msg.message_id,
                         text=Messages.get("CLEANUP_PROGRESS", lang).format(
-                            current=i,
-                            total=total,
-                            percent=int((i/total)*100),
+                            current=current_processed,
+                            total=report_total,
+                            percent=int((current_processed/report_total)*100),
                             alive=alive_count,
                             dead=dead_count
                         )
@@ -710,7 +723,7 @@ async def run_silent_cleanup_task(admin_chat_id: int, bot: Bot, lang: str):
         await bot.send_message(
             admin_chat_id, 
             Messages.get("CLEANUP_FINISHED_MSG", lang).format(
-                total=total,
+                total=report_total,
                 dead=dead_count
             )
         )
