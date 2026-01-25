@@ -303,19 +303,7 @@ main {
     /* Glassmorphism Refinement */
     .quiz-card {
         border: 1px solid rgba(255, 255, 255, 0.08);
-        background: rgba(30, 41, 59, 0.5);
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-    }
 
-    .quiz-card h3 {
-        background: linear-gradient(to right, #fff, #94a3b8);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-
-    @keyframes wiggle {
-
-        0%,
         100% {
             transform: translateX(0);
         }
