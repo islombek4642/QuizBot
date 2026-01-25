@@ -156,6 +156,33 @@ function initElements() {
             await performSplit(quizId, paramName, val);
         };
     }
+    if (navLeaderboard) {
+        navLeaderboard.onclick = () => switchView('leaderboard');
+    }
+
+    // Leaderboard Tab Events
+    document.querySelectorAll('.lb-tab').forEach(tab => {
+        tab.onclick = () => {
+            document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            loadLeaderboard(tab.dataset.period);
+        };
+    });
+
+    const lbTypeUsers = document.getElementById('lb-type-users');
+    const lbTypeGroups = document.getElementById('lb-type-groups');
+    if (lbTypeUsers && lbTypeGroups) {
+        lbTypeUsers.onclick = () => {
+            lbTypeUsers.classList.add('active');
+            lbTypeGroups.classList.remove('active');
+            renderLeaderboard();
+        };
+        lbTypeGroups.onclick = () => {
+            lbTypeGroups.classList.add('active');
+            lbTypeUsers.classList.remove('active');
+            renderLeaderboard();
+        };
+    }
 }
 
 function handleSearch(e) {
@@ -1164,7 +1191,7 @@ async function openEditor(quizId) {
 
 // Validation Helpers
 function escapeHtml(text) {
-    if (!text) return "";
+    if (typeof text !== 'string') return String(text || "");
     return text
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -1408,11 +1435,13 @@ function switchView(view) {
     dashboardView.style.display = 'none';
     splitView.style.display = 'none';
     editorView.style.display = 'none';
+    if (leaderboardView) leaderboardView.style.display = 'none';
     backBtn.style.display = 'none';
     editorActions.style.display = 'none';
     bottomNav.style.display = 'flex';
     navDashboard.classList.remove('active');
     navSplit.classList.remove('active');
+    if (navLeaderboard) navLeaderboard.classList.remove('active');
 
     if (view === 'dashboard') {
         dashboardView.style.display = 'grid';
@@ -1515,7 +1544,7 @@ function renderLeaderboard() {
 }
 
 function escapeHtml(text) {
-    if (!text) return "";
+    if (typeof text !== 'string') return String(text || "");
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
