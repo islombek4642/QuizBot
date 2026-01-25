@@ -1,5 +1,13 @@
-const tg = window.Telegram.WebApp;
-const API_BASE = "/api";
+const CONFIG = {
+    API_BASE: "/api",
+    DEFAULT_SPLIT_PARTS: "2",
+    DEFAULT_SPLIT_SIZE: "20",
+    MAX_QUESTION_LEN: 500,
+    MAX_OPTION_LEN: 100,
+    THEME_COLORS: {
+        bg: '#0f172a'
+    }
+};
 
 // State
 let currentQuizzes = [];
@@ -287,7 +295,7 @@ async function loadQuizzes() {
             return;
         }
 
-        const res = await fetch(`${API_BASE}/quizzes`, { headers });
+        const res = await fetch(`${CONFIG.API_BASE}/quizzes`, { headers });
 
         if (res.status === 401) {
             await showAuthRedirect();
@@ -875,7 +883,7 @@ async function requestSplit(quizId, totalCount) {
         }
 
         // Native prompt for simplicity in MVP, custom modal later if requested
-        const numValue = window.prompt(promptText, "2");
+        const numValue = window.prompt(promptText, paramName === 'parts' ? CONFIG.DEFAULT_SPLIT_PARTS : CONFIG.DEFAULT_SPLIT_SIZE);
         if (!numValue) return;
 
         const val = parseInt(numValue);
@@ -888,7 +896,7 @@ async function requestSplit(quizId, totalCount) {
         try {
             const headers = getAuthHeaders();
             headers['Content-Type'] = 'application/json';
-            const res = await fetch(`${API_BASE}/quizzes/${quizId}/split`, {
+            const res = await fetch(`${CONFIG.API_BASE}/quizzes/${quizId}/split`, {
                 method: 'POST',
                 headers: headers,
                 body: JSON.stringify(body)
@@ -914,7 +922,7 @@ async function openEditor(quizId) {
     showLoader();
     try {
         const headers = getAuthHeaders();
-        const res = await fetch(`${API_BASE}/quizzes/${quizId}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/quizzes/${quizId}`, {
             headers: headers
         });
         if (res.status === 401) {
@@ -957,6 +965,7 @@ function clearError(el) {
 }
 
 function validateInput(el, limit) {
+    limit = limit || CONFIG.MAX_QUESTION_LEN;
     const len = el.value.trim().length;
     const countEl = el.parentElement.querySelector('.char-count');
     if (countEl) countEl.innerText = `${len}/${limit}`;
@@ -1096,7 +1105,7 @@ async function saveChanges() {
         const qInput = item.querySelector('.q-text');
 
         // Use shared validation logic
-        if (!validateInput(qInput, 300)) {
+        if (!validateInput(qInput, CONFIG.MAX_QUESTION_LEN)) {
             hasError = true;
         }
 
@@ -1104,7 +1113,7 @@ async function saveChanges() {
         const optionInputs = item.querySelectorAll('.option-input');
 
         optionInputs.forEach(optInput => {
-            if (!validateInput(optInput, 100)) {
+            if (!validateInput(optInput, CONFIG.MAX_OPTION_LEN)) {
                 hasError = true;
             }
             options.push(optInput.value.trim()); // Trim on save
@@ -1142,7 +1151,7 @@ async function saveChanges() {
         const headers = getAuthHeaders();
         headers['Content-Type'] = 'application/json';
 
-        const res = await fetch(`${API_BASE}/quizzes/${currentQuizData.id}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/quizzes/${currentQuizData.id}`, {
             method: 'PUT',
             headers: headers,
             body: JSON.stringify({
