@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Comfort Quiz - Bot</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="style.css?v=10">
+    <link rel="stylesheet" href="style.css?v=15">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
@@ -58,6 +58,36 @@
             <section id="split-view" class="view" style="display: none;">
                 <div id="split-quiz-list" class="quiz-grid">
                     <!-- Quizzes for splitting will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Leaderboard View -->
+            <section id="leaderboard" class="view" style="display: none;">
+                <div class="leaderboard-tabs glass">
+                    <button id="lb-tab-total" class="lb-tab active" data-period="total">Total</button>
+                    <button id="lb-tab-weekly" class="lb-tab" data-period="weekly">Weekly</button>
+                    <button id="lb-tab-daily" class="lb-tab" data-period="daily">Daily</button>
+                </div>
+
+                <div class="lb-type-selector">
+                    <button class="lb-type-btn active" id="lb-type-users">👤 Users</button>
+                    <button class="lb-type-btn" id="lb-type-groups">👥 Groups</button>
+                </div>
+
+                <div id="lb-list" class="lb-list-container">
+                    <!-- Leaderboard items will be loaded here -->
+                    <div class="lb-loader">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+
+                <!-- Sticky My Rank -->
+                <div id="my-rank-bar" class="my-rank-sticky glass" style="display: none;">
+                    <div class="rank-info">
+                        <span class="rank-num">#??</span>
+                        <span class="rank-name">You</span>
+                    </div>
+                    <div class="rank-score">0 pts</div>
                 </div>
             </section>
 
@@ -216,7 +246,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=60"></script>
+    <script src="script.js?v=65"></script>
 </body>
 
 </html>

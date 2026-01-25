@@ -112,7 +112,8 @@ class StatsService:
 
     async def get_user_leaderboard(self, period: str = 'total', limit: int = 50) -> List[dict]:
         """
-        period: 'daily', 'weekly', 'total'
+        Get global user leaderboard.
+        Uses LEFT JOIN to ensure all active users appear even if they have 0 points.
         """
         now = datetime.utcnow()
         start_date = None
@@ -123,41 +124,40 @@ class StatsService:
             start_date = now - timedelta(days=now.weekday())
             start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
 
-        # Base query from PointLog to ensure we capture all logged points
+        # 1. Aggegrate points by user from PointLog
+        point_sq = select(
+            PointLog.user_id,
+            func.sum(PointLog.points).label('total_points')
+        )
+        if start_date:
+            point_sq = point_sq.filter(PointLog.timestamp >= start_date)
+        
+        point_sq = point_sq.group_by(PointLog.user_id).alias('points_agg')
+
+        # 2. Join with User table to get names and apply is_active filter
         query = (
             select(
-                PointLog.user_id,
-                func.sum(PointLog.points).label('score'),
+                User.telegram_id.label('user_id'),
                 User.full_name,
-                User.username
+                User.username,
+                func.coalesce(point_sq.c.total_points, 0).label('score')
             )
-            .join(User, User.telegram_id == PointLog.user_id)
-            .filter(User.is_active == True) # ONLY show users who didn't block the bot
-        )
-
-        if start_date:
-            query = query.filter(PointLog.timestamp >= start_date)
-
-        query = (
-            query.group_by(PointLog.user_id, User.full_name, User.username)
-            .having(func.sum(PointLog.points) != 0) # Only show users with non-zero points
-            .order_by(desc('score'))
+            .outerjoin(point_sq, User.telegram_id == point_sq.c.user_id)
+            .filter(User.is_active == True)
+            .order_by(desc('score'), User.id.asc())
             .limit(limit)
         )
 
         result = await self.db.execute(query)
         rows = result.all()
         
-        leaderboard = []
-        for i, row in enumerate(rows, 1):
-            leaderboard.append({
-                "rank": i,
-                "user_id": row.user_id,
-                "name": row.full_name or f"User {row.user_id}",
-                "username": row.username,
-                "score": int(row.score)
-            })
-        return leaderboard
+        return [{
+            "rank": i,
+            "user_id": row.user_id,
+            "name": row.full_name or f"User {row.user_id}",
+            "username": row.username,
+            "score": int(row.score)
+        } for i, row in enumerate(rows, 1)]
 
     async def get_user_performance(self, user_id: int) -> List[dict]:
         """Aggregate points and stats per quiz for a specific user"""
