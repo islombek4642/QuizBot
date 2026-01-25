@@ -1162,7 +1162,9 @@ function renderQuizList(targetList, isSplitMode = false) {
 
     currentQuizzes.forEach((quiz, idx) => {
         const wrapper = document.createElement('div');
-        wrapper.className = 'quiz-card-wrapper';
+        wrapper.className = 'quiz-card-wrapper entrance-anim';
+        wrapper.style.animationDelay = `${idx * 0.05}s`;
+        wrapper.style.opacity = '0'; // Initial state for anim
 
         wrapper.innerHTML = `
             <div class="quiz-card-swipe-actions">
