@@ -1,4 +1,33 @@
-const tg = window.Telegram.WebApp;
+// Global error handler for debugging
+window.onerror = function (msg, url, line, col, error) {
+    const errorMsg = `JavaScript Error: ${msg} \nAt: ${url}:${line}:${col}`;
+    console.error(errorMsg);
+    if (document.body) {
+        // Only show if we are still loading or if app is hidden
+        const loader = document.getElementById('loader');
+        if (loader && loader.style.display !== 'none') {
+            document.body.innerHTML = `
+                <div style="background: #1a1a1a; color: #ff5555; padding: 20px; font-family: monospace; height: 100vh; overflow: auto; box-sizing: border-box;">
+                    <h2 style="color: white; border-bottom: 1px solid #333; padding-bottom: 10px;">FATAL ERROR ❌</h2>
+                    <pre style="white-space: pre-wrap; word-break: break-all; margin-top: 20px; background: #000; padding: 15px; border-radius: 8px;">${errorMsg}\n\n${error ? error.stack : ''}</pre>
+                    <button onclick="window.location.reload()" style="margin-top: 20px; padding: 12px 24px; background: #333; color: white; border: none; border-radius: 5px; cursor: pointer;">Retry</button>
+                    <p style="margin-top: 30px; font-size: 11px; color: #888;">Debug Version: 33</p>
+                </div>
+            `;
+        }
+    }
+    return false;
+};
+
+const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : {
+    expand: () => { },
+    ready: () => { },
+    showAlert: (m) => alert(m),
+    showPopup: (p, cb) => { if (confirm(p.message)) cb('ok'); },
+    MainButton: { setText: () => { }, showProgress: () => { }, hideProgress: () => { }, hide: () => { } },
+    backgroundColor: '#0f172a',
+    platform: 'unknown'
+};
 
 const CONFIG = {
     API_BASE: "/api",
@@ -266,6 +295,10 @@ async function init() {
 
     // If opened outside Telegram / without auth, show landing immediately (avoid dashboard flash)
     try {
+        if (!tg || !tg.platform || tg.platform === 'unknown') {
+            console.warn("Telegram WebApp not detected or unknown platform.");
+        }
+
         const headers = getAuthHeaders();
         if (!headers['X-Auth-Token'] && !headers['X-Telegram-Init-Data']) {
             const hash = window.location.hash.slice(1);
@@ -337,6 +370,7 @@ async function loadQuizzes() {
     } catch (err) {
         console.error(err);
         showError(err.message);
+        hideLoader(); // Ensure loader is hidden even on error
     }
 }
 
@@ -394,7 +428,7 @@ async function showAuthRedirect() {
     }
 
     try {
-        const res = await fetch(`${API_BASE}/bot-info`);
+        const res = await fetch(`${CONFIG.API_BASE}/bot-info`);
         if (res.ok) {
             const data = await res.json();
             botUsername = (data.bot_username ?? botUsername).replace("@", "").trim();
