@@ -1744,8 +1744,8 @@ function switchView(view) {
     currentView = view;
     console.log("Switching view to:", view);
 
-    // UI Reset - Hide all sections
-    const views = ['dashboard', 'split-view', 'editor', 'leaderboard'];
+    // UI Reset - Hide all sections (including performance)
+    const views = ['dashboard', 'split-view', 'editor', 'leaderboard', 'performance'];
     views.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
@@ -1759,6 +1759,7 @@ function switchView(view) {
     if (navDashboard) navDashboard.classList.remove('active');
     if (navLeaderboard) navLeaderboard.classList.remove('active');
     if (navSplit) navSplit.classList.remove('active');
+    if (navPerformance) navPerformance.classList.remove('active');
 
     if (view === 'dashboard') {
         if (dashboardView) dashboardView.style.display = 'grid';
@@ -1776,20 +1777,22 @@ function switchView(view) {
         if (editorActions) editorActions.style.display = 'block';
         if (bottomNav) bottomNav.style.display = 'none';
         if (pageTitle) pageTitle.innerText = t('editing_test');
-        // CRITICAL FIX: Trigger rendering
         renderEditor();
     } else if (view === 'leaderboard') {
         if (leaderboardView) leaderboardView.style.display = 'block';
         if (pageTitle) pageTitle.innerText = t('leaderboard_title');
         if (navLeaderboard) navLeaderboard.classList.add('active');
 
-        // Ensure "Total" tab is marked active visually
         document.querySelectorAll('.lb-tab').forEach(t => {
             if (t.dataset.period === 'total') t.classList.add('active');
             else t.classList.remove('active');
         });
-
         loadLeaderboard('total');
+    } else if (view === 'performance') {
+        if (performanceView) performanceView.style.display = 'block';
+        if (pageTitle) pageTitle.innerText = t('results_title');
+        if (navPerformance) navPerformance.classList.add('active');
+        loadUserPerformance();
     }
 }
 
@@ -1867,6 +1870,70 @@ function renderLeaderboard() {
         myRankBar.querySelector('.rank-score').innerText = `${myRank.score} ${t('pts')}`;
     } else {
         myRankBar.style.display = 'none';
+    }
+}
+
+
+async function loadUserPerformance() {
+    try {
+        if (!perfHistoryList) return;
+        perfHistoryList.innerHTML = '<div class="loader-lb"><div class="spinner"></div></div>';
+
+        const headers = getAuthHeaders();
+        // 1. Load general rank info for the card
+        const lbRes = await fetch(`${CONFIG.API_BASE}/leaderboard?period=total`, { headers });
+        if (lbRes.ok) {
+            const lbData = await lbRes.json();
+            if (lbData.user_rank) {
+                const user_name_el = document.getElementById('perf-user-name');
+                const total_score_el = document.getElementById('perf-total-score');
+                const rank_el = document.getElementById('perf-rank');
+
+                if (user_name_el) user_name_el.innerText = lbData.user_rank.name || "User";
+                if (total_score_el) total_score_el.innerText = lbData.user_rank.score;
+                if (rank_el) rank_el.innerText = `#${lbData.user_rank.rank}`;
+            }
+        }
+
+        // 2. Load quiz-by-quiz performance
+        const res = await fetch(`${CONFIG.API_BASE}/stats/my-performance`, { headers });
+        if (!res.ok) throw new Error("Failed to load performance");
+
+        const data = await res.json();
+        perfHistoryList.innerHTML = '';
+
+        if (!data || data.length === 0) {
+            perfHistoryList.innerHTML = `<div class="empty-state"><p>${t('no_quizzes')}</p></div>`;
+            return;
+        }
+
+        data.forEach((item, index) => {
+            const card = document.createElement('div');
+            card.className = 'perf-item entrance-anim';
+            card.style.animationDelay = `${index * 0.05}s`;
+
+            const scoreClass = item.score >= 0 ? 'positive' : 'negative';
+            const scoreSign = item.score > 0 ? '+' : '';
+
+            card.innerHTML = `
+                <div class="perf-item-info">
+                    <div class="perf-item-title">${escapeHtml(item.title)}</div>
+                    <div class="perf-item-stats">
+                        <span>✅ ${item.correct} ${t('correct_short')}</span>
+                        <span>❌ ${item.errors} ${t('errors_short')}</span>
+                    </div>
+                </div>
+                <div class="perf-item-score">
+                    <span class="score-val ${scoreClass}">${scoreSign}${item.score}</span>
+                    <span class="perf-lbl">${t('pts')}</span>
+                </div>
+            `;
+            perfHistoryList.appendChild(card);
+        });
+
+    } catch (err) {
+        console.error(err);
+        perfHistoryList.innerHTML = `<div class="empty-state">${err.message}</div>`;
     }
 }
 
