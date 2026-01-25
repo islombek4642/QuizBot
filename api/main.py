@@ -18,9 +18,9 @@ from models.quiz import Quiz
 from services.quiz_service import QuizService
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from fastapi import Header
 from core.config import settings
 from datetime import datetime
+from db.session import get_db, get_redis
 
 logger = structlog.get_logger()
 
@@ -281,7 +281,6 @@ def get_current_user(
 )
 async def list_quizzes(user_id: int = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Get all quizzes for the current user."""
-    from db.session import get_redis
     service = QuizService(db) # redis not needed for listing
     quizzes = await service.get_user_quizzes(user_id)
     return [{
