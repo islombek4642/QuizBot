@@ -642,7 +642,8 @@ async def run_silent_cleanup_task(admin_chat_id: int, bot: Bot, lang: str):
                 percent=int((initial_dead_count/report_total)*100) if report_total > 0 else 100,
                 alive=0, 
                 dead=initial_dead_count
-            )
+            ),
+            parse_mode="HTML"
         )
 
         dead_user_ids = []
@@ -680,7 +681,7 @@ async def run_silent_cleanup_task(admin_chat_id: int, bot: Bot, lang: str):
                 pass
             
             # Periodic deletion and progress update
-            if i % settings.CLEANUP_BATCH_SIZE == 0 or i == total:
+            if i % settings.CLEANUP_BATCH_SIZE == 0 or i == check_count:
                 if dead_user_ids:
                     # Satisfy FK constraints for batch deletion
                     # 1. Sessions for dead users
@@ -715,7 +716,8 @@ async def run_silent_cleanup_task(admin_chat_id: int, bot: Bot, lang: str):
                             percent=int((current_processed/report_total)*100),
                             alive=alive_count,
                             dead=dead_count
-                        )
+                        ),
+                        parse_mode="HTML"
                     )
                 except Exception:
                     pass # Message might not have changed or was deleted
