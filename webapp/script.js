@@ -198,6 +198,7 @@ const TRANSLATIONS = {
         split_type_size: "Savollar soni bo'yicha",
         nav_dashboard: "Testlarim",
         nav_split: "Bo'lish",
+        error_min_questions: "Testni bo'lish uchun kamida 10 ta savol bo'lishi kerak!",
     },
     EN: {
         my_quizzes: "My Quizzes",
@@ -230,6 +231,7 @@ const TRANSLATIONS = {
         split_type_size: "By questions per part",
         nav_dashboard: "My Quizzes",
         nav_split: "Split",
+        error_min_questions: "A quiz must have at least 10 questions to be split!",
     }
 };
 
@@ -309,7 +311,12 @@ async function loadQuizzes() {
         if (!res.ok) throw new Error(t('error_load'));
 
         currentQuizzes = await res.json();
-        renderQuizList();
+        // Initial render based on current view
+        if (currentView === 'split') {
+            renderQuizList(splitQuizList, true);
+        } else {
+            renderQuizList(quizList, false);
+        }
     } catch (err) {
         console.error(err);
         showError(err.message);
@@ -883,6 +890,11 @@ function renderQuizList(targetList, isSplitMode = false) {
  * Quiz Splitting logic
  */
 async function requestSplit(quizId, totalCount) {
+    if (totalCount < 10) {
+        tg.showAlert(t('error_min_questions'));
+        return;
+    }
+
     tg.showPopup({
         title: t('split_quiz'),
         message: `${t('split_info')}\n\n${t('questions_count').toUpperCase()}: ${totalCount}`,

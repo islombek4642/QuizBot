@@ -107,6 +107,9 @@ class QuizService:
         questions = quiz.questions_json
         total = len(questions)
         
+        if total < 10:
+            return []
+        
         if parts:
             size = (total + parts - 1) // parts
             
