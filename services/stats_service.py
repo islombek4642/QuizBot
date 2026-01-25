@@ -129,34 +129,25 @@ class StatsService:
             start_date = now - timedelta(days=now.weekday())
             start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
 
+        # Base query from PointLog to ensure we capture all logged points
+        query = (
+            select(
+                PointLog.user_id,
+                func.sum(PointLog.points).label('score'),
+                User.full_name,
+                User.username
+            )
+            .join(User, User.telegram_id == PointLog.user_id)
+        )
+
         if start_date:
-            # Query from PointLog for specific period
-            query = (
-                select(
-                    PointLog.user_id,
-                    func.sum(PointLog.points).label('score'),
-                    User.full_name,
-                    User.username
-                )
-                .join(User, User.telegram_id == PointLog.user_id)
-                .filter(PointLog.timestamp >= start_date)
-                .group_by(PointLog.user_id, User.full_name, User.username)
-                .order_by(desc('score'))
-                .limit(limit)
-            )
-        else:
-            # Query from UserStat for total
-            query = (
-                select(
-                    UserStat.user_id,
-                    UserStat.total_points.label('score'),
-                    User.full_name,
-                    User.username
-                )
-                .join(User, User.telegram_id == UserStat.user_id)
-                .order_by(desc(UserStat.total_points))
-                .limit(limit)
-            )
+            query = query.filter(PointLog.timestamp >= start_date)
+
+        query = (
+            query.group_by(PointLog.user_id, User.full_name, User.username)
+            .order_by(desc('score'))
+            .limit(limit)
+        )
 
         result = await self.db.execute(query)
         rows = result.all()

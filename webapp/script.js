@@ -1103,28 +1103,21 @@ function renderQuizList(targetList, isSplitMode = false) {
     appContainer.classList.remove('landing');
     targetList.innerHTML = '';
 
+    // Update quiz count in header title
+    const countText = ` (${currentQuizzes.length} / 50)`;
+    if (pageTitle) {
+        // Only append if it's the dashboard/split view and not already there
+        const baseTitle = isSplitMode ? t('nav_split') : t('my_quizzes');
+        pageTitle.innerText = baseTitle + countText;
+    }
+
     if (currentQuizzes.length === 0) {
-        document.getElementById('no-quizzes').style.display = 'block';
-    } else {
-        document.getElementById('no-quizzes').style.display = 'none';
-    }
 
-    // Update quiz count badge
-    const countEl = document.getElementById('quiz-count');
-    if (countEl) {
-        countEl.style.display = 'inline-block';
-        countEl.innerText = `${currentQuizzes.length} / 50`;
-        // Optional: color coding if close to limit
-        if (currentQuizzes.length >= 50) countEl.style.color = '#ff5555';
-        else if (currentQuizzes.length >= 40) countEl.style.color = '#ffaa00';
-        else countEl.style.color = 'inherit';
-    }
+        currentQuizzes.forEach(quiz => {
+            const card = document.createElement('div');
+            card.className = 'quiz-card glass';
 
-    currentQuizzes.forEach(quiz => {
-        const card = document.createElement('div');
-        card.className = 'quiz-card glass';
-
-        card.innerHTML = `
+            card.innerHTML = `
             <div class="quiz-card-content">
                 <h3 style="margin-bottom: 8px;">${escapeHtml(quiz.title)}</h3>
                 <p style="opacity: 0.8; font-size: 0.85rem;">
@@ -1140,179 +1133,179 @@ function renderQuizList(targetList, isSplitMode = false) {
                 </button>
             </div>
         `;
-        targetList.appendChild(card);
-    });
-}
-
-/**
- * Quiz Splitting logic
- */
-async function requestSplit(quizId, totalCount) {
-    if (totalCount < 20) {
-        tg.showAlert(t('error_min_questions'));
-        return;
+            targetList.appendChild(card);
+        });
     }
 
-    const splitModal = document.getElementById('split-modal');
-    splitModal.dataset.quizId = quizId;
-    splitModal.dataset.totalCount = totalCount;
-    splitModal.style.display = 'flex';
-}
-
-async function performSplit(quizId, paramName, val) {
-    const body = {};
-    body[paramName] = val;
-
-    showLoader();
-    try {
-        const headers = getAuthHeaders();
-        headers['Content-Type'] = 'application/json';
-        const res = await fetch(`${CONFIG.API_BASE}/quizzes/${quizId}/split`, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(body)
-        });
-
-        if (!res.ok) {
-            const data = await res.json();
-            throw new Error(data.detail || t('error_save'));
-        }
-
-        tg.showAlert(t('split_success'));
-        await loadQuizzes(); // Refresh list
-    } catch (err) {
-        console.error(err);
-        tg.showAlert(err.message);
-    } finally {
-        hideLoader();
-    }
-}
-
-async function openEditor(quizId) {
-    showLoader();
-    try {
-        const headers = getAuthHeaders();
-        const res = await fetch(`${CONFIG.API_BASE}/quizzes/${quizId}`, {
-            headers: headers
-        });
-        if (res.status === 401) {
-            await showAuthRedirect();
+    /**
+     * Quiz Splitting logic
+     */
+    async function requestSplit(quizId, totalCount) {
+        if (totalCount < 20) {
+            tg.showAlert(t('error_min_questions'));
             return;
         }
-        if (!res.ok) throw new Error(t('error_load'));
 
-        currentQuizData = await res.json();
-        renderEditor();
-        switchView('editor');
-    } catch (err) {
-        console.error(err);
-    } finally {
-        hideLoader();
+        const splitModal = document.getElementById('split-modal');
+        splitModal.dataset.quizId = quizId;
+        splitModal.dataset.totalCount = totalCount;
+        splitModal.style.display = 'flex';
     }
-}
 
-// Validation Helpers
-function escapeHtml(text) {
-    if (typeof text !== 'string') return String(text || "");
-    return text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
+    async function performSplit(quizId, paramName, val) {
+        const body = {};
+        body[paramName] = val;
 
-function markError(el) {
-    el.classList.add('input-error');
-    const countEl = el.parentElement.querySelector('.char-count');
-    if (countEl) countEl.classList.add('error');
-}
+        showLoader();
+        try {
+            const headers = getAuthHeaders();
+            headers['Content-Type'] = 'application/json';
+            const res = await fetch(`${CONFIG.API_BASE}/quizzes/${quizId}/split`, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(body)
+            });
 
-function clearError(el) {
-    el.classList.remove('input-error');
-    const countEl = el.parentElement.querySelector('.char-count');
-    if (countEl) countEl.classList.remove('error');
-}
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.detail || t('error_save'));
+            }
 
-function validateInput(el, limit) {
-    limit = limit || CONFIG.MAX_QUESTION_LEN;
-    const len = el.value.trim().length;
-    const countEl = el.parentElement.querySelector('.char-count');
-    if (countEl) countEl.innerText = `${len}/${limit}`;
-
-    if (len > limit || len === 0) {
-        markError(el);
-        return false;
-    } else {
-        clearError(el);
-        return true;
+            tg.showAlert(t('split_success'));
+            await loadQuizzes(); // Refresh list
+        } catch (err) {
+            console.error(err);
+            tg.showAlert(err.message);
+        } finally {
+            hideLoader();
+        }
     }
-}
 
-// New Helper: Collect current state from DOM to memory
-function collectCurrentState() {
-    const updatedQuestions = [];
-    const items = questionsContainer.querySelectorAll('.question-item');
-    items.forEach(item => {
-        const qInput = item.querySelector('.q-text');
-        const options = [];
-        const optionInputs = item.querySelectorAll('.option-input');
+    async function openEditor(quizId) {
+        showLoader();
+        try {
+            const headers = getAuthHeaders();
+            const res = await fetch(`${CONFIG.API_BASE}/quizzes/${quizId}`, {
+                headers: headers
+            });
+            if (res.status === 401) {
+                await showAuthRedirect();
+                return;
+            }
+            if (!res.ok) throw new Error(t('error_load'));
 
-        optionInputs.forEach(optInput => {
-            options.push(optInput.value);
+            currentQuizData = await res.json();
+            renderEditor();
+            switchView('editor');
+        } catch (err) {
+            console.error(err);
+        } finally {
+            hideLoader();
+        }
+    }
+
+    // Validation Helpers
+    function escapeHtml(text) {
+        if (typeof text !== 'string') return String(text || "");
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function markError(el) {
+        el.classList.add('input-error');
+        const countEl = el.parentElement.querySelector('.char-count');
+        if (countEl) countEl.classList.add('error');
+    }
+
+    function clearError(el) {
+        el.classList.remove('input-error');
+        const countEl = el.parentElement.querySelector('.char-count');
+        if (countEl) countEl.classList.remove('error');
+    }
+
+    function validateInput(el, limit) {
+        limit = limit || CONFIG.MAX_QUESTION_LEN;
+        const len = el.value.trim().length;
+        const countEl = el.parentElement.querySelector('.char-count');
+        if (countEl) countEl.innerText = `${len}/${limit}`;
+
+        if (len > limit || len === 0) {
+            markError(el);
+            return false;
+        } else {
+            clearError(el);
+            return true;
+        }
+    }
+
+    // New Helper: Collect current state from DOM to memory
+    function collectCurrentState() {
+        const updatedQuestions = [];
+        const items = questionsContainer.querySelectorAll('.question-item');
+        items.forEach(item => {
+            const qInput = item.querySelector('.q-text');
+            const options = [];
+            const optionInputs = item.querySelectorAll('.option-input');
+
+            optionInputs.forEach(optInput => {
+                options.push(optInput.value);
+            });
+
+            // Although inputs might be empty, we save them as is. Validation happens on Save.
+            updatedQuestions.push({
+                question: qInput.value,
+                options: options,
+                // Keep existing ID or default to 0. 
+                // NOTE: In this UI, 1st option is ALWAYS correct.
+                correct_option_id: 0
+            });
         });
+        currentQuizData.questions = updatedQuestions;
+    }
 
-        // Although inputs might be empty, we save them as is. Validation happens on Save.
-        updatedQuestions.push({
-            question: qInput.value,
-            options: options,
-            // Keep existing ID or default to 0. 
-            // NOTE: In this UI, 1st option is ALWAYS correct.
+    function deleteQuestion(index) {
+        if (!confirm(t('confirm_delete'))) return;
+        collectCurrentState();
+        currentQuizData.questions.splice(index, 1);
+        renderEditor();
+    }
+
+    function addQuestion() {
+        collectCurrentState();
+        currentQuizData.questions.push({
+            question: "",
+            options: ["", "", "", ""], // Default 4 empty options
             correct_option_id: 0
         });
-    });
-    currentQuizData.questions = updatedQuestions;
-}
+        renderEditor();
 
-function deleteQuestion(index) {
-    if (!confirm(t('confirm_delete'))) return;
-    collectCurrentState();
-    currentQuizData.questions.splice(index, 1);
-    renderEditor();
-}
+        // Scroll to bottom after render
+        setTimeout(() => {
+            window.scrollTo(0, document.body.scrollHeight);
+        }, 100);
+    }
 
-function addQuestion() {
-    collectCurrentState();
-    currentQuizData.questions.push({
-        question: "",
-        options: ["", "", "", ""], // Default 4 empty options
-        correct_option_id: 0
-    });
-    renderEditor();
+    function renderEditor() {
+        questionsContainer.innerHTML = '';
+        pageTitle.innerText = t('editing_test');
 
-    // Scroll to bottom after render
-    setTimeout(() => {
-        window.scrollTo(0, document.body.scrollHeight);
-    }, 100);
-}
+        if (!currentQuizData || !currentQuizData.questions) return;
 
-function renderEditor() {
-    questionsContainer.innerHTML = '';
-    pageTitle.innerText = t('editing_test');
+        currentQuizData.questions.forEach((q, index) => {
+            if (!q) return;
+            const item = document.createElement('div');
+            item.className = 'question-item glass';
+            item.dataset.index = index;
 
-    if (!currentQuizData || !currentQuizData.questions) return;
+            const safeQuestion = escapeHtml(q.question || "");
+            const qLen = q.question ? q.question.length : 0;
+            const options = q.options || ["", "", "", ""];
 
-    currentQuizData.questions.forEach((q, index) => {
-        if (!q) return;
-        const item = document.createElement('div');
-        item.className = 'question-item glass';
-        item.dataset.index = index;
-
-        const safeQuestion = escapeHtml(q.question || "");
-        const qLen = q.question ? q.question.length : 0;
-        const options = q.options || ["", "", "", ""];
-
-        item.innerHTML = `
+            item.innerHTML = `
             <div class="q-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                 <span class="q-label">${t('question_label')}${index + 1}</span>
                 <button class="delete-btn" style="background: #ef4444; border: none; padding: 5px 10px; border-radius: 5px; color: white; cursor: pointer; font-size: 12px;" onclick="deleteQuestion(${index})">
@@ -1325,9 +1318,9 @@ function renderEditor() {
             </div>
             <div class="options-grid">
                 ${options.map((opt, optIndex) => {
-            const safeOpt = escapeHtml(opt || "");
-            const optLen = opt ? opt.length : 0;
-            return `
+                const safeOpt = escapeHtml(opt || "");
+                const optLen = opt ? opt.length : 0;
+                return `
                     <div class="option-row ${optIndex === (q.correct_option_id || 0) ? 'correct' : 'wrong'}">
                         <div class="indicator">${optIndex === 0 ? '✓' : '✗'}</div>
                         <div class="input-group">
@@ -1339,229 +1332,225 @@ function renderEditor() {
             </div>
         `;
 
-        // Attach listeners
-        const qInput = item.querySelector('.q-text');
-        qInput.oninput = () => validateInput(qInput, 300);
+            // Attach listeners
+            const qInput = item.querySelector('.q-text');
+            qInput.oninput = () => validateInput(qInput, 300);
 
-        item.querySelectorAll('.option-input').forEach(optInput => {
-            optInput.oninput = () => validateInput(optInput, 100);
+            item.querySelectorAll('.option-input').forEach(optInput => {
+                optInput.oninput = () => validateInput(optInput, 100);
+            });
+
+            questionsContainer.appendChild(item);
         });
 
-        questionsContainer.appendChild(item);
-    });
+        // Add "Add Question" button at the end
+        const addBtnContainer = document.createElement('div');
+        addBtnContainer.style.textAlign = 'center';
+        addBtnContainer.style.marginTop = '20px';
+        addBtnContainer.style.marginBottom = '40px'; // Space for fixed footer
 
-    // Add "Add Question" button at the end
-    const addBtnContainer = document.createElement('div');
-    addBtnContainer.style.textAlign = 'center';
-    addBtnContainer.style.marginTop = '20px';
-    addBtnContainer.style.marginBottom = '40px'; // Space for fixed footer
+        const addBtn = document.createElement('button');
+        addBtn.className = 'add-btn';
+        addBtn.innerHTML = t('add_question');
+        addBtn.style.cssText = "background: var(--button-color); border: none; padding: 12px 24px; border-radius: 8px; color: white; cursor: pointer; font-size: 14px; font-weight: bold; width: 100%; max-width: 300px;";
+        addBtn.onclick = addQuestion;
 
-    const addBtn = document.createElement('button');
-    addBtn.className = 'add-btn';
-    addBtn.innerHTML = t('add_question');
-    addBtn.style.cssText = "background: var(--button-color); border: none; padding: 12px 24px; border-radius: 8px; color: white; cursor: pointer; font-size: 14px; font-weight: bold; width: 100%; max-width: 300px;";
-    addBtn.onclick = addQuestion;
-
-    addBtnContainer.appendChild(addBtn);
-    questionsContainer.appendChild(addBtnContainer);
-}
-
-async function saveChanges() {
-    tg.MainButton.showProgress();
-
-    // Collect data (Validation happens here now)
-    const items = questionsContainer.querySelectorAll('.question-item');
-    const updatedQuestions = [];
-    let hasError = false;
-
-    items.forEach(item => {
-        const qInput = item.querySelector('.q-text');
-
-        // Use shared validation logic
-        if (!validateInput(qInput, CONFIG.MAX_QUESTION_LEN)) {
-            hasError = true;
-        }
-
-        const options = [];
-        const optionInputs = item.querySelectorAll('.option-input');
-
-        optionInputs.forEach(optInput => {
-            if (!validateInput(optInput, CONFIG.MAX_OPTION_LEN)) {
-                hasError = true;
-            }
-            options.push(optInput.value.trim()); // Trim on save
-        });
-
-        updatedQuestions.push({
-            question: qInput.value.trim(),
-            options: options,
-            correct_option_id: 0
-        });
-    });
-
-    if (hasError) {
-        tg.MainButton.hideProgress();
-
-        // Reset search to ensure target is visible
-        searchInput.value = '';
-        items.forEach(item => {
-            item.style.display = 'flex';
-            item.classList.remove('highlight-pulse');
-        });
-
-        const firstError = questionsContainer.querySelector('.input-error');
-        if (firstError) {
-            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // More specific message based on the error
-            const val = firstError.value.trim();
-            if (!val) tg.showAlert(t('error_empty'));
-            else tg.showAlert(t('error_limit'));
-        }
-        return;
+        addBtnContainer.appendChild(addBtn);
+        questionsContainer.appendChild(addBtnContainer);
     }
 
-    try {
-        const headers = getAuthHeaders();
-        headers['Content-Type'] = 'application/json';
+    async function saveChanges() {
+        tg.MainButton.showProgress();
 
-        const res = await fetch(`${CONFIG.API_BASE}/quizzes/${currentQuizData.id}`, {
-            method: 'PUT',
-            headers: headers,
-            body: JSON.stringify({
-                title: currentQuizData.title,
-                questions: updatedQuestions
-            })
+        // Collect data (Validation happens here now)
+        const items = questionsContainer.querySelectorAll('.question-item');
+        const updatedQuestions = [];
+        let hasError = false;
+
+        items.forEach(item => {
+            const qInput = item.querySelector('.q-text');
+
+            // Use shared validation logic
+            if (!validateInput(qInput, CONFIG.MAX_QUESTION_LEN)) {
+                hasError = true;
+            }
+
+            const options = [];
+            const optionInputs = item.querySelectorAll('.option-input');
+
+            optionInputs.forEach(optInput => {
+                if (!validateInput(optInput, CONFIG.MAX_OPTION_LEN)) {
+                    hasError = true;
+                }
+                options.push(optInput.value.trim()); // Trim on save
+            });
+
+            updatedQuestions.push({
+                question: qInput.value.trim(),
+                options: options,
+                correct_option_id: 0
+            });
         });
 
-        if (res.status === 401) {
-            await showAuthRedirect();
+        if (hasError) {
+            tg.MainButton.hideProgress();
+
+            // Reset search to ensure target is visible
+            searchInput.value = '';
+            items.forEach(item => {
+                item.style.display = 'flex';
+                item.classList.remove('highlight-pulse');
+            });
+
+            const firstError = questionsContainer.querySelector('.input-error');
+            if (firstError) {
+                firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // More specific message based on the error
+                const val = firstError.value.trim();
+                if (!val) tg.showAlert(t('error_empty'));
+                else tg.showAlert(t('error_limit'));
+            }
             return;
         }
 
-        if (!res.ok) throw new Error(t('error_save'));
+        try {
+            const headers = getAuthHeaders();
+            headers['Content-Type'] = 'application/json';
 
-        tg.showAlert(t('success_save'));
-        // Update local data and Refresh Dashboard
-        await loadQuizzes();
-        setTimeout(() => switchView('dashboard'), 1000);
-    } catch (err) {
-        console.error(err);
-        tg.showAlert(t('error_save'));
-    } finally {
-        tg.MainButton.hideProgress();
+            const res = await fetch(`${CONFIG.API_BASE}/quizzes/${currentQuizData.id}`, {
+                method: 'PUT',
+                headers: headers,
+                body: JSON.stringify({
+                    title: currentQuizData.title,
+                    questions: updatedQuestions
+                })
+            });
+
+            if (res.status === 401) {
+                await showAuthRedirect();
+                return;
+            }
+
+            if (!res.ok) throw new Error(t('error_save'));
+
+            tg.showAlert(t('success_save'));
+            // Update local data and Refresh Dashboard
+            await loadQuizzes();
+            setTimeout(() => switchView('dashboard'), 1000);
+        } catch (err) {
+            console.error(err);
+            tg.showAlert(t('error_save'));
+        } finally {
+            tg.MainButton.hideProgress();
+        }
     }
-}
 
 
-function switchView(view) {
-    currentView = view;
-    console.log("Switching view to:", view);
+    function switchView(view) {
+        currentView = view;
+        console.log("Switching view to:", view);
 
-    // UI Reset - Hide all sections
-    const views = ['dashboard', 'split-view', 'editor', 'leaderboard'];
-    views.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = 'none';
-    });
-
-    if (backBtn) backBtn.style.display = 'none';
-    if (editorActions) editorActions.style.display = 'none';
-    if (bottomNav) bottomNav.style.display = 'flex';
-
-    // Reset Nav
-    if (navDashboard) navDashboard.classList.remove('active');
-    if (navLeaderboard) navLeaderboard.classList.remove('active');
-    if (navSplit) navSplit.classList.remove('active');
-
-    if (view === 'dashboard') {
-        if (dashboardView) dashboardView.style.display = 'grid';
-        if (pageTitle) pageTitle.innerText = t('my_quizzes');
-        if (navDashboard) navDashboard.classList.add('active');
-        renderQuizList(quizList, false);
-    } else if (view === 'split') {
-        if (splitView) splitView.style.display = 'grid';
-        if (pageTitle) pageTitle.innerText = t('nav_split');
-        if (navSplit) navSplit.classList.add('active');
-        renderQuizList(splitQuizList, true);
-    } else if (view === 'editor') {
-        if (editorView) editorView.style.display = 'block';
-        if (backBtn) backBtn.style.display = 'block';
-        if (editorActions) editorActions.style.display = 'block';
-        if (bottomNav) bottomNav.style.display = 'none';
-        if (pageTitle) pageTitle.innerText = t('editing_test');
-        // CRITICAL FIX: Trigger rendering
-        renderEditor();
-    } else if (view === 'leaderboard') {
-        if (leaderboardView) leaderboardView.style.display = 'block';
-        if (pageTitle) pageTitle.innerText = t('leaderboard_title');
-        if (navLeaderboard) navLeaderboard.classList.add('active');
-
-        // Hide quiz count in ranking
-        const countEl = document.getElementById('quiz-count');
-        if (countEl) countEl.style.display = 'none';
-
-        // Ensure "Total" tab is marked active visually
-        document.querySelectorAll('.lb-tab').forEach(t => {
-            if (t.dataset.period === 'total') t.classList.add('active');
-            else t.classList.remove('active');
+        // UI Reset - Hide all sections
+        const views = ['dashboard', 'split-view', 'editor', 'leaderboard'];
+        views.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
         });
 
-        loadLeaderboard('total');
-    }
-}
+        if (backBtn) backBtn.style.display = 'none';
+        if (editorActions) editorActions.style.display = 'none';
+        if (bottomNav) bottomNav.style.display = 'flex';
 
-function showLoader() {
-    loader.style.display = 'flex';
-    appContainer.style.display = 'none';
-    document.body.classList.add('loading');
-}
-function hideLoader() {
-    loader.style.display = 'none';
-    appContainer.style.display = 'block';
-    document.body.classList.remove('loading');
-}
+        // Reset Nav
+        if (navDashboard) navDashboard.classList.remove('active');
+        if (navLeaderboard) navLeaderboard.classList.remove('active');
+        if (navSplit) navSplit.classList.remove('active');
 
-// === Leaderboard Logic ===
-let lbData = null;
-async function loadLeaderboard(period = 'total') {
-    lbList.innerHTML = '<div class="lb-loader"><div class="spinner"></div></div>';
-    myRankBar.style.display = 'none';
+        if (view === 'dashboard') {
+            if (dashboardView) dashboardView.style.display = 'grid';
+            if (pageTitle) pageTitle.innerText = t('my_quizzes');
+            if (navDashboard) navDashboard.classList.add('active');
+            renderQuizList(quizList, false);
+        } else if (view === 'split') {
+            if (splitView) splitView.style.display = 'grid';
+            if (pageTitle) pageTitle.innerText = t('nav_split');
+            if (navSplit) navSplit.classList.add('active');
+            renderQuizList(splitQuizList, true);
+        } else if (view === 'editor') {
+            if (editorView) editorView.style.display = 'block';
+            if (backBtn) backBtn.style.display = 'block';
+            if (editorActions) editorActions.style.display = 'block';
+            if (bottomNav) bottomNav.style.display = 'none';
+            if (pageTitle) pageTitle.innerText = t('editing_test');
+            // CRITICAL FIX: Trigger rendering
+            renderEditor();
+        } else if (view === 'leaderboard') {
+            if (leaderboardView) leaderboardView.style.display = 'block';
+            if (pageTitle) pageTitle.innerText = t('leaderboard_title');
+            if (navLeaderboard) navLeaderboard.classList.add('active');
 
-    try {
-        const headers = getAuthHeaders();
-        const res = await fetch(`${CONFIG.API_BASE}/leaderboard?period=${period}`, { headers });
-        if (!res.ok) throw new Error("Failed to load leaderboard");
+            // Ensure "Total" tab is marked active visually
+            document.querySelectorAll('.lb-tab').forEach(t => {
+                if (t.dataset.period === 'total') t.classList.add('active');
+                else t.classList.remove('active');
+            });
 
-        lbData = await res.json();
-        renderLeaderboard();
-    } catch (err) {
-        console.error(err);
-        lbList.innerHTML = `<div class="empty-state"><p>${t('error_load')}</p></div>`;
-    }
-}
-
-function renderLeaderboard() {
-    if (!lbData || !lbList) return;
-
-    const isUsers = document.getElementById('lb-type-users')?.classList.contains('active');
-    const items = isUsers ? lbData.users : lbData.groups;
-    lbList.innerHTML = '';
-
-    if (!items || items.length === 0) {
-        lbList.innerHTML = '<div class="empty-state"><p>No data yet.</p></div>';
-        return;
+            loadLeaderboard('total');
+        }
     }
 
-    items.forEach((item, index) => {
-        const card = document.createElement('div');
-        card.className = `lb-card ${item.rank <= 3 ? 'top-' + item.rank : ''}`;
-        card.style.animationDelay = `${index * 0.05}s`;
+    function showLoader() {
+        loader.style.display = 'flex';
+        appContainer.style.display = 'none';
+        document.body.classList.add('loading');
+    }
+    function hideLoader() {
+        loader.style.display = 'none';
+        appContainer.style.display = 'block';
+        document.body.classList.remove('loading');
+    }
 
-        const name = item.name || item.title || "Unknown";
-        const score = item.score || 0;
-        const sub = item.username ? `@${item.username}` : "";
+    // === Leaderboard Logic ===
+    let lbData = null;
+    async function loadLeaderboard(period = 'total') {
+        lbList.innerHTML = '<div class="lb-loader"><div class="spinner"></div></div>';
+        myRankBar.style.display = 'none';
 
-        card.innerHTML = `
+        try {
+            const headers = getAuthHeaders();
+            const res = await fetch(`${CONFIG.API_BASE}/leaderboard?period=${period}`, { headers });
+            if (!res.ok) throw new Error("Failed to load leaderboard");
+
+            lbData = await res.json();
+            renderLeaderboard();
+        } catch (err) {
+            console.error(err);
+            lbList.innerHTML = `<div class="empty-state"><p>${t('error_load')}</p></div>`;
+        }
+    }
+
+    function renderLeaderboard() {
+        if (!lbData || !lbList) return;
+
+        const isUsers = document.getElementById('lb-type-users')?.classList.contains('active');
+        const items = isUsers ? lbData.users : lbData.groups;
+        lbList.innerHTML = '';
+
+        if (!items || items.length === 0) {
+            lbList.innerHTML = '<div class="empty-state"><p>No data yet.</p></div>';
+            return;
+        }
+
+        items.forEach((item, index) => {
+            const card = document.createElement('div');
+            card.className = `lb-card ${item.rank <= 3 ? 'top-' + item.rank : ''}`;
+            card.style.animationDelay = `${index * 0.05}s`;
+
+            const name = item.name || item.title || "Unknown";
+            const score = item.score || 0;
+            const sub = item.username ? `@${item.username}` : "";
+
+            card.innerHTML = `
             <div class="lb-rank">${item.rank}</div>
             <div class="lb-info">
                 <span class="lb-name">${escapeHtml(name)}</span>
@@ -1572,25 +1561,25 @@ function renderLeaderboard() {
                 <span class="lb-score-unit">${t('pts')}</span>
             </div>
         `;
-        lbList.appendChild(card);
-    });
+            lbList.appendChild(card);
+        });
 
-    // Handle My Rank Sticky
-    if (isUsers && lbData.user_rank) {
-        myRankBar.style.display = 'flex';
-        const myRank = lbData.user_rank;
-        myRankBar.querySelector('.rank-num').innerText = `#${myRank.rank}`;
-        myRankBar.querySelector('.rank-name').innerText = t('my_rank');
-        myRankBar.querySelector('.rank-score').innerText = `${myRank.score} ${t('pts')}`;
-    } else {
-        myRankBar.style.display = 'none';
+        // Handle My Rank Sticky
+        if (isUsers && lbData.user_rank) {
+            myRankBar.style.display = 'flex';
+            const myRank = lbData.user_rank;
+            myRankBar.querySelector('.rank-num').innerText = `#${myRank.rank}`;
+            myRankBar.querySelector('.rank-name').innerText = t('my_rank');
+            myRankBar.querySelector('.rank-score').innerText = `${myRank.score} ${t('pts')}`;
+        } else {
+            myRankBar.style.display = 'none';
+        }
     }
-}
 
 
-// Final Guard: Wait for DOM complete
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
-}
+    // Final Guard: Wait for DOM complete
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
