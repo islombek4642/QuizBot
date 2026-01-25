@@ -14,6 +14,7 @@ class StatsService:
         self, 
         user_id: int, 
         chat_id: Optional[int] = None, 
+        quiz_id: Optional[int] = None,
         action_type: str = 'correct', 
         time_taken: float = 0.0
     ) -> int:
@@ -76,7 +77,7 @@ class StatsService:
 
         # 5. Log points ONCE (Ensures accuracy in leaderboard)
         if total_delta != 0 or action_type == 'correct':
-            await self._log_points(user_id, chat_id, total_delta, action_type)
+            await self._log_points(user_id, chat_id, quiz_id, total_delta, action_type)
 
         # 6. Update Group Stats if applicable
         if chat_id and chat_id != user_id:
@@ -85,10 +86,11 @@ class StatsService:
         await self.db.commit()
         return total_delta
 
-    async def _log_points(self, user_id: int, chat_id: Optional[int], points: int, action_type: str):
+    async def _log_points(self, user_id: int, chat_id: Optional[int], quiz_id: Optional[int], points: int, action_type: str):
         log = PointLog(
             user_id=user_id,
             chat_id=chat_id,
+            quiz_id=quiz_id,
             points=points,
             action_type=action_type
         )
@@ -155,6 +157,50 @@ class StatsService:
                 "score": int(row.score)
             })
         return leaderboard
+
+    async def get_user_performance(self, user_id: int) -> List[dict]:
+        """Aggregate points and stats per quiz for a specific user"""
+        from models.quiz import Quiz
+        
+        # Subquery to aggregate PointLog by quiz_id
+        stats_q = (
+            select(
+                PointLog.quiz_id,
+                func.sum(PointLog.points).label("total_score"),
+                func.count(PointLog.id).filter(PointLog.action_type == "correct").label("correct_count"),
+                func.count(PointLog.id).filter(PointLog.action_type.in_(["incorrect", "timeout"])).label("error_count"),
+                func.max(PointLog.timestamp).label("last_played")
+            )
+            .filter(and_(PointLog.user_id == user_id, PointLog.quiz_id != None))
+            .group_by(PointLog.quiz_id)
+            .alias("p_stats")
+        )
+
+        # Join with Quiz table for titles
+        query = (
+            select(
+                stats_q.c.quiz_id,
+                stats_q.c.total_score,
+                stats_q.c.correct_count,
+                stats_q.c.error_count,
+                stats_q.c.last_played,
+                Quiz.title
+            )
+            .join(Quiz, Quiz.id == stats_q.c.quiz_id)
+            .order_by(desc(stats_q.c.last_played))
+        )
+
+        result = await self.db.execute(query)
+        rows = result.all()
+
+        return [{
+            "quiz_id": row.quiz_id,
+            "title": row.title,
+            "score": int(row.total_score),
+            "correct": row.correct_count,
+            "errors": row.error_count,
+            "last_played": row.last_played
+        } for row in rows]
 
     async def get_group_leaderboard(self, limit: int = 50) -> List[dict]:
         from models.group import Group

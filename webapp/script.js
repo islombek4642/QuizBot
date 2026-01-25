@@ -77,7 +77,7 @@ function updateEditorCounter() {
 }
 
 // Elements
-let loader, appContainer, quizList, dashboardView, editorView, questionsContainer, pageTitle, backBtn, editorActions, saveBtn, searchInput, splitView, splitQuizList, navDashboard, navSplit, bottomNav, leaderboardView, lbList, navLeaderboard, myRankBar;
+let loader, appContainer, quizList, dashboardView, editorView, questionsContainer, pageTitle, backBtn, editorActions, saveBtn, searchInput, splitView, splitQuizList, navDashboard, navSplit, bottomNav, leaderboardView, lbList, navLeaderboard, myRankBar, performanceView, perfHistoryList, navPerformance, rulesModal, rulesClose, showRulesBtn;
 
 function initElements() {
     loader = document.getElementById('loader');
@@ -100,6 +100,12 @@ function initElements() {
     lbList = document.getElementById('lb-list');
     navLeaderboard = document.getElementById('nav-leaderboard');
     myRankBar = document.getElementById('my-rank-bar');
+    performanceView = document.getElementById('performance');
+    perfHistoryList = document.getElementById('perf-history-list');
+    navPerformance = document.getElementById('nav-performance');
+    rulesModal = document.getElementById('rules-modal');
+    rulesClose = document.getElementById('rules-close');
+    showRulesBtn = document.getElementById('show-rules-btn');
 
     // Split Modal Elements
     const splitModal = document.getElementById('split-modal');
@@ -219,6 +225,15 @@ function initElements() {
     }
     if (navLeaderboard) {
         navLeaderboard.onclick = () => switchView('leaderboard');
+    }
+    if (navPerformance) {
+        navPerformance.onclick = () => switchView('performance');
+    }
+    if (showRulesBtn) {
+        showRulesBtn.onclick = () => rulesModal.style.display = 'flex';
+    }
+    if (rulesClose) {
+        rulesClose.onclick = () => rulesModal.style.display = 'none';
     }
 
     // Leaderboard Tab Events
@@ -477,6 +492,15 @@ const TRANSLATIONS = {
         lb_total: "Umumiy",
         lb_weekly: "Haftalik",
         lb_daily: "Kunlik",
+        nav_performance: "Natijalar",
+        results_title: "Mening natijalarim",
+        results_history: "Testlar tarixi",
+        total_score: "Jami ball",
+        rank_label: "O‘rningiz",
+        correct_short: "To‘g‘ri",
+        errors_short: "Xato",
+        rules_modal_title: "Ballar tizimi",
+        close_btn: "Tushunarli"
     },
     EN: {
         my_quizzes: "My Quizzes",
@@ -527,6 +551,15 @@ const TRANSLATIONS = {
         lb_total: "All-time",
         lb_weekly: "Weekly",
         lb_daily: "Daily",
+        nav_performance: "Results",
+        results_title: "My Results",
+        results_history: "Test History",
+        total_score: "Total Score",
+        rank_label: "Rank",
+        correct_short: "Correct",
+        errors_short: "Errors",
+        rules_modal_title: "Scoring Rules",
+        close_btn: "Got it"
     }
 };
 
@@ -574,6 +607,9 @@ async function init() {
 
     const labelLeaderboard = document.getElementById('label-nav-leaderboard');
     if (labelLeaderboard) labelLeaderboard.innerText = t('nav_leaderboard');
+
+    const labelPerformance = document.getElementById('label-nav-performance');
+    if (labelPerformance) labelPerformance.innerText = t('nav_performance');
 
     const labelSplit = document.getElementById('label-nav-split');
     if (labelSplit) labelSplit.innerText = t('nav_split');

@@ -1069,7 +1069,10 @@ async def _failsafe_advance_private_quiz(bot: Bot, chat_id: int, session_id: int
             
             # Leaderboard: Add timeout penalty
             stats_service = StatsService(db)
-            await stats_service.add_points(chat_id, action_type='timeout')
+            # Try to get quiz_id from state
+            state_data = await state.get_data()
+            quiz_id = state_data.get("quiz_id")
+            await stats_service.add_points(chat_id, quiz_id=quiz_id, action_type='timeout')
 
             if not updated_session:
                 return
@@ -1184,6 +1187,7 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
         # For now, I'll use 10.0 as default if not tracked.
         await stats_service.add_points(
             session.user_id, 
+            quiz_id=session.session_data.get('quiz_id'),
             action_type='correct' if is_correct else 'incorrect',
             time_taken=10.0 # Placeholder for private
         )
@@ -1270,7 +1274,11 @@ async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service
         
         # Leaderboard: Add timeout penalty
         stats_service = StatsService(session_service.db)
-        await stats_service.add_points(session.user_id, action_type='timeout')
+        await stats_service.add_points(
+            session.user_id, 
+            quiz_id=session.session_data.get('quiz_id'),
+            action_type='timeout'
+        )
 
         if not updated_session:
             return

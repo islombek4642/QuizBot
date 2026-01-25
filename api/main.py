@@ -180,6 +180,14 @@ class LeaderboardResponse(BaseModel):
     groups: List[GroupLeaderboardEntry]
     user_rank: Optional[LeaderboardEntry] = None
 
+class UserPerformanceItem(BaseModel):
+    quiz_id: int
+    title: str
+    score: int
+    correct: int
+    errors: int
+    last_played: datetime
+
 def verify_telegram_data(init_data: str, max_age_seconds: int = 3600) -> Optional[int]:
     """
     Verify Telegram WebApp initData and return the user ID.
@@ -315,6 +323,21 @@ async def get_leaderboard_endpoint(
         "groups": groups,
         "user_rank": user_rank
     }
+
+@app.get(
+    "/api/stats/my-performance",
+    response_model=List[UserPerformanceItem],
+    tags=["info"],
+    summary="Get user's performance per quiz",
+    description="Returns a list of quizzes the user has participated in, with total points and correct/incorrect counts.",
+)
+async def get_my_performance(
+    user_id: int = Depends(get_current_user), 
+    db: AsyncSession = Depends(get_db)
+):
+    """Get detailed performance for the current user across all tests."""
+    service = StatsService(db)
+    return await service.get_user_performance(user_id)
 
 @app.get(
     "/api/quizzes",

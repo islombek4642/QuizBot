@@ -36,6 +36,7 @@ class PointLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(BigInteger, ForeignKey("users.telegram_id"), index=True)
     chat_id = Column(BigInteger, index=True, nullable=True) # group_id if in group
+    quiz_id = Column(Integer, ForeignKey("quizzes.id"), index=True, nullable=True) # Track which quiz earned points
     points = Column(Integer, nullable=False)
     action_type = Column(String)  # 'correct', 'incorrect', 'timeout', 'bonus_speed', 'bonus_streak'
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)
