@@ -495,6 +495,8 @@ async def start_group_quiz(bot: Bot, quiz, chat_id: int, owner_id: int, lang: st
         "title": quiz.title,
         "questions": questions,
         "participants": {},  # user_id -> {correct: X, answered: Y}
+        "consecutive_skips": 0,
+        "skipped_count": 0,
         "start_time": time.time(),
         "is_active": True
     }
@@ -611,15 +613,28 @@ async def _advance_group_quiz(bot: Bot, chat_id: int, quiz_id: int, question_ind
                 except:
                     pass
 
-            # Notify if no one answered
+            # Track skips and check for "3 strike" stop rule
             group_lang = await redis.get(f"group_lang:{chat_id}")
             lang = group_lang or "UZ"
             if quiz_state.get("current_question_votes", 0) == 0:
+                quiz_state["consecutive_skips"] = quiz_state.get("consecutive_skips", 0) + 1
+                quiz_state["skipped_count"] = quiz_state.get("skipped_count", 0) + 1
                 try:
                     logger.info("Sending no-answer notification (Group)", chat_id=chat_id, index=question_index + 1)
                     await bot.send_message(chat_id, Messages.get("NO_ONE_ANSWERED", lang).format(index=question_index + 1))
                 except Exception as e:
                     logger.warning(f"Failed to send timeout message (Group): {e}")
+            else:
+                quiz_state["consecutive_skips"] = 0
+
+            # Check if 3 consecutive skips reached
+            if quiz_state.get("consecutive_skips", 0) >= 3:
+                logger.info("3-strike rule triggered: stopping group quiz", chat_id=chat_id)
+                quiz_state["is_active"] = False
+                await redis.set(GROUP_QUIZ_KEY.format(chat_id=chat_id), json.dumps(quiz_state), ex=3600)
+                await bot.send_message(chat_id, Messages.get("QUIZ_STOPPED_INACTIVITY", lang))
+                await finish_group_quiz(bot, chat_id, quiz_state, redis, lang)
+                return
 
             quiz_state["current_index"] += 1
             logger.info("Advancing group quiz to next index", chat_id=chat_id, next_index=quiz_state["current_index"])
@@ -701,7 +716,9 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
         
         summary = Messages.get("GROUP_QUIZ_SUMMARY", lang).format(
             count=len(participants),
-            answered_count=answered_count
+            answered_count=answered_count,
+            total=quiz_state.get("total_questions", 0),
+            skipped=quiz_state.get("skipped_count", 0)
         )
         await bot.send_message(chat_id, leaderboard + summary, parse_mode="HTML")
     

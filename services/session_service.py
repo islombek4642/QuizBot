@@ -52,7 +52,7 @@ class SessionService:
         result = await self.db.execute(select(QuizSession).filter(QuizSession.id == int(session_id)))
         return result.scalar_one_or_none()
 
-    async def advance_session(self, session_id: int, is_correct: bool) -> QuizSession:
+    async def advance_session(self, session_id: int, is_correct: bool = False, is_skipped: bool = False) -> QuizSession:
         # Atomic update using SELECT FOR UPDATE
         result = await self.db.execute(
             select(QuizSession).filter(QuizSession.id == session_id).with_for_update()
@@ -62,9 +62,14 @@ class SessionService:
         if not session or not session.is_active:
             return None
             
-        session.answered_count += 1
-        if is_correct:
-            session.correct_count += 1
+        if is_skipped:
+            session.skipped_count += 1
+            session.consecutive_skips += 1
+        else:
+            session.answered_count += 1
+            session.consecutive_skips = 0
+            if is_correct:
+                session.correct_count += 1
         
         session.current_index += 1
         

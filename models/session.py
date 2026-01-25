@@ -16,5 +16,8 @@ class QuizSession(Base, TimestampMixin):
     start_time = Column(Float, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     
+    skipped_count = Column(Integer, default=0, nullable=False)
+    consecutive_skips = Column(Integer, default=0, nullable=False)
+    
     # Store dynamic data like shuffled question IDs if needed
     session_data = Column(JSON, nullable=True)

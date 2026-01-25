@@ -1045,9 +1045,21 @@ async def _failsafe_advance_private_quiz(bot: Bot, chat_id: int, session_id: int
             # If we are here, it means the poll closed/timed out without an answer being processed
             logger.info("Failsafe: Private poll timed out", user_id=chat_id, session_id=session_id, index=question_index)
 
-            # Advance session without adding to correct count
-            updated_session = await session_service.advance_session(session_id, is_correct=False)
+            # Advance session with is_skipped=True
+            updated_session = await session_service.advance_session(session_id, is_skipped=True)
             if not updated_session:
+                return
+            
+            # Check for 3 consecutive skips
+            if updated_session.consecutive_skips >= 3:
+                logger.info("3-strike rule triggered: stopping private quiz", user_id=chat_id)
+                await session_service.stop_session(chat_id)
+                await bot.send_message(
+                    chat_id, 
+                    Messages.get("QUIZ_STOPPED_INACTIVITY", lang), 
+                    reply_markup=get_main_keyboard(lang, chat_id)
+                )
+                await show_stats(bot, updated_session, lang)
                 return
             
             # Notify about timeout/no answer
@@ -1138,7 +1150,7 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
         q = questions[session.current_index]
         is_correct = poll_answer.option_ids[0] == q['correct_option_id']
         
-        updated_session = await session_service.advance_session(session.id, is_correct)
+        updated_session = await session_service.advance_session(session.id, is_correct=is_correct, is_skipped=False)
         if not updated_session:
             logger.warning("Failed to advance private session (advance_session returned None)", session_id=session.id)
             return
@@ -1215,12 +1227,24 @@ async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service
         # If we are here, it means the poll closed without an answer being processed
         logger.info("Private poll closed without answer (timeout)", user_id=session.user_id, poll_id=poll.id)
 
-        # Advance without adding to correct count
-        updated_session = await session_service.advance_session(session.id, is_correct=False)
+        # Advance with is_skipped=True
+        updated_session = await session_service.advance_session(session.id, is_skipped=True)
         if not updated_session:
             return
             
         lang = await user_service.get_language(session.user_id)
+        
+        # Check for 3 consecutive skips
+        if updated_session.consecutive_skips >= 3:
+            logger.info("3-strike rule triggered: stopping private quiz via update", user_id=session.user_id)
+            await session_service.stop_session(session.user_id)
+            await bot.send_message(
+                session.user_id, 
+                Messages.get("QUIZ_STOPPED_INACTIVITY", lang), 
+                reply_markup=get_main_keyboard(lang, session.user_id)
+            )
+            await show_stats(bot, updated_session, lang)
+            return
         
         # Notify about timeout/no answer
         try:
@@ -1268,7 +1292,7 @@ async def show_stats(bot: Bot, session: Any, lang: str):
     # If duration is negative or zero (e.g. very fast finish), set to 1
     duration = max(1.0, duration)
     avg_time = duration / answered if answered > 0 else 0
-    percent = (correct / total * 100) if total > 0 else 0
+    # Percent removed as requested
     
     await bot.send_message(
         session.user_id,
@@ -1276,8 +1300,8 @@ async def show_stats(bot: Bot, session: Any, lang: str):
             total=total,
             correct=correct,
             wrong=answered - correct,
-            avg_time=round(avg_time, 1),
-            percent=round(percent, 1)
+            skipped=session.skipped_count,
+            avg_time=round(avg_time, 1)
         ),
         parse_mode="HTML"
     )

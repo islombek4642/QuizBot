@@ -2,6 +2,7 @@ from aiogram import Router, types, F, Bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime, timedelta
 import json
 import time
 import asyncio
@@ -186,10 +187,11 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     keys = await redis.keys("group_quiz:*")
     active_group_quizzes = len(keys)
     
-    # Active sessions (Private)
+    # Active sessions (Private) - Filter by updated_at within last 30 minutes to avoid restart ghosts
+    activity_threshold = datetime.now() - timedelta(minutes=30)
     res_active_sessions = await db.execute(
         select(func.count(QuizSession.id))
-        .filter(QuizSession.is_active == True)
+        .filter(QuizSession.is_active == True, QuizSession.updated_at > activity_threshold)
     )
     active_private_quizzes = res_active_sessions.scalar()
     
@@ -455,10 +457,11 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
 @router.message(F.text == "/maintenance")
 @router.message(F.text.in_([Messages.get("ADMIN_MAINTENANCE_BTN", "UZ"), Messages.get("ADMIN_MAINTENANCE_BTN", "EN")]))
 async def admin_maintenance_notify(message: types.Message, bot: Bot, db: AsyncSession, lang: str, redis: Any):
-    # 1. Get all active sessions with user telegram_id
+    # 1. Get genuinely active sessions (updated within last 30 minutes)
+    activity_threshold = datetime.now() - timedelta(minutes=30)
     result = await db.execute(
         select(QuizSession.user_id)
-        .filter(QuizSession.is_active == True)
+        .filter(QuizSession.is_active == True, QuizSession.updated_at > activity_threshold)
         .distinct()
     )
     user_ids = list(result.scalars().all())
