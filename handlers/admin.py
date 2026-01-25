@@ -72,7 +72,9 @@ async def show_users_page(message_or_query, db: AsyncSession, lang: str, page: i
             
         # Phone indicator: ✅ if shared, ⚠️ if not
         indicator = "✅" if user.phone_number else "⚠️"
-        date_str = user.created_at.strftime("%d.%m.%y %H:%M")
+        # Convert UTC from DB to local Tashkent time (+5)
+        uz_time = user.created_at + timedelta(hours=5)
+        date_str = uz_time.strftime("%d.%m.%y %H:%M")
         phone = f" — <code>{user.phone_number}</code>" if user.phone_number else " — [Raqamsiz]"
         id_info = f" (<code>{user.telegram_id}</code>)"
         
@@ -160,7 +162,10 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     from datetime import datetime, timedelta
     
     # Today's date range
-    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    # Today's date range (Aligned with Tashkent 00:00)
+    # Since DB is UTC, Today 00:00 Tashkent = Yesterday 19:00 UTC
+    today_start_local = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start_utc = today_start_local - timedelta(hours=5)
     
     # Users count (total and active)
     res_users = await db.execute(select(func.count(User.id)))
@@ -177,17 +182,17 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     unregistered_count = res_unreg.scalar() or 0
 
     res_today_users = await db.execute(
-        select(func.count(User.id)).filter(User.created_at >= today_start)
+        select(func.count(User.id)).filter(User.created_at >= today_start_utc)
     )
     today_users_count = res_today_users.scalar() or 0
     
     res_today_reg = await db.execute(
-        select(func.count(User.id)).filter(User.created_at >= today_start, User.phone_number != None)
+        select(func.count(User.id)).filter(User.created_at >= today_start_utc, User.phone_number != None)
     )
     today_registered = res_today_reg.scalar() or 0
     
     res_today_unreg = await db.execute(
-        select(func.count(User.id)).filter(User.created_at >= today_start, User.phone_number == None)
+        select(func.count(User.id)).filter(User.created_at >= today_start_utc, User.phone_number == None)
     )
     today_unregistered = res_today_unreg.scalar() or 0
     
@@ -203,7 +208,7 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     total_quizzes = res_quizzes.scalar()
     
     res_today_quizzes = await db.execute(
-        select(func.count(Quiz.id)).filter(Quiz.created_at >= today_start)
+        select(func.count(Quiz.id)).filter(Quiz.created_at >= today_start_utc)
     )
     today_quizzes = res_today_quizzes.scalar() or 0
     
