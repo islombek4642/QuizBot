@@ -18,12 +18,26 @@ let currentView = 'dashboard';
 let authToken = null;
 
 // Elements
-const searchInput = document.getElementById('search-input');
-const splitView = document.getElementById('split-view');
-const splitQuizList = document.getElementById('split-quiz-list');
-const navDashboard = document.getElementById('nav-dashboard');
-const navSplit = document.getElementById('nav-split');
-const bottomNav = document.querySelector('.bottom-nav');
+let loader, appContainer, quizList, dashboardView, editorView, questionsContainer, pageTitle, backBtn, editorActions, saveBtn, searchInput, splitView, splitQuizList, navDashboard, navSplit, bottomNav;
+
+function initElements() {
+    loader = document.getElementById('loader');
+    appContainer = document.getElementById('app');
+    quizList = document.getElementById('quiz-list');
+    dashboardView = document.getElementById('dashboard');
+    editorView = document.getElementById('editor');
+    questionsContainer = document.getElementById('questions-container');
+    pageTitle = document.getElementById('page-title');
+    backBtn = document.getElementById('back-btn');
+    editorActions = document.getElementById('editor-actions');
+    saveBtn = document.getElementById('save-btn');
+    searchInput = document.getElementById('search-input');
+    splitView = document.getElementById('split-view');
+    splitQuizList = document.getElementById('split-quiz-list');
+    navDashboard = document.getElementById('nav-dashboard');
+    navSplit = document.getElementById('nav-split');
+    bottomNav = document.querySelector('.bottom-nav');
+}
 
 
 // Helper to get params
@@ -243,6 +257,7 @@ function t(key) {
 
 // Initialize
 async function init() {
+    initElements();
     tg.expand();
     tg.ready();
 
