@@ -169,37 +169,39 @@ async def admin_restore_mode_selected(message: types.Message, db: AsyncSession, 
     status_msg = await message.answer(Messages.get("RESTORE_PROCESSING", lang))
     
     try:
+        final_text = ""
         if is_smart_merge:
             stats = await perform_smart_merge(file_path, db)
             if stats:
                 # Check if all data already exists
                 if stats["u_new"] == 0 and stats["g_new"] == 0:
-                    await status_msg.edit_text(
-                        Messages.get("MERGE_NO_NEW_DATA", lang),
-                        parse_mode="HTML"
-                    )
+                    final_text = Messages.get("MERGE_NO_NEW_DATA", lang)
                 else:
-                    await status_msg.edit_text(
-                        Messages.get("MERGE_SUCCESS_MSG", lang).format(
-                            users=stats["u_new"] + stats["u_old"], u_new=stats["u_new"], u_old=stats["u_old"],
-                            groups=stats["g_new"] + stats["g_old"], g_new=stats["g_new"], g_old=stats["g_old"]
-                        ),
-                        parse_mode="HTML"
+                    final_text = Messages.get("MERGE_SUCCESS_MSG", lang).format(
+                        users=stats["u_new"] + stats["u_old"], u_new=stats["u_new"], u_old=stats["u_old"],
+                        groups=stats["g_new"] + stats["g_old"], g_new=stats["g_new"], g_old=stats["g_old"]
                     )
             else:
-                await status_msg.edit_text(Messages.get("MERGE_ERROR", lang))
+                final_text = Messages.get("MERGE_ERROR", lang)
         else:
             success = await perform_full_restore(file_path)
             if success:
-                await status_msg.edit_text(Messages.get("RESTORE_SUCCESS_MSG", lang), parse_mode="HTML")
+                final_text = Messages.get("RESTORE_SUCCESS_MSG", lang)
             else:
-                await status_msg.edit_text(Messages.get("RESTORE_ERROR", lang))
+                final_text = Messages.get("RESTORE_ERROR", lang)
+        
+        # Delete processing message and send final result with keyboard
+        try:
+            await status_msg.delete()
+        except:
+            pass
+            
+        await message.answer(final_text, parse_mode="HTML", reply_markup=get_main_keyboard(lang, message.from_user.id))
+
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
         await state.clear()
-        # Silently return to main keyboard
-        await message.answer("​", reply_markup=get_main_keyboard(lang, message.from_user.id))
 
 @router.callback_query(F.data.startswith("admin_users_page_"))
 async def admin_users_pagination(callback: types.CallbackQuery, db: AsyncSession, lang: str):
