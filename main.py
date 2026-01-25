@@ -64,7 +64,8 @@ async def main():
     dp.include_router(quiz.router)
 
     # Initialize Scheduler for Backups and Monitoring
-    scheduler = AsyncIOScheduler()
+    from zoneinfo import ZoneInfo
+    scheduler = AsyncIOScheduler(timezone=ZoneInfo("Asia/Tashkent"))
     
     # 1. Daily Backup
     scheduler.add_job(
