@@ -45,5 +45,9 @@ class Settings(BaseSettings):
     BACKUP_TEMP_DIR: str = "/tmp"
     BACKUP_FILENAME_PREFIX: str = "backup"
     BACKUP_JOB_ID: str = "daily_backup"
+    
+    # Cleanup Settings
+    CLEANUP_BATCH_SIZE: int = 50
+    CLEANUP_SLEEP_SECONDS: float = 0.15
 
 settings = Settings()

@@ -900,7 +900,9 @@ async def cmd_group_quiz_stats(message: types.Message, redis, lang: str):
     
     summary = Messages.get("GROUP_QUIZ_SUMMARY", lang).format(
         count=len(participants),
-        answered_count=answered_count
+        answered_count=answered_count,
+        total=quiz_state.get("total_questions", 0),
+        skipped=quiz_state.get("skipped_count", 0)
     )
         
     await message.answer(leaderboard + summary, parse_mode="HTML", reply_markup=types.ReplyKeyboardRemove())

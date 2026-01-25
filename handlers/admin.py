@@ -579,24 +579,24 @@ async def admin_silent_cleanup(message: types.Message, bot: Bot, db: AsyncSessio
     Check all active users and groups via get_chat (silent) 
     and mark as inactive if inaccessible.
     """
-    await message.answer("🔍 Bazani sokin tozalash boshlandi (faqat get_chat orqali). Bu biroz vaqt olishi mumkin...\nNatija tayyor bo'lgach xabar beraman.")
+    await message.answer(Messages.get("CLEANUP_STARTED", lang))
     
     # Run in background to not block the bot
-    asyncio.create_task(run_silent_cleanup_task(message.chat.id, bot, db, lang))
+    asyncio.create_task(run_silent_cleanup_task(message.chat.id, bot, lang))
 
-async def run_silent_cleanup_task(admin_chat_id, bot: Bot, db: AsyncSession, lang: str):
+async def run_silent_cleanup_task(admin_chat_id: int, bot: Bot, lang: str):
     from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest, TelegramRetryAfter
     from sqlalchemy import select, update, delete
     
     # We need a new session for the background task
-    from db.session import AsyncSessionLocal as async_session_factory # Assuming this is the factory
+    from db.session import AsyncSessionLocal as async_session_factory
     async with async_session_factory() as session:
-        # First: Delete all users already marked as inactive
+        # First: Mass-delete all users already marked as inactive to clean up stats immediately
         await session.execute(delete(User).where(User.is_active == False))
         await session.execute(delete(Group).where(Group.is_active == False))
         await session.commit()
 
-        # Same for all active users to check if they still exist for THIS bot
+        # Get all IDs to check
         res_users = await session.execute(select(User.telegram_id))
         all_user_ids = [r[0] for r in res_users.fetchall()]
         
@@ -605,14 +605,30 @@ async def run_silent_cleanup_task(admin_chat_id, bot: Bot, db: AsyncSession, lan
         
         all_targets = all_user_ids + all_group_ids
         user_ids_set = set(all_user_ids)
+        total = len(all_targets)
         
+        if total == 0:
+            await bot.send_message(admin_chat_id, "ℹ️ Bazada tekshirish uchun foydalanuvchilar yo'q.")
+            return
+
+        status_msg = await bot.send_message(
+            admin_chat_id, 
+            Messages.get("CLEANUP_PROGRESS", lang).format(
+                current=0, total=total, percent=0, alive=0, dead=0
+            )
+        )
+
         dead_user_ids = []
         dead_group_ids = []
+        alive_count = 0
+        dead_count = 0
         
         for i, target_id in enumerate(all_targets, 1):
             try:
                 chat = await bot.get_chat(target_id)
-                # Refresh user info from Telegram if active
+                alive_count += 1
+                
+                # Refresh user info if it's a user
                 if target_id in user_ids_set:
                     full_name = f"{chat.first_name} {chat.last_name}".strip() if chat.last_name else chat.first_name
                     await session.execute(
@@ -621,13 +637,14 @@ async def run_silent_cleanup_task(admin_chat_id, bot: Bot, db: AsyncSession, lan
                         .values(full_name=full_name, username=chat.username)
                     )
                 
-                await asyncio.sleep(0.12) # Slightly slower to avoid flood
+                await asyncio.sleep(settings.CLEANUP_SLEEP_SECONDS)
             except TelegramForbiddenError:
+                dead_count += 1
                 if target_id in user_ids_set: dead_user_ids.append(target_id)
                 else: dead_group_ids.append(target_id)
             except TelegramBadRequest as e:
-                # Most common for users from OLD bots (banned)
                 if "chat not found" in str(e).lower():
+                    dead_count += 1
                     if target_id in user_ids_set: dead_user_ids.append(target_id)
                     else: dead_group_ids.append(target_id)
             except TelegramRetryAfter as e:
@@ -635,21 +652,37 @@ async def run_silent_cleanup_task(admin_chat_id, bot: Bot, db: AsyncSession, lan
             except Exception:
                 pass
             
-            # Periodic deletion of dead IDs
-            if i % 25 == 0:
+            # Periodic deletion and progress update
+            if i % settings.CLEANUP_BATCH_SIZE == 0 or i == total:
                 if dead_user_ids:
                     await session.execute(delete(User).where(User.telegram_id.in_(dead_user_ids)))
                     dead_user_ids = []
                 if dead_group_ids:
                     await session.execute(delete(Group).where(Group.telegram_id.in_(dead_group_ids)))
                     dead_group_ids = []
+                
                 await session.commit()
+                
+                # Update progress message
+                try:
+                    await bot.edit_message_text(
+                        chat_id=admin_chat_id,
+                        message_id=status_msg.message_id,
+                        text=Messages.get("CLEANUP_PROGRESS", lang).format(
+                            current=i,
+                            total=total,
+                            percent=int((i/total)*100),
+                            alive=alive_count,
+                            dead=dead_count
+                        )
+                    )
+                except Exception:
+                    pass # Message might not have changed or was deleted
 
-        # Final cleanup
-        if dead_user_ids:
-            await session.execute(delete(User).where(User.telegram_id.in_(dead_user_ids)))
-        if dead_group_ids:
-            await session.execute(delete(Group).where(Group.telegram_id.in_(dead_group_ids)))
-        await session.commit()
-        
-        await bot.send_message(admin_chat_id, "✅ Bazani tozalash yakunlandi! Eski (banned gacha bo'lgan) foydalanuvchilar o'chirildi.")
+        await bot.send_message(
+            admin_chat_id, 
+            Messages.get("CLEANUP_FINISHED_MSG", lang).format(
+                total=total,
+                dead=dead_count
+            )
+        )
