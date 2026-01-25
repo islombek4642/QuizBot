@@ -18,8 +18,8 @@ class StatsService:
         time_taken: float = 0.0
     ) -> int:
         """
-        Calculate and add points to a user (and group if applicable).
-        action_type: 'correct', 'incorrect', 'timeout'
+        Calculate and add points with HIGH DIFFICULTY (Hard Mode).
+        Correct: +5 | Incorrect: -10 | Timeout: -5
         """
         total_delta = 0
         
@@ -32,53 +32,61 @@ class StatsService:
             self.db.add(user_stat)
             await self.db.flush()
 
-        # 2. Base Points & Penalties
-        if action_type == 'correct':
-            total_delta += 10
-            user_stat.total_correct += 1
-            user_stat.current_streak += 1
-            if user_stat.current_streak > user_stat.max_streak:
-                user_stat.max_streak = user_stat.current_streak
-            
-            # Speed Bonus
-            speed_bonus = 0
-            if time_taken <= 5.0:
-                speed_bonus = 15
-            elif time_taken <= 10.0:
-                speed_bonus = 10
-            elif time_taken <= 20.0:
-                speed_bonus = 5
-            
-            if speed_bonus > 0:
-                total_delta += speed_bonus
-                await self._log_points(user_id, chat_id, speed_bonus, 'bonus_speed')
+        # 2. Check Daily Point Limit (Limit: 2000 pts per day to prevent grinding)
+        now = datetime.utcnow()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        daily_query = select(func.sum(PointLog.points)).filter(
+            PointLog.user_id == user_id,
+            PointLog.points > 0,
+            PointLog.timestamp >= today_start
+        )
+        today_points = (await self.db.execute(daily_query)).scalar() or 0
+        
+        if today_points >= 2000 and action_type == 'correct':
+             # Still track stats but don't give more points today
+             total_delta = 0
+        else:
+            # 3. Base Points & HIGH Penalties
+            if action_type == 'correct':
+                total_delta += 5
+                user_stat.total_correct += 1
+                user_stat.current_streak += 1
+                if user_stat.current_streak > user_stat.max_streak:
+                    user_stat.max_streak = user_stat.current_streak
+                
+                # Speed Bonus (Lowered)
+                speed_bonus = 0
+                if time_taken <= 3.0:
+                    speed_bonus = 10
+                elif time_taken <= 5.0:
+                    speed_bonus = 5
+                
+                if speed_bonus > 0:
+                    total_delta += speed_bonus
+                    await self._log_points(user_id, chat_id, speed_bonus, 'bonus_speed')
 
-            # Streak Bonus
-            streak_bonus = 0
-            if user_stat.current_streak == 3:
-                streak_bonus = 5
-            elif user_stat.current_streak == 5:
-                streak_bonus = 15
-            
-            if streak_bonus > 0:
-                total_delta += streak_bonus
-                await self._log_points(user_id, chat_id, streak_bonus, 'bonus_streak')
+                # Streak Bonus (Harder)
+                if user_stat.current_streak > 0 and user_stat.current_streak % 10 == 0:
+                    streak_bonus = 10
+                    total_delta += streak_bonus
+                    await self._log_points(user_id, chat_id, streak_bonus, 'bonus_streak')
 
-        elif action_type == 'incorrect':
-            total_delta -= 5
-            user_stat.current_streak = 0
-        elif action_type == 'timeout':
-            total_delta -= 2
-            user_stat.current_streak = 0
-            
+            elif action_type == 'incorrect':
+                total_delta -= 10  # HIGH Penalty
+                user_stat.current_streak = 0
+            elif action_type == 'timeout':
+                total_delta -= 5   # HIGH Penalty
+                user_stat.current_streak = 0
+                
         user_stat.total_answered += 1
         user_stat.total_points += total_delta
         user_stat.last_activity = datetime.utcnow()
 
-        # 3. Log main points
-        await self._log_points(user_id, chat_id, 10 if action_type == 'correct' else total_delta, action_type)
+        # 4. Log main points
+        if total_delta != 0 or action_type != 'correct':
+            await self._log_points(user_id, chat_id, total_delta, action_type)
 
-        # 4. Update Group Stats if applicable
+        # 5. Update Group Stats if applicable
         if chat_id and chat_id != user_id:
             await self._update_group_stats(chat_id, total_delta)
 
@@ -138,6 +146,7 @@ class StatsService:
                 User.username
             )
             .join(User, User.telegram_id == PointLog.user_id)
+            .filter(User.is_active == True) # ONLY show users who didn't block the bot
         )
 
         if start_date:
