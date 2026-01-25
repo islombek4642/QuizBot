@@ -82,6 +82,37 @@ function initElements() {
     const splitCancel = document.getElementById('split-cancel');
     const splitConfirm = document.getElementById('split-confirm');
 
+    // Confirmation Modal Elements
+    const confirmModal = document.getElementById('confirm-modal');
+    const confirmTitle = document.getElementById('confirm-modal-title');
+    const confirmText = document.getElementById('confirm-modal-text');
+    const confirmIcon = document.getElementById('confirm-modal-icon');
+    const confirmBtnYes = document.getElementById('confirm-btn-yes');
+    const confirmBtnNo = document.getElementById('confirm-btn-no');
+
+    window.showConfirmModal = (options) => {
+        confirmTitle.innerText = options.title || 'Are you sure?';
+        confirmText.innerText = options.text || '';
+        confirmIcon.innerText = options.icon || '❓';
+        confirmBtnYes.innerText = options.yesLabel || 'Yes';
+        confirmBtnNo.innerText = options.noLabel || 'No';
+
+        if (options.isDanger) confirmBtnYes.classList.add('danger');
+        else confirmBtnYes.classList.remove('danger');
+
+        confirmModal.style.display = 'flex';
+
+        confirmBtnYes.onclick = () => {
+            confirmModal.style.display = 'none';
+            if (options.onConfirm) options.onConfirm();
+        };
+
+        confirmBtnNo.onclick = () => {
+            confirmModal.style.display = 'none';
+            if (options.onCancel) options.onCancel();
+        };
+    };
+
     // Attach event listeners safely
     if (searchInput) {
         searchInput.oninput = handleSearch;
@@ -1204,6 +1235,85 @@ function addSwipeListeners(el) {
             el.style.transform = 'translateX(0)';
         }
     });
+}
+
+/**
+ * Action Helpers
+ */
+function confirmDelete(quizId, title) {
+    showConfirmModal({
+        title: 'Testni o\'chirish',
+        text: `"${title}" testini va uning barcha natijalarini o'chirib tashlamoqchimisiz?`,
+        icon: '🗑️',
+        yesLabel: 'O\'chirish',
+        noLabel: 'Orqaga',
+        isDanger: true,
+        onConfirm: async () => {
+            await deleteQuiz(quizId);
+        },
+        onCancel: () => {
+            document.getElementById(`quiz-card-${quizId}`).style.transform = 'translateX(0)';
+        }
+    });
+}
+
+function confirmDownload(quizId, title) {
+    showConfirmModal({
+        title: 'Yuklab olish',
+        text: `"${title}" testini Word (.docx) formatida shaxsiy xabaringizga yuboraylikmi?`,
+        icon: '📥',
+        yesLabel: 'Ha, yuboring',
+        noLabel: 'Yo\'q',
+        onConfirm: async () => {
+            await downloadQuiz(quizId);
+        },
+        onCancel: () => {
+            document.getElementById(`quiz-card-${quizId}`).style.transform = 'translateX(0)';
+        }
+    });
+}
+
+async function deleteQuiz(quizId) {
+    try {
+        const headers = getAuthHeaders();
+        const res = await fetch(`${CONFIG.API_BASE}/quizzes/${quizId}`, {
+            method: 'DELETE',
+            headers: headers
+        });
+
+        if (res.ok) {
+            tg.showAlert('Test muvaffaqiyatli o\'chirildi! 🗑️✅');
+            // Reload list
+            await loadQuizzes();
+        } else {
+            const data = await res.json();
+            tg.showAlert('Xatolik: ' + (data.detail || 'O\'chirib bo\'lmadi'));
+        }
+    } catch (e) {
+        tg.showAlert('Tarmoq xatosi: ' + e.message);
+    }
+}
+
+async function downloadQuiz(quizId) {
+    try {
+        const headers = getAuthHeaders();
+        const res = await fetch(`${CONFIG.API_BASE}/quizzes/${quizId}/download`, {
+            method: 'POST',
+            headers: headers
+        });
+
+        if (res.ok) {
+            tg.showAlert('Fayl botdagi shaxsiy xabaringizga yuborildi! 📄✅');
+        } else {
+            const data = await res.json();
+            tg.showAlert('Xatolik: ' + (data.detail || 'Faylni yuborib bo\'lmadi'));
+        }
+    } catch (e) {
+        tg.showAlert('Tarmoq xatosi: ' + e.message);
+    } finally {
+        const card = document.getElementById(`quiz-card-${quizId}`);
+        if (card) card.style.transform = 'translateX(0)';
+    }
 }
 
 /**

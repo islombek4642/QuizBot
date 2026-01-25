@@ -541,9 +541,15 @@ async def handle_convert_file(message: types.Message, state: FSMContext, bot: Bo
 
 @router.message(F.text.in_([Messages.get("UPLOAD_WORD_BTN", "UZ"), Messages.get("UPLOAD_WORD_BTN", "EN"),
                             Messages.get("CREATE_QUIZ_BTN", "UZ"), Messages.get("CREATE_QUIZ_BTN", "EN")]))
-async def cmd_upload_word(message: types.Message, state: FSMContext, lang: str, user: Any):
+async def cmd_upload_word(message: types.Message, state: FSMContext, lang: str, user: Any, db_session):
     """Handle Word upload button press (renamed from create_quiz)"""
     telegram_id = message.from_user.id
+    
+    # NEW: Check total quiz limit (50)
+    service = QuizService(db_session)
+    if not await service.check_limit(telegram_id):
+        await message.answer(Messages.get("ERROR_QUIZ_LIMIT", lang), parse_mode="HTML")
+        return
     
     if not user or not user.phone_number:
         await message.answer(
