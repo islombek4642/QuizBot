@@ -164,10 +164,17 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     
     # Users count (total and active)
     res_users = await db.execute(select(func.count(User.id)))
-    total_users = res_users.scalar()
+    total_users_count = res_users.scalar() or 0
     
     res_active_users = await db.execute(select(func.count(User.id)).filter(User.is_active == True))
     active_users_count = res_active_users.scalar() or 0
+
+    # Registered vs Unregistered counts
+    res_reg = await db.execute(select(func.count(User.id)).filter(User.is_active == True, User.phone_number != None))
+    registered_count = res_reg.scalar() or 0
+    
+    res_unreg = await db.execute(select(func.count(User.id)).filter(User.is_active == True, User.phone_number == None))
+    unregistered_count = res_unreg.scalar() or 0
 
     res_today_users = await db.execute(
         select(func.count(User.id)).filter(User.created_at >= today_start)
@@ -238,7 +245,9 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
         uptime_str = "N/A"
     
     stats_msg = Messages.get("ADMIN_STATS_MSG", lang).format(
-        total_users=f"{total_users} (Active: {active_users_count})",
+        total_users=f"{total_users_count} (Active: {active_users_count})",
+        registered_users=registered_count,
+        unregistered_users=unregistered_count,
         today_users=today_users,
         total_groups=f"{total_groups} (Active: {active_groups_count})",
         total_quizzes=total_quizzes,
@@ -248,8 +257,8 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
         active_groups=active_group_quizzes,
         active_lobbies=active_lobbies,
         active_private=active_private_quizzes,
-        ai_gen_total=int(ai_gen_total),
-        ai_conv_total=int(ai_conv_total),
+        ai_gen_total=ai_gen_total,
+        ai_conv_total=ai_conv_total,
         uptime=uptime_str
     )
     
