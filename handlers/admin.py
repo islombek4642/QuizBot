@@ -362,6 +362,16 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     ai_gen_total = await redis.get("stats:ai_gen_total") or 0
     ai_conv_total = await redis.get("stats:ai_conv_total") or 0
     
+    # Check if word_upload_total exists, if not - estimate from total quizzes
+    word_upload_total_raw = await redis.get("stats:word_upload_total")
+    if word_upload_total_raw is None:
+        # Estimate: Word Uploads = Total Quizzes - AI Gen - AI Conv
+        # This recovers historical data as requested by the user
+        word_upload_total = max(0, int(total_quizzes) - int(ai_gen_total) - int(ai_conv_total))
+        await redis.set("stats:word_upload_total", word_upload_total)
+    else:
+        word_upload_total = int(word_upload_total_raw)
+    
     # Bot uptime (from process start)
     import os
     import psutil
@@ -397,6 +407,7 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
         active_private=active_private_quizzes,
         ai_gen_total=ai_gen_total,
         ai_conv_total=ai_conv_total,
+        word_upload_total=word_upload_total,
         uptime=uptime_str
     )
     

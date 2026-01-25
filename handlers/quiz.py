@@ -567,7 +567,7 @@ async def cmd_my_quizzes(message: types.Message, quiz_service: QuizService, lang
     )
 
 @router.message(QuizStates.WAITING_FOR_DOCX, F.document)
-async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, lang: str):
+async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, lang: str, redis):
     telegram_id = message.from_user.id
     
     document = message.document
@@ -686,6 +686,9 @@ async def handle_quiz_docx(message: types.Message, bot: Bot, state: FSMContext, 
                 Messages.get("QUIZ_UPLOADED", lang).format(count=len(valid_questions)),
                 parse_mode="HTML"
              )
+        
+        # Increment Word upload stats
+        await redis.incr("stats:word_upload_total")
         return
 
     except ParserError as e:
