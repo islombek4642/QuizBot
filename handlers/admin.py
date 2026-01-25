@@ -179,7 +179,17 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
     res_today_users = await db.execute(
         select(func.count(User.id)).filter(User.created_at >= today_start)
     )
-    today_users = res_today_users.scalar() or 0
+    today_users_count = res_today_users.scalar() or 0
+    
+    res_today_reg = await db.execute(
+        select(func.count(User.id)).filter(User.created_at >= today_start, User.phone_number != None)
+    )
+    today_registered = res_today_reg.scalar() or 0
+    
+    res_today_unreg = await db.execute(
+        select(func.count(User.id)).filter(User.created_at >= today_start, User.phone_number == None)
+    )
+    today_unregistered = res_today_unreg.scalar() or 0
     
     # Groups count
     res_groups = await db.execute(select(func.count(Group.id)))
@@ -248,7 +258,9 @@ async def admin_statistics(message: types.Message, db: AsyncSession, redis, lang
         total_users=f"{total_users_count} (Active: {active_users_count})",
         registered_users=registered_count,
         unregistered_users=unregistered_count,
-        today_users=today_users,
+        today_users=today_users_count,
+        today_reg=today_registered,
+        today_unreg=today_unregistered,
         total_groups=f"{total_groups} (Active: {active_groups_count})",
         total_quizzes=total_quizzes,
         today_quizzes=today_quizzes,
