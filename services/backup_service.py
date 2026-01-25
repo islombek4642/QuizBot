@@ -227,10 +227,9 @@ async def perform_smart_merge(file_path: str, session):
                     del u["ai_credits"]  # Remove if it's in backup but not in schema
                 
                 # Parse datetime fields
-                if "created_at" in u:
-                    u["created_at"] = parse_datetime(u["created_at"])
-                if "updated_at" in u:
-                    u["updated_at"] = parse_datetime(u["updated_at"])
+                for dt_col in ["created_at", "updated_at"]:
+                    if dt_col in u:
+                        u[dt_col] = parse_datetime(u[dt_col])
                 
                 # Only keep columns that exist in the model
                 u_filtered = {k: v for k, v in u.items() if k in user_columns}
@@ -251,10 +250,9 @@ async def perform_smart_merge(file_path: str, session):
                 g["is_active"] = safe_get(g, "is_active", "t") == "t"
                 
                 # Parse datetime fields
-                if "created_at" in g:
-                    g["created_at"] = parse_datetime(g["created_at"])
-                if "updated_at" in g:
-                    g["updated_at"] = parse_datetime(g["updated_at"])
+                for dt_col in ["created_at", "updated_at"]:
+                    if dt_col in g:
+                        g[dt_col] = parse_datetime(g[dt_col])
                 
                 # Only keep columns that exist in the model
                 g_filtered = {k: v for k, v in g.items() if k in group_columns}
@@ -274,18 +272,26 @@ async def perform_smart_merge(file_path: str, session):
                 q["user_id"] = int(q["user_id"])
                 q["shuffle_options"] = safe_get(q, "shuffle_options", "t") == "t"
                 
-                # Handle JSON column
                 if "questions_json" in q and isinstance(q["questions_json"], str):
                     import json
-                    # SQL dump might have escaped JSON
+                    # SQL dump might have escaped JSON in a way that json.loads doesn't like?
+                    # Usually pg_dump escapes with backslashes. 
+                    # If it's plain string from COPY, it might need unescaping.
                     try:
-                        q["questions_json"] = json.loads(q["questions_json"].replace('\\\\', '\\').replace('\\"', '"'))
+                        # Try parsing as is first
+                        q["questions_json"] = json.loads(q["questions_json"])
                     except:
-                        pass
+                        try:
+                            # Try unescaping common SQL dump escapes
+                            unescaped = q["questions_json"].replace('\\\\', '\\').replace('\\"', '"')
+                            q["questions_json"] = json.loads(unescaped)
+                        except:
+                            pass # Keep as string, let DB try to cast it
                 
-                if "created_at" in q:
-                    q["created_at"] = parse_datetime(q["created_at"])
-                
+                # Parse datetime fields
+                for dt_col in ["created_at", "updated_at"]:
+                    if dt_col in q:
+                        q[dt_col] = parse_datetime(q[dt_col])
                 q_filtered = {k: v for k, v in q.items() if k in quiz_columns}
                 
                 # Quizzes use auto-inc primary key, but we want to keep IDs if possible?
