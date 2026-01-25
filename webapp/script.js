@@ -40,6 +40,23 @@ const CONFIG = {
     }
 };
 
+function createRipple(event) {
+    const button = event.currentTarget;
+    const ripple = document.createElement("span");
+    const diameter = Math.max(button.clientWidth, button.clientHeight);
+    const radius = diameter / 2;
+
+    ripple.style.width = ripple.style.height = `${diameter}px`;
+    ripple.style.left = `${event.clientX - button.getBoundingClientRect().left - radius}px`;
+    ripple.style.top = `${event.clientY - button.getBoundingClientRect().top - radius}px`;
+    ripple.classList.add("ripple");
+
+    const oldRipple = button.getElementsByClassName("ripple")[0];
+    if (oldRipple) oldRipple.remove();
+
+    button.appendChild(ripple);
+}
+
 // State
 let currentQuizzes = [];
 let currentQuizData = null;
@@ -1167,16 +1184,16 @@ function renderQuizList(targetList, isSplitMode = false) {
         wrapper.style.opacity = '0'; // Initial state for anim
 
         wrapper.innerHTML = `
-            <div class="quiz-card-swipe-actions">
-                <div class="swipe-action action-download" onclick="confirmDownload(${quiz.id}, '${escapeHtml(quiz.title)}')">
-                    <span>📥</span>
-                    <span>Yuklash</span>
+                <div class="quiz-card-swipe-actions">
+                    <div class="swipe-action action-download" onclick="confirmDownload(${quiz.id}, '${escapeHtml(quiz.title)}'); createRipple(event)">
+                        <span>📥</span>
+                        <span>Yuklayman</span>
+                    </div>
+                    <div class="swipe-action action-delete" onclick="confirmDelete(${quiz.id}, '${escapeHtml(quiz.title)}'); createRipple(event)">
+                        <span>🗑️</span>
+                        <span>O'chiraman</span>
+                    </div>
                 </div>
-                <div class="swipe-action action-delete" onclick="confirmDelete(${quiz.id}, '${escapeHtml(quiz.title)}')">
-                    <span>🗑️</span>
-                    <span>O'chirish</span>
-                </div>
-            </div>
             <div class="quiz-card glass" id="quiz-card-${quiz.id}">
                 <div class="quiz-card-content">
                     <h3 style="margin-bottom: 8px;">${escapeHtml(quiz.title)}</h3>
