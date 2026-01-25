@@ -600,19 +600,29 @@ async def run_silent_cleanup_task(admin_chat_id: int, bot: Bot, lang: str):
     async with async_session_factory() as session:
         # First: Mass-delete all users already marked as inactive
         # Order matters! Sessions -> Quizzes -> Users
-        inactive_user_ids_query = select(User.telegram_id).where(User.is_active == False)
+        # Fetch IDs into memory first to avoid subquery issues with concurrent deletions
+        res_u_ids = await session.execute(select(User.telegram_id).where(User.is_active == False))
+        inactive_user_ids = [r[0] for r in res_u_ids.fetchall()]
         
-        # 1. Sessions for inactive users
-        await session.execute(delete(QuizSession).where(QuizSession.user_id.in_(inactive_user_ids_query)))
-        # 2. Sessions for quizzes created by inactive users
-        inactive_quiz_ids_query = select(Quiz.id).where(Quiz.user_id.in_(inactive_user_ids_query))
-        await session.execute(delete(QuizSession).where(QuizSession.quiz_id.in_(inactive_quiz_ids_query)))
-        # 3. Quizzes for inactive users
-        await session.execute(delete(Quiz).where(Quiz.user_id.in_(inactive_user_ids_query)))
-        
-        # Track counts of initially inactive records and perform deletion
-        res_u = await session.execute(delete(User).where(User.is_active == False))
-        u_count = res_u.rowcount or 0
+        if inactive_user_ids:
+            # 1. Sessions for inactive users
+            await session.execute(delete(QuizSession).where(QuizSession.user_id.in_(inactive_user_ids)))
+            
+            # 2. Quizzes created by inactive users
+            res_q_ids = await session.execute(select(Quiz.id).where(Quiz.user_id.in_(inactive_user_ids)))
+            inactive_quiz_ids = [r[0] for r in res_q_ids.fetchall()]
+            
+            if inactive_quiz_ids:
+                # Delete sessions associated with these quizzes
+                await session.execute(delete(QuizSession).where(QuizSession.quiz_id.in_(inactive_quiz_ids)))
+                # Delete the quizzes
+                await session.execute(delete(Quiz).where(Quiz.id.in_(inactive_quiz_ids)))
+            
+            # 3. Finally delete the User records
+            res_u = await session.execute(delete(User).where(User.telegram_id.in_(inactive_user_ids)))
+            u_count = res_u.rowcount or 0
+        else:
+            u_count = 0
         
         res_g = await session.execute(delete(Group).where(Group.is_active == False))
         g_count = res_g.rowcount or 0
