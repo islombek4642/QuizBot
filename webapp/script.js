@@ -500,6 +500,8 @@ async function init() {
     }
 
     // Set static texts
+    if (pageTitle) pageTitle.innerText = t('my_quizzes');
+
     const labelDashboard = document.getElementById('label-nav-dashboard');
     if (labelDashboard) labelDashboard.innerText = t('nav_dashboard');
 
@@ -1443,38 +1445,46 @@ async function saveChanges() {
 
 function switchView(view) {
     currentView = view;
+    console.log("Switching view to:", view);
 
-    // UI Reset
-    dashboardView.style.display = 'none';
-    splitView.style.display = 'none';
-    editorView.style.display = 'none';
-    if (leaderboardView) leaderboardView.style.display = 'none';
-    backBtn.style.display = 'none';
-    editorActions.style.display = 'none';
-    bottomNav.style.display = 'flex';
-    navDashboard.classList.remove('active');
-    navSplit.classList.remove('active');
+    // UI Reset - Hide all sections
+    const views = ['dashboard', 'split-view', 'editor', 'leaderboard'];
+    views.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+
+    if (backBtn) backBtn.style.display = 'none';
+    if (editorActions) editorActions.style.display = 'none';
+    if (bottomNav) bottomNav.style.display = 'flex';
+
+    // Reset Nav
+    if (navDashboard) navDashboard.classList.remove('active');
     if (navLeaderboard) navLeaderboard.classList.remove('active');
+    if (navSplit) navSplit.classList.remove('active');
 
     if (view === 'dashboard') {
-        dashboardView.style.display = 'grid';
-        pageTitle.innerText = t('my_quizzes');
-        navDashboard.classList.add('active');
+        if (dashboardView) dashboardView.style.display = 'grid';
+        if (pageTitle) pageTitle.innerText = t('my_quizzes');
+        if (navDashboard) navDashboard.classList.add('active');
         renderQuizList(quizList, false);
     } else if (view === 'split') {
-        splitView.style.display = 'grid';
-        pageTitle.innerText = t('nav_split');
-        navSplit.classList.add('active');
+        if (splitView) splitView.style.display = 'grid';
+        if (pageTitle) pageTitle.innerText = t('nav_split');
+        if (navSplit) navSplit.classList.add('active');
         renderQuizList(splitQuizList, true);
     } else if (view === 'editor') {
-        editorView.style.display = 'block';
-        backBtn.style.display = 'block';
-        editorActions.style.display = 'block';
-        bottomNav.style.display = 'none';
+        if (editorView) editorView.style.display = 'block';
+        if (backBtn) backBtn.style.display = 'block';
+        if (editorActions) editorActions.style.display = 'block';
+        if (bottomNav) bottomNav.style.display = 'none';
+        if (pageTitle) pageTitle.innerText = t('editing_test');
+        // CRITICAL FIX: Ensure render is called
+        renderEditor();
     } else if (view === 'leaderboard') {
-        leaderboardView.style.display = 'block';
-        pageTitle.innerText = t('leaderboard_title');
-        navLeaderboard.classList.add('active');
+        if (leaderboardView) leaderboardView.style.display = 'block';
+        if (pageTitle) pageTitle.innerText = t('leaderboard_title');
+        if (navLeaderboard) navLeaderboard.classList.add('active');
         loadLeaderboard();
     }
 }
@@ -1554,13 +1564,6 @@ function renderLeaderboard() {
     } else {
         myRankBar.style.display = 'none';
     }
-}
-
-function escapeHtml(text) {
-    if (typeof text !== 'string') return String(text || "");
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
 }
 
 
