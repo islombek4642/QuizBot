@@ -70,10 +70,10 @@ let currentView = 'dashboard';
 let authToken = null;
 
 function updateEditorCounter() {
-    const counterEl = document.getElementById('editor-counter');
-    if (!counterEl) return;
+    if (currentView !== 'editor') return;
     const count = questionsContainer.querySelectorAll('.question-item').length;
-    counterEl.innerHTML = `<span style="color: var(--accent-color); font-weight: 600;">${count}</span> ${t('questions_count')}`;
+    const countText = ` <span style="font-size: 0.9rem; opacity: 0.8; font-weight: normal;">(${count} ${t('questions_count')})</span>`;
+    pageTitle.innerHTML = t('editing_test') + countText;
 }
 
 // Elements
