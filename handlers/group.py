@@ -456,6 +456,10 @@ async def run_countdown_and_start(bot: Bot, chat_id: int, lobby_state: dict, red
             logger.warning("Countdown edit failed", error=str(e), chat_id=chat_id)
         await asyncio.sleep(1)
         
+    # Fetch lobby members to initialize quiz participants
+    lobby_users = await redis.smembers(users_key)
+    lobby_user_ids = [int(uid) for uid in lobby_users]
+    
     # Start quiz
     quiz_service = QuizService(session_service.db)
     quiz = await quiz_service.get_quiz(lobby_state["quiz_id"])
@@ -465,7 +469,7 @@ async def run_countdown_and_start(bot: Bot, chat_id: int, lobby_state: dict, red
             await bot.delete_message(chat_id, msg_id)
         except:
             pass
-        await start_group_quiz(bot, quiz, chat_id, lobby_state["owner_id"], lang, redis, session_service)
+        await start_group_quiz(bot, quiz, chat_id, lobby_state["owner_id"], lang, redis, session_service, lobby_user_ids)
     
     # Cleanup lobby
     await redis.delete(f"quiz_lobby:{chat_id}")
@@ -473,7 +477,7 @@ async def run_countdown_and_start(bot: Bot, chat_id: int, lobby_state: dict, red
 
 
 async def start_group_quiz(bot: Bot, quiz, chat_id: int, owner_id: int, lang: str, 
-                           redis, session_service: SessionService):
+                           redis, session_service: SessionService, lobby_user_ids: list = None):
     """Start a quiz in a group chat"""
     import random
     
@@ -494,9 +498,10 @@ async def start_group_quiz(bot: Bot, quiz, chat_id: int, owner_id: int, lang: st
         "total_questions": len(questions),
         "title": quiz.title,
         "questions": questions,
-        "participants": {},  # user_id -> {correct: X, answered: Y}
+        "participants": {str(uid): {"correct": 0, "answered": 0, "total_time": 0.0} for uid in (lobby_user_ids or [])},
         "consecutive_skips": 0,
         "skipped_count": 0,
+        "total_voted_questions": 0, # NEW: Track questions where at least one person voted
         "start_time": time.time(),
         "is_active": True
     }
@@ -626,6 +631,7 @@ async def _advance_group_quiz(bot: Bot, chat_id: int, quiz_id: int, question_ind
                     logger.warning(f"Failed to send timeout message (Group): {e}")
             else:
                 quiz_state["consecutive_skips"] = 0
+                quiz_state["total_voted_questions"] = quiz_state.get("total_voted_questions", 0) + 1
 
             # Check if 3 consecutive skips reached
             if quiz_state.get("consecutive_skips", 0) >= 3:
@@ -673,7 +679,7 @@ async def finish_group_quiz(bot: Bot, chat_id: int, quiz_state: dict, redis, lan
 
     summary = Messages.get("GROUP_QUIZ_SUMMARY", lang).format(
         count=len(participants),
-        answered_count=quiz_state.get("current_index", 0),
+        answered_count=quiz_state.get("total_voted_questions", 0),
         total=quiz_state.get("total_questions", 0),
         skipped=quiz_state.get("skipped_count", 0)
     )
@@ -895,12 +901,9 @@ async def cmd_group_quiz_stats(message: types.Message, redis, lang: str):
         total_time_str = format_duration(stats.get('total_time', 0), lang)
         leaderboard += f"{rank_str} <a href='tg://user?id={uid}'>{name}</a> – <b>{stats['correct']}</b>/{stats['answered']} ({total_time_str})\n"
         
-    # Summary footer
-    answered_count = quiz_state.get("current_index", 0)
-    
     summary = Messages.get("GROUP_QUIZ_SUMMARY", lang).format(
         count=len(participants),
-        answered_count=answered_count,
+        answered_count=quiz_state.get("total_voted_questions", 0),
         total=quiz_state.get("total_questions", 0),
         skipped=quiz_state.get("skipped_count", 0)
     )
