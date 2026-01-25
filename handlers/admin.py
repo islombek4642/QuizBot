@@ -198,7 +198,8 @@ async def admin_restore_mode_selected(message: types.Message, db: AsyncSession, 
         if os.path.exists(file_path):
             os.remove(file_path)
         await state.clear()
-        await message.answer(Messages.get("RESTORE_COMPLETE", lang), reply_markup=get_main_keyboard(lang, message.from_user.id))
+        # Silently return to main keyboard
+        await message.answer("​", reply_markup=get_main_keyboard(lang, message.from_user.id))
 
 @router.callback_query(F.data.startswith("admin_users_page_"))
 async def admin_users_pagination(callback: types.CallbackQuery, db: AsyncSession, lang: str):
