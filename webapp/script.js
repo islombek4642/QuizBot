@@ -511,6 +511,8 @@ const TRANSLATIONS = {
         rule_wrong_desc: "-10 ball",
         rule_timeout: "Vaqt tugashi",
         rule_timeout_desc: "-5 ball",
+        rule_referral: "Do‘stni taklif qilish",
+        rule_referral_desc: "+1 ball",
         rule_limit: "Kunlik limit",
         rule_limit_desc: "Maksimal 2000 ball",
         close_btn: "Tushunarli"
@@ -583,6 +585,8 @@ const TRANSLATIONS = {
         rule_wrong_desc: "-10 points",
         rule_timeout: "Timeout",
         rule_timeout_desc: "-5 points",
+        rule_referral: "Invite Friend",
+        rule_referral_desc: "+1 point",
         rule_limit: "Daily Limit",
         rule_limit_desc: "Max 2000 points",
         close_btn: "Got it"
@@ -673,6 +677,8 @@ async function init() {
         'rule-wrong-desc': 'rule_wrong_desc',
         'rule-timeout-title': 'rule_timeout',
         'rule-timeout-desc': 'rule_timeout_desc',
+        'rule-referral-title': 'rule_referral',
+        'rule-referral-desc': 'rule_referral_desc',
         'rule-limit-title': 'rule_limit',
         'rule-limit-desc': 'rule_limit_desc'
     };

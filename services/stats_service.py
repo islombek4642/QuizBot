@@ -55,6 +55,8 @@ class StatsService:
         elif action_type == 'timeout':
             total_delta = -5
             user_stat.current_streak = 0
+        elif action_type == 'referral_bonus':
+            total_delta = 1
 
         # 3. Apply Daily Point Limit (Limit: 2000 pts per day to prevent grinding)
         if total_delta > 0:
@@ -69,6 +71,10 @@ class StatsService:
             
             if today_points + total_delta > 2000:
                 total_delta = max(0, 2000 - today_points)
+        
+        # 4. Prevent Negative Total Points
+        if total_delta < 0 and user_stat.total_points + total_delta < 0:
+            total_delta = -user_stat.total_points # Reduce exactly to 0
         
         # 4. Update stats
         user_stat.total_answered += 1

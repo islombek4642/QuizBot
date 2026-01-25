@@ -214,6 +214,13 @@ async def handle_referral(referrer_id: int, bot: Bot, redis, user_service: UserS
             await redis.delete(f"ai_limit:gen:{referrer_id}")
             await redis.delete(f"ai_limit:conv:{referrer_id}")
             
+            # Add referral points (+1)
+            from services.stats_service import StatsService
+            from db.session import AsyncSessionLocal
+            async with AsyncSessionLocal() as db:
+                stats_service = StatsService(db)
+                await stats_service.add_points(referrer_id, action_type='referral_bonus')
+
             # Notify referrer - SUCCESS
             await bot.send_message(
                 referrer_id,
