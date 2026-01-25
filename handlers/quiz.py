@@ -1187,7 +1187,7 @@ async def handle_poll_answer(poll_answer: types.PollAnswer, bot: Bot, session_se
         # For now, I'll use 10.0 as default if not tracked.
         await stats_service.add_points(
             session.user_id, 
-            quiz_id=session.session_data.get('quiz_id'),
+            quiz_id=session.quiz_id,
             action_type='correct' if is_correct else 'incorrect',
             time_taken=10.0 # Placeholder for private
         )
@@ -1276,7 +1276,7 @@ async def handle_private_poll_update(poll: types.Poll, bot: Bot, session_service
         stats_service = StatsService(session_service.db)
         await stats_service.add_points(
             session.user_id, 
-            quiz_id=session.session_data.get('quiz_id'),
+            quiz_id=session.quiz_id,
             action_type='timeout'
         )
 

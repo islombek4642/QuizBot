@@ -172,12 +172,12 @@ class StatsService:
                 func.count(PointLog.id).filter(PointLog.action_type.in_(["incorrect", "timeout"])).label("error_count"),
                 func.max(PointLog.timestamp).label("last_played")
             )
-            .filter(and_(PointLog.user_id == user_id, PointLog.quiz_id != None))
+            .filter(PointLog.user_id == user_id)
             .group_by(PointLog.quiz_id)
             .alias("p_stats")
         )
 
-        # Join with Quiz table for titles
+        # Join with Quiz table for titles (Left join to include deleted/legacy quizzes)
         query = (
             select(
                 stats_q.c.quiz_id,
@@ -187,7 +187,7 @@ class StatsService:
                 stats_q.c.last_played,
                 Quiz.title
             )
-            .join(Quiz, Quiz.id == stats_q.c.quiz_id)
+            .outerjoin(Quiz, Quiz.id == stats_q.c.quiz_id)
             .order_by(desc(stats_q.c.last_played))
         )
 
@@ -195,8 +195,8 @@ class StatsService:
         rows = result.all()
 
         return [{
-            "quiz_id": row.quiz_id,
-            "title": row.title,
+            "quiz_id": row.quiz_id if row.quiz_id else 0,
+            "title": row.title if row.title else "Noma'lum / O'chirilgan test",
             "score": int(row.total_score),
             "correct": row.correct_count,
             "errors": row.error_count,

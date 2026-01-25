@@ -1000,6 +1000,7 @@ async def handle_group_poll_answer(poll_answer: types.PollAnswer, bot: Bot,
         await stats_service.add_points(
             user_id=user_id,
             chat_id=chat_id,
+            quiz_id=quiz_state.get("quiz_id"),
             action_type='correct' if is_correct else 'incorrect',
             time_taken=time_taken
         )
