@@ -579,8 +579,17 @@ async def run_silent_cleanup_task(admin_chat_id, bot: Bot, db: AsyncSession, lan
         
         for i, target_id in enumerate(all_targets, 1):
             try:
-                await bot.get_chat(target_id)
-                await asyncio.sleep(0.1) # Be gentle
+                chat = await bot.get_chat(target_id)
+                # Refresh user info from Telegram if active
+                if target_id in user_ids_set:
+                    full_name = f"{chat.first_name} {chat.last_name}".strip() if chat.last_name else chat.first_name
+                    await session.execute(
+                        update(User)
+                        .where(User.telegram_id == target_id)
+                        .values(full_name=full_name, username=chat.username)
+                    )
+                
+                await asyncio.sleep(0.12) # Slightly slower to avoid flood
             except TelegramForbiddenError:
                 if target_id in user_ids_set: dead_user_ids.append(target_id)
                 else: dead_group_ids.append(target_id)
@@ -593,8 +602,8 @@ async def run_silent_cleanup_task(admin_chat_id, bot: Bot, db: AsyncSession, lan
             except Exception:
                 pass
             
-            # Periodic commit to save progress and avoid long transactions
-            if i % 50 == 0:
+            # Periodic commit to save progress and updated names
+            if i % 25 == 0:
                 if dead_user_ids:
                     await session.execute(update(User).where(User.telegram_id.in_(dead_user_ids)).values(is_active=False))
                     dead_user_ids = []
