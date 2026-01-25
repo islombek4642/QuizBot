@@ -73,13 +73,7 @@ function updateEditorCounter() {
     const counterEl = document.getElementById('editor-counter');
     if (!counterEl) return;
     const count = questionsContainer.querySelectorAll('.question-item').length;
-    counterEl.innerText = `${count} / 50`;
-
-    if (count >= 50) {
-        counterEl.style.color = '#ef4444'; // Danger color
-    } else {
-        counterEl.style.color = 'var(--accent-color)';
-    }
+    counterEl.innerHTML = `<span style="color: var(--accent-color); font-weight: 600;">${count}</span> ${t('questions_count')}`;
 }
 
 // Elements
