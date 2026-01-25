@@ -212,6 +212,30 @@ main {
     width: 100%;
 }
 
+@keyframes wiggle {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    25% {
+        transform: translateX(-15px);
+    }
+
+    50% {
+        transform: translateX(15px);
+    }
+
+    75% {
+        transform: translateX(-15px);
+    }
+}
+
+.wiggle-hint {
+    animation: wiggle 0.6s ease-in-out;
+}
+
 /* Swipe to Action */
 .quiz-card-wrapper {
     position: relative;
@@ -235,6 +259,14 @@ main {
     z-index: 1;
     border-radius: 16px;
     overflow: hidden;
+    visibility: hidden;
+    /* Hide backgrounds by default */
+}
+
+.quiz-card-wrapper.swiping .quiz-card-swipe-actions,
+.quiz-card-wrapper.active-swipe .quiz-card-swipe-actions {
+    visibility: visible;
+    /* Show only when swiping or swiped */
 }
 
 .swipe-action {

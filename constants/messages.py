@@ -181,7 +181,7 @@ class Messages:
             "INVALID_COUNT": "⚠️ Noto'g'ri son kiritildi.",
             "WEBAPP_EDITOR_BTN": "Boshqaruv 🌐",
             "WEBAPP_PROMPT": "Boshqaruv paneliga o'tish uchun quyidagi tugmani bosing:",
-            "ERROR_QUIZ_LIMIT": "⚠️ <b>Limitga yetdingiz!</b>\n\nSizda jami testlar soni 50 tadan oshib ketdi. Yangi test yaratish uchun eski testlaringizni o'chirib tashlang.",
+            "ERROR_QUIZ_LIMIT": "⚠️ <b>Limitga yetdingiz!</b>\n\nSizda jami testlar soni 50 tadan oshib ketdi. Yangi test yaratish uchun eski testlaringizni o'chirish kirasiz.\n\n💡 <b>Eslatma:</b> Eski testlarni o'chirganda sizning barcha reyting ballaringiz saqlanib qoladi!",
             "BACKUP_CAPTION": "📦 <b>Ma'lumotlar bazasi nusxasi</b>\n\n📅 Sana: {date}\n📁 Fayl: <code>{file}</code>\n⚖️ Hajmi: {size} MB",
         },
         "EN": {
@@ -365,7 +365,7 @@ class Messages:
              "INVALID_COUNT": "⚠️ Invalid number entered.",
              "WEBAPP_EDITOR_BTN": "Management 🌐",
             "WEBAPP_PROMPT": "Click the button below to open control panel:",
-            "ERROR_QUIZ_LIMIT": "⚠️ <b>Limit reached!</b>\n\nYou have more than 50 quizzes. Please delete some old quizzes to create new ones.",
+            "ERROR_QUIZ_LIMIT": "⚠️ <b>Limit reached!</b>\n\nYou have more than 50 quizzes. Please delete some old quizzes to create new ones.\n\n💡 <b>Note:</b> Your leaderboard points will NOT be lost if you delete old quizzes.",
              "QUIZ_UPLOADED": "✅ <b>Test uploaded!</b>\n\n📊 Questions found: {count}\n\n📝 Now enter the quiz title.\nExample: 'Informatics Quiz 1'",
              "QUIZ_PARTIAL_SUCCESS": "✅ <b>Test partially uploaded!</b>\n\n📊 Successful: {count}\n⚠️ Errors: {errors_count}\n\n📝 <b>Error list:</b>\n{errors}\n\n📝 Enter a title to continue with valid questions:",
              "QUIZ_ALL_FAILED": "❌ <b>Failed to parse quiz!</b>\n\nErrors found in all questions:\n{errors}\n\nPlease check the format. If answers are not marked, try the <b>AI Conversion</b> service (it will find answers automatically).",

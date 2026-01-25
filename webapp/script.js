@@ -444,6 +444,9 @@ const TRANSLATIONS = {
         lb_groups: "Guruhlar",
         pts: "ball",
         my_rank: "Sizning o'riningiz",
+        lb_total: "Umumiy",
+        lb_weekly: "Haftalik",
+        lb_daily: "Kunlik",
     },
     EN: {
         my_quizzes: "My Quizzes",
@@ -491,6 +494,9 @@ const TRANSLATIONS = {
         lb_groups: "Groups",
         pts: "pts",
         my_rank: "Your Rank",
+        lb_total: "All-time",
+        lb_weekly: "Weekly",
+        lb_daily: "Daily",
     }
 };
 
@@ -557,7 +563,10 @@ async function init() {
         'desc-type-size': 'desc_type_size',
         'split-cancel': 'btn_cancel',
         'split-confirm': 'btn_confirm_split',
-        'save-btn': 'save_changes'
+        'save-btn': 'save_changes',
+        'lb-tab-total': 'lb_total',
+        'lb-tab-weekly': 'lb_weekly',
+        'lb-tab-daily': 'lb_daily'
     };
 
     for (const [id, key] of Object.entries(elementsToLocalize)) {
@@ -1148,7 +1157,10 @@ function renderQuizList(targetList, isSplitMode = false) {
         document.getElementById('no-quizzes').style.display = 'none';
     }
 
-    currentQuizzes.forEach(quiz => {
+    // Flag to only wiggle once per refresh
+    const shouldWiggle = !window._hasWiggled;
+
+    currentQuizzes.forEach((quiz, idx) => {
         const wrapper = document.createElement('div');
         wrapper.className = 'quiz-card-wrapper';
 
@@ -1181,15 +1193,25 @@ function renderQuizList(targetList, isSplitMode = false) {
             </div>
         `;
 
-        // Add Swipe listeners to the card element specifically
+        // Add Swipe listeners
         const cardEl = wrapper.querySelector('.quiz-card');
-        addSwipeListeners(cardEl);
+        addSwipeListeners(cardEl, wrapper);
+
+        // Add Wiggle Hint to first 2 cards
+        if (shouldWiggle && idx < 2) {
+            setTimeout(() => {
+                cardEl.classList.add('wiggle-hint');
+                setTimeout(() => cardEl.classList.remove('wiggle-hint'), 1000);
+            }, 500 + (idx * 200));
+        }
 
         targetList.appendChild(wrapper);
     });
+
+    if (shouldWiggle && currentQuizzes.length > 0) window._hasWiggled = true;
 }
 
-function addSwipeListeners(el) {
+function addSwipeListeners(el, wrapper) {
     let startX = 0;
     let currentX = 0;
     let isSwiping = false;
@@ -1197,6 +1219,7 @@ function addSwipeListeners(el) {
     el.addEventListener('touchstart', (e) => {
         startX = e.touches[0].clientX;
         isSwiping = true;
+        wrapper.classList.add('swiping');
     }, { passive: true });
 
     el.addEventListener('touchmove', (e) => {
@@ -1205,7 +1228,6 @@ function addSwipeListeners(el) {
         const diff = currentX - startX;
 
         if (Math.abs(diff) > 20) {
-            // Constrain movement
             const move = Math.max(-100, Math.min(100, diff));
             el.style.transform = `translateX(${move}px)`;
         }
@@ -1213,15 +1235,20 @@ function addSwipeListeners(el) {
 
     el.addEventListener('touchend', (e) => {
         isSwiping = false;
+        wrapper.classList.remove('swiping');
+
         const diff = currentX - startX;
         el.style.transition = 'transform 0.3s ease';
 
         if (diff > 50) {
-            el.style.transform = 'translateX(80px)'; // Reveal Download
+            el.style.transform = 'translateX(80px)';
+            wrapper.classList.add('active-swipe');
         } else if (diff < -50) {
-            el.style.transform = 'translateX(-80px)'; // Reveal Delete
+            el.style.transform = 'translateX(-80px)';
+            wrapper.classList.add('active-swipe');
         } else {
             el.style.transform = 'translateX(0)';
+            wrapper.classList.remove('active-swipe');
         }
 
         setTimeout(() => {
@@ -1229,10 +1256,15 @@ function addSwipeListeners(el) {
         }, 300);
     });
 
-    // Close on click anywhere else
+    // Close on click or interaction
+    const closeAction = () => {
+        el.style.transform = 'translateX(0)';
+        wrapper.classList.remove('active-swipe');
+    };
+
     el.addEventListener('click', () => {
-        if (el.style.transform !== 'translateX(0px)' && el.style.transform !== '') {
-            el.style.transform = 'translateX(0)';
+        if (wrapper.classList.contains('active-swipe')) {
+            closeAction();
         }
     });
 }
