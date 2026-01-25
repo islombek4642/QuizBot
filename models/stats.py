@@ -1,3 +1,4 @@
+from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from models.base import Base
 from datetime import datetime
