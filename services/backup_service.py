@@ -153,7 +153,7 @@ async def perform_smart_merge(file_path: str, session):
             with open(work_path, "wb") as f_out:
                 shutil.copyfileobj(f_in, f_out)
 
-    stats = {"u_new": 0, "u_old": 0, "g_new": 0, "g_old": 0}
+    stats = {"u_new": 0, "u_old": 0, "g_new": 0, "g_old": 0, "q_new": 0, "q_old": 0}
 
     try:
         # Read file content
@@ -188,6 +188,7 @@ async def perform_smart_merge(file_path: str, session):
 
         user_data = get_data_from_dump("users")
         group_data = get_data_from_dump("groups")
+        quiz_data = get_data_from_dump("quizzes")
 
         # Helper to safely get values with defaults
         def safe_get(d, key, default=None):
@@ -209,6 +210,8 @@ async def perform_smart_merge(file_path: str, session):
         # Get actual model columns
         user_columns = {c.name for c in User.__table__.columns}
         group_columns = {c.name for c in Group.__table__.columns}
+        from models.quiz import Quiz
+        quiz_columns = {c.name for c in Quiz.__table__.columns}
 
         for u in user_data:
             try:
@@ -263,6 +266,38 @@ async def perform_smart_merge(file_path: str, session):
             except Exception as e:
                 logger.warning(f"Failed to merge group {g.get('telegram_id')}", error=str(e))
                 stats["g_old"] += 1
+
+        # Process Quizzes
+        for q in quiz_data:
+            try:
+                q["id"] = int(q["id"])
+                q["user_id"] = int(q["user_id"])
+                q["shuffle_options"] = safe_get(q, "shuffle_options", "t") == "t"
+                
+                # Handle JSON column
+                if "questions_json" in q and isinstance(q["questions_json"], str):
+                    import json
+                    # SQL dump might have escaped JSON
+                    try:
+                        q["questions_json"] = json.loads(q["questions_json"].replace('\\\\', '\\').replace('\\"', '"'))
+                    except:
+                        pass
+                
+                if "created_at" in q:
+                    q["created_at"] = parse_datetime(q["created_at"])
+                
+                q_filtered = {k: v for k, v in q.items() if k in quiz_columns}
+                
+                # Quizzes use auto-inc primary key, but we want to keep IDs if possible?
+                # Actually, for Smart Merge, we check if title+user_id combo exists to avoid dups
+                # Or just use the original ID if it's not taken.
+                stmt = insert(Quiz).values(**q_filtered).on_conflict_do_nothing(index_elements=["id"])
+                res = await session.execute(stmt)
+                if res.rowcount > 0: stats["q_new"] += 1
+                else: stats["q_old"] += 1
+            except Exception as e:
+                logger.warning(f"Failed to merge quiz {q.get('id')}", error=str(e))
+                stats["q_old"] += 1
 
         await session.commit()
         return stats

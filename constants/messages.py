@@ -86,7 +86,7 @@ class Messages:
             "RESTORE_SMART_MERGE_BTN": "🔄 Smart Merge (Faqat yangilar)",
             "RESTORE_FULL_BTN": "⚠️ Full Restore (Hammasini almashtirish)",
             "RESTORE_CONFIRM_PROMPT": "❓ <b>Tasdiqlash</b>\n\nSiz haqiqatdan ham bazani tiklamoqchimisiz?\nTanlangan rejim: <b>{mode}</b>\n\n⚠️ <i>Full Restore rejimida barcha joriy ma'lumotlar o'chib ketadi!</i>",
-            "MERGE_SUCCESS_MSG": "✅ <b>Smart Merge yakunlandi!</b>\n\n👤 Foydalanuvchilar: {users}\n├ Yangi: +{u_new}\n└ Mavjud: {u_old}\n\n👥 Guruhlar: {groups}\n├ Yangi: +{g_new}\n└ Mavjud: {g_old}",
+            "MERGE_SUCCESS_MSG": "✅ <b>Smart Merge yakunlandi!</b>\n\n👤 Foydalanuvchilar: {users}\n├ Yangi: +{u_new}\n└ Mavjud: {u_old}\n\n🏘 Guruhlar: {groups}\n├ Yangi: +{g_new}\n└ Mavjud: {g_old}\n\n📝 Testlar: {quizzes}\n├ Yangi: +{q_new}\n└ Mavjud: {q_old}",
             "MERGE_NO_NEW_DATA": "ℹ️ <b>Smart Merge yakunlandi</b>\n\nFayldagi barcha ma'lumotlar bazada allaqachon mavjud. Hech narsa qo'shilmadi.",
             "RESTORE_SUCCESS_MSG": "✅ <b>Full Restore yakunlandi!</b>\n\nBaza fayldagi holatiga to'liq qaytarildi.",
             "RESTORE_PROCESSING": "⏳ Jarayon boshlandi...",

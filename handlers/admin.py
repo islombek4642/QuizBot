@@ -195,7 +195,8 @@ async def admin_restore_mode_selected(message: types.Message, db: AsyncSession, 
                 else:
                     final_text = Messages.get("MERGE_SUCCESS_MSG", lang).format(
                         users=stats["u_new"] + stats["u_old"], u_new=stats["u_new"], u_old=stats["u_old"],
-                        groups=stats["g_new"] + stats["g_old"], g_new=stats["g_new"], g_old=stats["g_old"]
+                        groups=stats["g_new"] + stats["g_old"], g_new=stats["g_new"], g_old=stats["g_old"],
+                        quizzes=stats["q_new"] + stats["q_old"], q_new=stats["q_new"], q_old=stats["q_old"]
                     )
             else:
                 final_text = Messages.get("MERGE_ERROR", lang)
