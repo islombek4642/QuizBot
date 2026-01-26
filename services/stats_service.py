@@ -215,7 +215,7 @@ class StatsService:
         # Fair metric: Group Score = Average total points of Top 5 users in that group
         # This prevents large groups from winning by sheer volume and small groups from being ignored.
         
-        # Subquery to get sum of points per user per group
+        # 1. Subquery to get sum of points per user per group
         user_scores_sub = (
             select(
                 PointLog.chat_id,
@@ -227,7 +227,7 @@ class StatsService:
             .alias("user_scores")
         )
         
-        # Window function to rank users within each group
+        # 2. Window function to rank users within each group
         ranked_users_sub = (
             select(
                 user_scores_sub.c.chat_id,
@@ -240,18 +240,28 @@ class StatsService:
             .alias("ranked_users")
         )
         
-        # Main query: Average of Top 5 users, joined with Group table for names
-        query = (
+        # 3. Calculate Group Average Score (Average of Top 5 members)
+        group_avg_sub = (
             select(
                 ranked_users_sub.c.chat_id,
-                func.avg(ranked_users_sub.c.user_total).label("group_avg"),
-                Group.title,
-                Group.username
+                func.avg(ranked_users_sub.c.user_total).label("group_avg")
             )
-            .join(Group, Group.telegram_id == ranked_users_sub.c.chat_id)
             .filter(ranked_users_sub.c.rnk <= 5)
-            .group_by(ranked_users_sub.c.chat_id, Group.title, Group.username)
-            .order_by(desc("group_avg"))
+            .group_by(ranked_users_sub.c.chat_id)
+            .alias("group_avg_scores")
+        )
+
+        # 4. Main query: Group Table LEFT JOIN with Scores
+        query = (
+            select(
+                Group.telegram_id.label("chat_id"),
+                Group.title,
+                Group.username,
+                func.coalesce(group_avg_sub.c.group_avg, 0).label("score")
+            )
+            .outerjoin(group_avg_sub, Group.telegram_id == group_avg_sub.c.chat_id)
+            .filter(Group.is_active == True)
+            .order_by(desc("score"), Group.id.asc())
             .limit(limit)
         )
         
@@ -263,7 +273,7 @@ class StatsService:
             "chat_id": row.chat_id,
             "title": row.title or f"Group {row.chat_id}",
             "username": row.username,
-            "score": round(float(row.group_avg), 1)
+            "score": round(float(row.score or 0), 1)
         } for i, row in enumerate(rows, 1)]
 
     async def get_user_rank(self, user_id: int, period: str = 'total') -> Optional[dict]:
