@@ -518,8 +518,13 @@ async def admin_broadcast_init(message: types.Message, state: FSMContext, lang: 
 
 @router.message(QuizStates.ADMIN_BROADCAST_MSG)
 async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot: Bot, db: AsyncSession, redis, lang: str):
-    # Check if it's a cancel button
-    if message.text in [Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN")]:
+    # Check if it's a cancel button (Enhanced check)
+    is_cancel = message.text in [Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN")]
+    if not is_cancel and message.text:
+        if message.text.startswith("🚫") or "Bekor qilish" in message.text or "Cancel" in message.text:
+            is_cancel = True
+
+    if is_cancel:
         await state.clear()
         await message.answer(
             Messages.get("SELECT_BUTTON", lang),
