@@ -201,6 +201,7 @@ class StatsService:
         result = await self.db.execute(query)
         rows = result.all()
 
+        return [{
             "quiz_id": row.quiz_id if row.quiz_id else 0,
             "title": row.title if row.title else "Noma'lum / O'chirilgan test",
             "score": int(row.total_score),
