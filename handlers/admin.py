@@ -2,7 +2,7 @@ from aiogram import Router, types, F, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc, update
+from sqlalchemy import select, func, desc, update, delete
 from db.session import get_db
 from models.user import User
 from models.group import Group
@@ -470,6 +470,183 @@ async def admin_maintenance_notify(message: types.Message, bot: Bot, db: AsyncSe
             pass
             
     await message.answer(f"✅ Maintenance alert sent to {count} active users/groups.")
+
+@router.message(F.text == "/cleanup_db")
+async def admin_silent_cleanup(message: types.Message, bot: Bot, db: AsyncSession, lang: str):
+    """
+    Check all active users and groups via get_chat (silent)
+    and mark as inactive if inaccessible.
+    """
+    await message.answer(Messages.get("CLEANUP_STARTED", lang))
+
+    # Run in background to not block the bot
+    asyncio.create_task(run_silent_cleanup_task(message.chat.id, bot, lang))
+
+async def run_silent_cleanup_task(admin_chat_id: int, bot: Bot, lang: str):
+    from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest, TelegramRetryAfter
+    from sqlalchemy import select, update, delete
+    from models.quiz import Quiz
+    from models.session import QuizSession
+
+    # We need a new session for the background task
+    from db.session import AsyncSessionLocal as async_session_factory
+    async with async_session_factory() as session:
+        # First: Mass-delete all users already marked as inactive
+        # Order matters! Sessions -> Quizzes -> Users
+        # Fetch IDs into memory first to avoid subquery issues with concurrent deletions
+        res_u_ids = await session.execute(select(User.telegram_id).where(User.is_active == False))
+        inactive_user_ids = [r[0] for r in res_u_ids.fetchall()]
+
+        if inactive_user_ids:
+            try:
+                # 1. Sessions for inactive users
+                await session.execute(delete(QuizSession).where(QuizSession.user_id.in_(inactive_user_ids)))
+
+                # 2. Quizzes created by inactive users
+                res_q_ids = await session.execute(select(Quiz.id).where(Quiz.user_id.in_(inactive_user_ids)))
+                inactive_quiz_ids = [r[0] for r in res_q_ids.fetchall()]
+
+                if inactive_quiz_ids:
+                    # Delete sessions associated with these quizzes
+                    await session.execute(delete(QuizSession).where(QuizSession.quiz_id.in_(inactive_quiz_ids)))
+                    # Delete the quizzes
+                    await session.execute(delete(Quiz).where(Quiz.id.in_(inactive_quiz_ids)))
+
+                # 3. Finally delete the User records
+                res_u = await session.execute(delete(User).where(User.telegram_id.in_(inactive_user_ids)))
+                u_count = res_u.rowcount or 0
+            except Exception as e:
+                logger.error(f"Error in cleanup (mass delete): {e}")
+                u_count = 0
+        else:
+            u_count = 0
+
+        res_g = await session.execute(delete(Group).where(Group.is_active == False))
+        g_count = res_g.rowcount or 0
+
+        initial_dead_count = u_count + g_count
+        await session.commit()
+
+        # Get all IDs to check
+        res_users = await session.execute(select(User.telegram_id))
+        all_user_ids = [r[0] for r in res_users.fetchall()]
+
+        res_groups = await session.execute(select(Group.telegram_id))
+        all_group_ids = [r[0] for r in res_groups.fetchall()]
+
+        all_targets = all_user_ids + all_group_ids
+        user_ids_set = set(all_user_ids)
+
+        # Improved reporting: Total = Initial dead + items to check
+        check_count = len(all_targets)
+        report_total = initial_dead_count + check_count
+
+        if report_total == 0:
+            await bot.send_message(admin_chat_id, "ℹ️ No users to check.")
+            return
+
+        # Initial status message including already deleted ones
+        status_msg = await bot.send_message(
+            admin_chat_id,
+            Messages.get("CLEANUP_PROGRESS", lang).format(
+                current=initial_dead_count,
+                total=report_total,
+                percent=int((initial_dead_count/report_total)*100) if report_total > 0 else 100,
+                alive=0,
+                dead=initial_dead_count
+            ),
+            parse_mode="HTML"
+        )
+
+        dead_user_ids = []
+        dead_group_ids = []
+        alive_count = 0
+        dead_count = initial_dead_count
+
+        for i, target_id in enumerate(all_targets, 1):
+            try:
+                chat = await bot.get_chat(target_id)
+                alive_count += 1
+
+                # Refresh user info if it's a user
+                if target_id in user_ids_set:
+                    full_name = f"{chat.first_name} {chat.last_name}".strip() if chat.last_name else chat.first_name
+                    await session.execute(
+                        update(User)
+                        .where(User.telegram_id == target_id)
+                        .values(full_name=full_name, username=chat.username)
+                    )
+
+                await asyncio.sleep(settings.CLEANUP_SLEEP_SECONDS)
+            except TelegramForbiddenError:
+                dead_count += 1
+                if target_id in user_ids_set: dead_user_ids.append(target_id)
+                else: dead_group_ids.append(target_id)
+            except TelegramBadRequest as e:
+                if "chat not found" in str(e).lower():
+                    dead_count += 1
+                    if target_id in user_ids_set: dead_user_ids.append(target_id)
+                    else: dead_group_ids.append(target_id)
+            except TelegramRetryAfter as e:
+                await asyncio.sleep(e.retry_after + 1)
+            except Exception:
+                pass
+
+            # Periodic deletion and progress update
+            if i % settings.CLEANUP_BATCH_SIZE == 0 or i == check_count:
+                if dead_user_ids:
+                    try:
+                        # Satisfy FK constraints for batch deletion
+                        # 1. Sessions for dead users
+                        await session.execute(delete(QuizSession).where(QuizSession.user_id.in_(dead_user_ids)))
+
+                        # 2. Sessions for quizzes created by dead users
+                        dead_quiz_ids_query = select(Quiz.id).where(Quiz.user_id.in_(dead_user_ids))
+                        await session.execute(delete(QuizSession).where(QuizSession.quiz_id.in_(dead_quiz_ids_query)))
+
+                        # 3. Quizzes for dead users
+                        await session.execute(delete(Quiz).where(Quiz.user_id.in_(dead_user_ids)))
+
+                        # 4. User record
+                        await session.execute(delete(User).where(User.telegram_id.in_(dead_user_ids)))
+                        dead_user_ids = []
+                    except Exception as e:
+                        logger.error(f"Cleanup error (users): {e}")
+
+                if dead_group_ids:
+                    try:
+                        await session.execute(delete(Group).where(Group.telegram_id.in_(dead_group_ids)))
+                        dead_group_ids = []
+                    except:
+                        pass
+
+                await session.commit()
+
+                # Update progress message
+                try:
+                    current_processed = initial_dead_count + i
+                    await bot.edit_message_text(
+                        chat_id=admin_chat_id,
+                        message_id=status_msg.message_id,
+                        text=Messages.get("CLEANUP_PROGRESS", lang).format(
+                            current=current_processed,
+                            total=report_total,
+                            percent=int((current_processed/report_total)*100),
+                            alive=alive_count,
+                            dead=dead_count
+                        ),
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass # Message might not have changed or was deleted
+
+        await bot.send_message(
+            admin_chat_id,
+            Messages.get("CLEANUP_FINISHED_MSG", lang).format(
+                total=report_total,
+                dead=dead_count
+            )
+        )
 
 # Backup Section
 @router.message(F.text.in_([Messages.get("ADMIN_BACKUP_BTN", "UZ"), Messages.get("ADMIN_BACKUP_BTN", "EN")]))
