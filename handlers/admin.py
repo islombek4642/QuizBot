@@ -245,10 +245,12 @@ async def admin_broadcast_init(message: types.Message, state: FSMContext, lang: 
 
 @router.message(QuizStates.ADMIN_BROADCAST_MSG)
 async def admin_broadcast_capture(message: types.Message, state: FSMContext, lang: str):
-    # Check if it's a cancel button (Enhanced check)
+    # Check if it's a cancel button (Ultra-Enhanced check)
+    text_lower = message.text.lower() if message.text else ""
     is_cancel = message.text in [Messages.get("CANCEL_BTN", "UZ"), Messages.get("CANCEL_BTN", "EN")]
+    
     if not is_cancel and message.text:
-        if message.text.startswith("🚫") or "Bekor qilish" in message.text or "Cancel" in message.text:
+        if message.text.startswith("🚫") or "bekor" in text_lower or "cancel" in text_lower or "otmen" in text_lower:
             is_cancel = True
 
     if is_cancel:
@@ -326,6 +328,13 @@ async def admin_broadcast_confirm(message: types.Message, state: FSMContext, bot
     data = await state.get_data()
     content = data.get("broadcast_content")
     original_msg_id = data.get("preview_message_id")
+    
+    # FINAL SAFETY CHECK: Ensure we are not broadcasting "Cancel" text
+    text_content = content.get("text", "").lower()
+    if len(text_content) < 30 and ("bekor" in text_content or "cancel" in text_content or "🚫" in text_content):
+        await state.clear()
+        await message.answer("⚠️ <b>Safety Stop:</b> It looks like you are trying to broadcast the 'Cancel' button text.\n\nBroadcast aborted.", reply_markup=get_main_keyboard(lang, settings.ADMIN_ID))
+        return
     
     # Save broadcast CONTENT for new users (Persistent independent of admin chat history)
     await redis.set("global_settings:last_broadcast_content", json.dumps(content))
