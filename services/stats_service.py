@@ -22,8 +22,8 @@ class StatsService:
         Calculate and add points with HIGH DIFFICULTY (Hard Mode).
         Correct: +5 | Incorrect: -10 | Timeout: -5
         """
-        # 1. Get user stats
-        result = await self.db.execute(select(UserStat).filter(UserStat.user_id == user_id))
+        # 1. Get user stats with lock for transaction safety
+        result = await self.db.execute(select(UserStat).filter(UserStat.user_id == user_id).with_for_update())
         user_stat = result.scalar_one_or_none()
         
         if not user_stat:
@@ -77,7 +77,8 @@ class StatsService:
             total_delta = -user_stat.total_points # Reduce exactly to 0
         
         # 4. Update stats
-        user_stat.total_answered += 1
+        if action_type in ['correct', 'incorrect', 'timeout']:
+            user_stat.total_answered += 1
         user_stat.total_points += total_delta
         user_stat.last_activity = datetime.utcnow()
 

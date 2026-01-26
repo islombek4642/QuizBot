@@ -45,3 +45,8 @@ class PointLog(Base):
 Index("idx_points_timestamp", PointLog.timestamp, PointLog.points)
 Index("idx_points_user_timestamp", PointLog.user_id, PointLog.timestamp)
 Index("idx_points_chat_timestamp", PointLog.chat_id, PointLog.timestamp)
+
+# User-recommended performance indexes
+Index("idx_pointlog_user_time", PointLog.user_id, PointLog.timestamp)
+Index("idx_pointlog_chat_user", PointLog.chat_id, PointLog.user_id)
+Index("idx_pointlog_quiz_user", PointLog.quiz_id, PointLog.user_id)
