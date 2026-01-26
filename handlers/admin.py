@@ -525,6 +525,9 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
             Messages.get("SELECT_BUTTON", lang),
             reply_markup=get_main_keyboard(lang, settings.ADMIN_ID)
         )
+    # Prevent accidental broadcasting of commands
+    if message.text and message.text.startswith("/") and len(message.text) < 20: 
+        await message.answer(Messages.get("BROADCAST_COMMAND_ERROR", lang))
         return
 
     # Get all active users and groups (telegram_id only)
