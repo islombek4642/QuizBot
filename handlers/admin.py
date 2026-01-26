@@ -583,6 +583,7 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
             
             # If forbidden or chat not found, mark as inactive
             if "forbidden" in err_msg or "chat not found" in err_msg:
+                from sqlalchemy import update
                 if target_id in user_ids_set:
                     dead_user_ids.append(target_id)
                     # Also deactivate active sessions for this user
