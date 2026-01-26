@@ -6,7 +6,8 @@ from sqlalchemy import select, func, desc, update
 from db.session import get_db
 from models.user import User
 from models.group import Group
-from models.quiz import Quiz, QuizSession
+from models.quiz import Quiz
+from models.session import QuizSession
 from constants.messages import Messages
 from handlers.common import QuizStates, get_main_keyboard, get_admin_ai_keyboard, get_admin_backup_keyboard, get_cancel_keyboard
 from core.config import settings
