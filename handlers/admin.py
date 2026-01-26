@@ -545,7 +545,8 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
     user_success = 0
     group_success = 0
     
-    progress_msg = await message.answer(f"🚀 Broadcasting... 0/{len(all_targets)}")
+    # Remove Cancel keyboard immediately
+    progress_msg = await message.answer(f"🚀 Broadcasting... 0/{len(all_targets)}", reply_markup=types.ReplyKeyboardRemove())
     
     for i, target_id in enumerate(all_targets, 1):
         try:
