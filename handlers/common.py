@@ -21,6 +21,7 @@ class QuizStates(StatesGroup):
     ADMIN_SETTING_GENERATE_COOLDOWN = State()
     ADMIN_SETTING_CONVERT_COOLDOWN = State()
     ADMIN_BROADCAST_MSG = State()
+    ADMIN_BROADCAST_CONFIRM = State()
     SELECTING_MODE = State()
     WAITING_FOR_RANGE = State()
     WAITING_FOR_RANDOM_COUNT = State()
