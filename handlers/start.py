@@ -172,6 +172,33 @@ async def process_contact(
 async def check_and_deliver_broadcast(bot: Bot, user_id: int, redis, user=None):
     """Deliver last broadcast if available in Redis"""
     try:
+        # Try robust content-based broadcast first
+        content_raw = await redis.get("global_settings:last_broadcast_content")
+        if content_raw:
+            c = json.loads(content_raw)
+            msg_type = c.get("type", "text")
+            
+            # Reconstruct entities
+            from aiogram.types import MessageEntity
+            entities = [MessageEntity(**e) for e in c.get("entities", [])] if c.get("entities") else None
+            
+            if msg_type == "text":
+                await bot.send_message(user_id, c["text"], entities=entities)
+            elif msg_type == "photo":
+                await bot.send_photo(user_id, c["file_id"], caption=c.get("caption"), caption_entities=entities)
+            elif msg_type == "video":
+                await bot.send_video(user_id, c["file_id"], caption=c.get("caption"), caption_entities=entities)
+            elif msg_type == "document":
+                await bot.send_document(user_id, c["file_id"], caption=c.get("caption"), caption_entities=entities)
+            elif msg_type == "audio":
+                await bot.send_audio(user_id, c["file_id"], caption=c.get("caption"), caption_entities=entities)
+            elif msg_type == "voice":
+                await bot.send_voice(user_id, c["file_id"], caption=c.get("caption"), caption_entities=entities)
+            elif msg_type == "animation":
+                await bot.send_animation(user_id, c["file_id"], caption=c.get("caption"), caption_entities=entities)
+            return
+
+        # Fallback to old reference-based copy
         data = await redis.get("global_settings:last_broadcast")
         if data:
             broadcast = json.loads(data)

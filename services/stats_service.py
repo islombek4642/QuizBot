@@ -162,7 +162,7 @@ class StatsService:
             "rank": i,
             "user_id": row.user_id,
             "name": row.full_name or f"User {row.user_id}",
-            "username": row.username,
+            # "username": row.username,  <-- REMOVED per user request
             "score": int(row.score)
         } for i, row in enumerate(rows, 1)]
 
@@ -201,7 +201,6 @@ class StatsService:
         result = await self.db.execute(query)
         rows = result.all()
 
-        return [{
             "quiz_id": row.quiz_id if row.quiz_id else 0,
             "title": row.title if row.title else "Noma'lum / O'chirilgan test",
             "score": int(row.total_score),

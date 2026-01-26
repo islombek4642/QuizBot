@@ -616,11 +616,34 @@ async def admin_broadcast_execute(message: types.Message, state: FSMContext, bot
     if dead_user_ids or dead_group_ids:
         await db.commit()
     
-    # Save as last broadcast for new users
-    await redis.set("global_settings:last_broadcast", json.dumps({
-        "from_chat_id": message.chat.id,
-        "message_id": message.message_id
-    }))
+    # Save broadcast CONTENT for new users (Persistent independent of admin chat history)
+    content = {
+        "text": message.text or message.caption,
+        "caption": message.caption,
+        "entities": [e.model_dump() for e in (message.entities or message.caption_entities or [])],
+        "type": "text"
+    }
+    
+    if message.photo:
+        content["type"] = "photo"
+        content["file_id"] = message.photo[-1].file_id
+    elif message.video:
+        content["type"] = "video"
+        content["file_id"] = message.video.file_id
+    elif message.document:
+        content["type"] = "document"
+        content["file_id"] = message.document.file_id
+    elif message.animation:
+        content["type"] = "animation"
+        content["file_id"] = message.animation.file_id
+    elif message.audio:
+        content["type"] = "audio"
+        content["file_id"] = message.audio.file_id
+    elif message.voice:
+        content["type"] = "voice"
+        content["file_id"] = message.voice.file_id
+        
+    await redis.set("global_settings:last_broadcast_content", json.dumps(content))
     
     await state.clear()
     await message.answer(
